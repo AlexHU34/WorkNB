@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Сборщик NEBULA BLOOM.
+
+Задача: приложение должно работать офлайн одним файлом (открыл index.html —
+и играешь), но код при этом живёт в куче модулей, а не в монолите на полмегабайта.
+
+Как это работает:
+  src/engine/*.js и прочие *.js  — модули движка, подключаются в index.html
+                                   через <script src="src/...">.
+  index.html / lang.html         — «исходники»: разметка + собственный скрипт.
+
+build.py делает две вещи:
+
+  python build.py            → dist/NebulaBloom.html   (приложение одним файлом)
+                              dist/BloomScript.html    (редактор одним файлом)
+
+Модули инлайнятся на место тега <script src="...">. Порядок не меняется:
+файл подключается раньше основного скрипта, значит и в сборке движок должен
+оказаться раньше него. Поэтому инлайн идёт по порядку возрастания src,
+а не по алфавиту.
+
+Проверка сборки: после сборки гоняются штатные гейты tools/run-tests.py.
+"""
+
+import html
+import io
+import os
+import re
+import shutil
+import subprocess
+import sys
+import datetime
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(ROOT, "src")
+DIST = os.path.join(ROOT, "dist")
+TOOLS = os.path.join(ROOT, "tools")
+
+# Имя исходника -> имя собранного файла.
+TARGETS = [
+    ("index.html", "NebulaBloom.html"),
+    ("lang.html", "BloomScript.html"),
+]
+
+SRC_RE = re.compile(
+    r'^[ \t]*<script\s+src=["\']([^"\']+)["\']\s*></script>[ \t]*\r?\n?',
+    re.M,
+)
+
+
+def log(msg):
+    sys.stdout.write(msg + "\n")
+    sys.stdout.flush()
+
+
+def find_chrome():
+    for c in (
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    ):
+        if os.path.isfile(c):
+            return c
+    w = shutil.which("chrome") or shutil.which("google-chrome") or shutil.which("chromium")
+    return w
+
+
+def resolve(src_rel, depth=0):
+    """Путь из атрибута src -> абсолютный путь на диске.
+
+    Ссылка в HTML пишется от корня проекта: src="src/engine/e3.js",
+    поэтому отсчитываем от ROOT, а не от SRC.
+    """
+    if depth > 8:
+        sys.exit("слишком глубокая вложенность script src: " + src_rel)
+    p = os.path.normpath(os.path.join(ROOT, src_rel.replace("/", os.sep)))
+    if not os.path.isfile(p):
+        sys.exit("НЕТ ФАЙЛА: %s (на диске искали %s)" % (src_rel, p))
+    return p
+
+
+def inline(html_text, label):
+    """Заменяет <script src=...> на содержимое файла. Возвращает (текст, счётчик)."""
+    n = 0
+
+    def repl(m):
+        nonlocal n
+        rel = m.group(1)
+        path = resolve(rel)
+        with io.open(path, encoding="utf-8") as f:
+            code = f.read()
+        # </script> внутри строковых литералов закрыл бы инлайн-тег.
+        code = code.replace("</script>", "<\\/script>")
+        n += 1
+        log("    %-34s %6d Б  (%s)" % (rel, len(code.encode("utf-8")), label))
+        return "<!-- %s -->\n<script>\n%s\n</script>\n" % (rel, code)
+
+    return SRC_RE.sub(repl, html_text), n
+
+
+def build():
+    if not os.path.isdir(DIST):
+        os.makedirs(DIST)
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    results = []
+    for entry, outname in TARGETS:
+        src_html = os.path.join(ROOT, entry)
+        if not os.path.isfile(src_html):
+            log("ПРОПУЩЕН %s — файла нет" % entry)
+            continue
+        with io.open(src_html, encoding="utf-8") as f:
+            text = f.read()
+        refs = len(SRC_RE.findall(text))
+        log("")
+        log("=== %s -> dist/%s ===" % (entry, outname))
+        if refs == 0:
+            log("    внешних модулей нет, копия как есть")
+        text, n = inline(text, entry)
+        if n != refs:
+            log("    ВНИМАНИЕ: найдено тегов %d, инлайнено %d" % (refs, n))
+        out = os.path.join(DIST, outname)
+        with io.open(out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        kb = os.path.getsize(out) // 1024
+        log("    готово: dist/%s — %d КБ, модулей встроено %d" % (outname, kb, n))
+        results.append((entry, outname, out, kb, n))
+    log("")
+    log("сборка завершена: %s" % stamp)
+    return results
+
+
+def verify(results):
+    """Гоняет штатные гейты по СОБРАННОМУ файлу.
+
+    Гейты читают index.html из корня, поэтому собранный файл временно
+    подменяется на время прогона и возвращается обратно в finally.
+    """
+    log("")
+    log("=== ПРОВЕРКА СБОРКИ ===")
+    ok = True
+    for entry, outname, out, kb, n in results:
+        if n == 0:
+            log("  %s: модулей нет, гейты не меняем" % outname)
+            continue
+        target = next((x for x in TARGETS if x[0] == entry), None)
+        if not target:
+            continue
+        tester = None
+        if entry == "index.html":
+            tester = os.path.join(TOOLS, "run-tests.py")
+        elif entry == "lang.html":
+            tester = os.path.join(TOOLS, "lang-tests.py")
+        if not (tester and os.path.isfile(tester)):
+            log("  %s: нет тестера, пропуск" % outname)
+            continue
+
+        original = out + ".orig"
+        os.replace(out, original)
+        shutil.copyfile(os.path.join(ROOT, entry), out)
+        try:
+            log("  %s: %s" % (outname, os.path.basename(tester)))
+            r = subprocess.run([sys.executable, tester], cwd=ROOT,
+                               capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            tail = [l for l in r.stdout.splitlines() if l.strip()][-4:]
+            for l in tail:
+                log("      " + l)
+            if r.returncode != 0:
+                ok = False
+                log("      FAIL (код %d)" % r.returncode)
+        finally:
+            os.replace(original, out)
+            log("      исходник на месте")
+    log("")
+    log("ИТОГ ПРОВЕРКИ: " + ("PASS" if ok else "FAIL"))
+    return ok
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        log(__doc__)
+        return 0
+    if not os.path.isdir(SRC):
+        sys.exit("нет каталога src/")
+    results = build()
+    if not results:
+        sys.exit("ничего не собрано")
+    if "--no-verify" not in sys.argv:
+        if not verify(results):
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

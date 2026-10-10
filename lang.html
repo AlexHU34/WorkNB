@@ -1,0 +1,3385 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>BLOOMSCRIPT — свой язык программирования для NEBULA BLOOM</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  /* палитра VS Code Dark+ */
+  --vs-bg:#1e1e1e; --vs-side:#252526; --vs-act:#333333; --vs-panel:#1f1f1f;
+  --vs-status:#007acc; --vs-border:#2b2b2b; --vs-border2:#3c3c3c;
+  --vs-txt:#cccccc; --vs-txt2:#a0a0a0; --vs-dim:#6e7681; --vs-white:#ffffff;
+  --vs-blue:#4daafc; --vs-blue2:#3794ff; --vs-green:#89d185; --vs-yellow:#cca700;
+  --vs-orange:#ce9178; --vs-purple:#c586c0; --vs-red:#f44747; --vs-sel:#264f78;
+  --vs-font:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+  --mono:'Cascadia Code','Cascadia Mono',Consolas,'Courier New',monospace;
+}
+body{
+  font-family:var(--vs-font);font-size:13px;color:var(--vs-txt);
+  background:var(--vs-bg);height:100vh;overflow:hidden;
+}
+button{font-family:var(--vs-font);font-size:13px;cursor:pointer;color:inherit;background:none;border:none}
+::-webkit-scrollbar{width:14px;height:14px}
+::-webkit-scrollbar-thumb{background:rgba(121,121,121,.4)}
+::-webkit-scrollbar-thumb:hover{background:rgba(100,100,100,.7)}
+::-webkit-scrollbar-corner{background:transparent}
+.spacer{flex:1}.grow{flex:1}
+
+/* ================= КАРКАС ================= */
+.vs{display:flex;height:100vh;overflow:hidden}
+.actbar{
+  width:48px;flex:0 0 48px;background:var(--vs-act);display:flex;flex-direction:column;
+  align-items:center;padding:0;
+}
+.act{
+  width:48px;height:48px;display:grid;place-items:center;color:rgba(255,255,255,.4);
+  position:relative;transition:.1s;
+}
+.act .ico{font-size:20px;line-height:1}
+.act:hover{color:rgba(255,255,255,.85)}
+.act.on{color:var(--white)}
+.act.on::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--white)}
+.actSep{width:30px;height:1px;background:rgba(255,255,255,.14);margin:8px 0}
+
+.side{
+  width:270px;flex:0 0 270px;background:var(--vs-side);display:flex;flex-direction:column;
+  overflow:hidden;border-right:1px solid rgba(255,255,255,.06);
+}
+.side.collapsed{width:0;flex-basis:0;border:none}
+.sideSec{display:flex;flex-direction:column;min-height:0;flex:1;overflow:hidden}
+.sideSec[hidden]{display:none}
+.secHead{
+  height:35px;flex:0 0 35px;display:flex;align-items:center;gap:8px;padding:0 12px;
+  font-size:11px;letter-spacing:.6px;color:rgba(255,255,255,.95);font-weight:400;
+  background:var(--vs-side);
+}
+.secHead span{margin-left:auto;font-size:11px;color:var(--vs-dim)}
+.secHead .mini{
+  margin-left:6px;width:20px;height:20px;display:grid;place-items:center;font-size:10px;
+  color:var(--vs-txt2);border-radius:3px;
+}
+.secHead .mini:hover{background:rgba(255,255,255,.1);color:#fff}
+.secHead .mini[aria-expanded="true"]{color:var(--white);background:rgba(255,255,255,.12)}
+
+/* проводник */
+.treeHead{
+  font-size:11px;padding:5px 12px;color:var(--vs-dim);letter-spacing:.4px;margin-top:6px;
+  border-top:1px solid rgba(255,255,255,.06);padding-top:8px;
+}
+.tree{flex:1;min-height:0;overflow:auto;padding-bottom:10px}
+.treeItem{
+  display:flex;align-items:center;gap:7px;width:100%;text-align:left;padding:4px 12px 4px 22px;
+  color:var(--vs-txt);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.treeItem:hover{background:rgba(255,255,255,.06)}
+.treeItem.on{background:var(--vs-sel);color:#fff}
+.treeItem .ext{color:var(--vs-dim);font-size:12px}
+.treeItem.on .ext{color:#cfe6ff}
+.sideBtns{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-top:1px solid rgba(255,255,255,.06)}
+.sideBtns button{text-align:left;padding:5px 10px;border-radius:3px;color:var(--vs-txt)}
+.sideBtns button:hover{background:rgba(255,255,255,.08)}
+.sideBtns .danger:hover{background:rgba(244,71,71,.2);color:#ff8a8a}
+
+/* ================= РАБОЧАЯ ОБЛАСТЬ ================= */
+.ws{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--vs-bg)}
+.tabsrow{
+  height:35px;flex:0 0 35px;display:flex;align-items:stretch;background:var(--vs-bg);
+  border-bottom:1px solid var(--vs-border);
+}
+.tabfile{
+  display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--vs-panel);
+  color:var(--vs-txt2);font-size:13px;border-right:1px solid var(--vs-border);position:relative;
+}
+.tabfile.on{color:var(--white);background:var(--vs-bg)}
+.tabfile.on::before{content:'';position:absolute;left:0;right:0;top:0;height:1px;background:var(--vs-blue)}
+.fdot{width:9px;height:9px;border-radius:50%;background:var(--vs-green);flex:0 0 auto}
+.crumbs{display:flex;align-items:center;padding:0 14px;font-size:12px;color:var(--vs-dim)}
+.tbtn{
+  align-self:center;margin-right:6px;padding:4px 12px;border-radius:4px;font-size:12.5px;
+  color:var(--vs-txt);background:rgba(255,255,255,.06);
+}
+.tbtn:hover:not(:disabled){background:rgba(255,255,255,.13);color:#fff}
+.tbtn:disabled{opacity:.4;cursor:default}
+.tbtn#btnRun{background:var(--vs-blue);color:#fff}
+.tbtn#btnRun:hover:not(:disabled){background:var(--vs-blue2)}
+.tbtn#btnStop{background:rgba(244,71,71,.25);color:#ffb3b3}
+.tbtn#btnStop:hover:not(:disabled){background:rgba(244,71,71,.45)}
+
+.work{flex:1;min-height:0;display:flex;overflow:hidden}
+.grp{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--vs-border);overflow:hidden}
+.grp:last-child{border-right:none}
+.grpHead{
+  height:30px;flex:0 0 30px;display:flex;align-items:center;gap:10px;padding:0 12px;
+  font-size:11px;letter-spacing:.6px;color:var(--vs-dim);background:var(--vs-bg);
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.grpHead span:last-child{margin-left:auto;font-size:11px;color:var(--vs-dim)}
+.grp[hidden]{display:none}
+
+/* редактор */
+.edBox{position:relative;flex:1;min-height:0;background:var(--vs-bg);overflow:hidden}
+.edBox[hidden]{display:none}
+#hl,#ed,#hl2,#ed2{
+  position:absolute;inset:0;margin:0;padding:8px 0 40px 56px;
+  font:14px/19px var(--mono);white-space:pre;overflow:auto;border:0;tab-size:4;
+  letter-spacing:0;word-spacing:0;
+}
+#hl,#hl2{pointer-events:none;color:var(--vs-txt);z-index:1}
+  /* Поле слева под номера строк: заполнено, синхронизировано с прокруткой.
+     Ширина 56px совпадает с padding слева у textarea и подсветки — иначе
+     текст и номера разъедутся по горизонтали. */
+  .gutter{
+    position:absolute;left:0;top:0;bottom:0;width:56px;z-index:3;
+    padding:8px 8px 40px 0;margin:0;
+    font:14px/19px var(--mono);text-align:right;white-space:pre;
+    color:#4b5263;background:var(--vs-bg);
+    border-right:1px solid rgba(255,255,255,.06);
+    overflow:hidden;user-select:none;pointer-events:none;
+  }
+  .gutter .cur{color:#c6c6c6}
+  .gutter .err{color:#f87171;font-weight:700}
+#ed,#ed2{background:transparent;color:transparent;caret-color:#aeafad;resize:none;z-index:2;outline:none}
+#ed::selection,#ed2::selection{background:#264f78}
+.tk-key{color:var(--vs-purple)} .tk-num{color:#b5cea8} .tk-str{color:#ce9178}
+.tk-com{color:#6a9955;font-style:italic} .tk-fn{color:#dcdcaa}
+.tk-op{color:var(--vs-txt)} .tk-id{color:#9cdcfe} .tk-idb{color:var(--vs-blue)}
+.bad{background:rgba(244,71,71,.25);border-bottom:1px solid var(--vs-red)}
+
+/* игра */
+#stage{
+  flex:1;min-height:0;overflow:auto;padding:12px;display:flex;flex-direction:column;
+  align-items:center;gap:10px;background:var(--vs-bg);position:relative;
+}
+canvas#game{
+  display:block;max-width:100%;height:auto;border:1px solid var(--vs-border2);
+  background:#0e1420;
+}
+details.help{
+  width:100%;max-width:860px;flex:0 0 auto;max-height:40%;overflow:auto;
+  background:var(--vs-panel);border:1px solid var(--vs-border);border-radius:3px;
+}
+details.help summary{
+  padding:7px 12px;cursor:pointer;font-size:12px;color:var(--vs-blue);list-style:none;
+  user-select:none;
+}
+details.help summary::-webkit-details-marker{display:none}
+details.help summary::before{content:'▸ ';display:inline-block;transition:.15s}
+details.help[open] summary::before{transform:rotate(90deg)}
+.helpBody{padding:6px 18px 18px;columns:2;column-gap:30px;font-size:12.5px;line-height:1.6}
+.helpBody h4{
+  margin:16px 0 6px;color:var(--vs-blue);font-size:11px;letter-spacing:.8px;
+  text-transform:uppercase;font-weight:700;break-after:avoid;
+}
+.helpBody code{background:#2d2d2d;padding:1px 5px;border-radius:3px;color:#ce9178;font:12px var(--mono)}
+.helpBody pre{
+  background:var(--vs-panel);border:1px solid var(--vs-border);border-radius:3px;
+  padding:10px 12px;overflow:auto;font:12px/1.6 var(--mono);margin:8px 0;break-inside:avoid;
+}
+.sig{color:var(--vs-green);font-weight:700}
+
+/* задача урока */
+.lCard{flex:0 0 auto;padding:14px 16px;background:var(--vs-panel);
+  border-bottom:1px solid var(--vs-border);max-height:56%;overflow:auto}
+.lCardTop{display:flex;gap:10px;align-items:baseline;margin-bottom:8px}
+.lCardTop b{font-size:14.5px}
+.lId{font:11px var(--mono);color:var(--vs-dim)}
+.lTaskText{margin:0 0 10px;font-size:13.5px;line-height:1.7;color:#d4d4d4}
+.lTaskText code,.lHintText code{background:#2d2d2d;padding:1px 6px;border-radius:3px;
+  color:#ce9178;font:12px var(--mono)}
+.lHintText{margin:0;font-size:12.5px;color:var(--vs-dim);font-style:italic;line-height:1.65}
+.lHintText.on{color:var(--vs-yellow);font-style:normal}
+.lOut{
+  margin-top:12px;padding:10px 12px;font-size:12.5px;white-space:pre-wrap;
+  background:var(--vs-bg);border-left:2px solid var(--vs-border2);color:var(--vs-txt2);
+  line-height:1.6;
+}
+.lOut.okout{border-left-color:var(--vs-green);color:var(--vs-green);background:rgba(137,209,133,.07)}
+.lOut.errout{border-left-color:var(--vs-red);color:#ff8a8a;background:rgba(244,71,71,.08)}
+.lEmpty{color:var(--vs-dim);font-size:13px;line-height:1.8}
+.lPreview{display:block;width:100%;max-width:520px;height:auto;margin:12px auto 0;
+  border:1px solid var(--vs-border2);background:#0e1420}
+.grpActions{display:flex;gap:6px;align-items:center;padding:8px 12px;
+  border-bottom:1px solid var(--vs-border);background:var(--vs-bg);flex-wrap:wrap}
+.grpActions button{padding:5px 12px;border-radius:3px;font-size:12.5px;
+  background:rgba(255,255,255,.07);color:var(--vs-txt)}
+.grpActions button:hover:not(:disabled){background:rgba(255,255,255,.14);color:#fff}
+.grpActions button:disabled{opacity:.4;cursor:default}
+.grpActions .pri{background:var(--vs-blue);color:#fff}
+.grpActions .pri:hover:not(:disabled){background:var(--vs-blue2);color:#fff}
+.dimTxt{font-size:11.5px;color:var(--vs-dim)}
+
+/* обучение в сайдбаре */
+.lWrap{flex:1;min-height:0;overflow:auto;padding:4px 0 14px}
+.lWrap[hidden]{display:none}
+.lMini{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:14px 14px;justify-content:center}
+.lMini[hidden]{display:none}
+.lMiniBar{height:6px;background:#333;border-radius:3px;overflow:hidden}
+.lMiniBar i{display:block;height:100%;background:var(--vs-blue);transition:.3s}
+.lMiniRow{display:flex;align-items:center;font-size:11.5px;color:var(--vs-txt2)}
+.lMiniStreak{margin-left:auto;color:#e2b96a}
+.lMiniHint{font-size:11px;color:var(--vs-dim);line-height:1.5}
+.lTop{display:flex;gap:8px;padding:6px 12px}
+.lCoins,.lStreak{
+  display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;font-weight:600;
+  border:1px solid var(--vs-border2);border-radius:3px;background:var(--vs-bg);
+}
+.lCoins{color:var(--vs-yellow)} .lStreak{color:#e2b96a}
+.lStreak small{font-size:10.5px;color:var(--vs-dim);font-weight:400}
+.lProg{padding:0 12px 8px;display:flex;flex-direction:column;gap:5px}
+.lProg .bar{height:6px;background:#333;border-radius:3px;overflow:hidden}
+.lProg .bar i{display:block;height:100%;background:var(--vs-blue);transition:.3s}
+.lProg span{font-size:11px;color:var(--vs-dim)}
+.lTopic{margin:10px 0 0}
+.lTopic.locked{opacity:.5}
+.lTopicHead{
+  display:flex;justify-content:space-between;align-items:center;padding:6px 12px;
+  font-size:11px;letter-spacing:.5px;color:var(--vs-blue);text-transform:uppercase;
+  border-top:1px solid rgba(255,255,255,.07);
+}
+.lTopicHead span{color:var(--vs-dim);letter-spacing:0;text-transform:none}
+.lLesson{
+  display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:4px 12px 4px 24px;
+  color:var(--vs-txt);font-size:12.5px;border-left:2px solid transparent;
+}
+.lLesson:hover{background:rgba(255,255,255,.06)}
+.lLesson.cur{background:var(--vs-sel);color:#fff;border-left-color:#fff}
+.lLesson.done .mark{color:var(--vs-green)}
+.lLesson .mark{width:14px;font-size:11px;color:var(--vs-dim);flex:0 0 auto}
+.lLesson .txt{display:flex;flex-direction:column;min-width:0}
+.lLesson .txt b{font-weight:400;font-size:12.5px}
+.lLesson .txt em{font-style:normal;font-size:10.5px;color:var(--vs-dim)}
+.lLesson.done .txt b{color:var(--vs-green)}
+.lLocked{padding:6px 12px 6px 24px;font-size:12px;color:var(--vs-dim);font-style:italic}
+.lShop{margin-top:14px}
+.lBuy{display:block;width:100%;text-align:left;padding:5px 12px 5px 24px;font-size:12.5px;color:var(--vs-txt)}
+.lBuy:hover:not(:disabled){background:rgba(255,255,255,.06)}
+.lBuy:disabled{opacity:.45;cursor:default}
+
+/* ================= НИЖНЯЯ ПАНЕЛЬ ================= */
+.panel{height:190px;flex:0 0 190px;display:flex;flex-direction:column;border-top:1px solid var(--vs-border)}
+.panelTabs{
+  height:35px;flex:0 0 35px;display:flex;align-items:stretch;gap:2px;
+  background:var(--vs-bg);border-bottom:1px solid var(--vs-border);
+}
+.ptab{
+  padding:0 12px;font-size:11px;letter-spacing:.6px;color:var(--vs-dim);
+  border-bottom:1px solid transparent;position:relative;
+}
+.ptab:hover{color:var(--vs-txt2)}
+.ptab.on{color:var(--white);border-bottom-color:var(--white)}
+.prob{background:#4d4d4d;border-radius:8px;padding:0 5px;font-size:10px;margin-left:4px}
+.panelBody{
+  flex:1;overflow:auto;padding:6px 12px;font:12px/1.6 var(--mono);background:var(--vs-panel);
+}
+.panelBody[hidden]{display:none}
+#console .ok,.lConsole .ok{color:#6bd968}
+#console .err,.lConsole .err{color:#f44747;white-space:pre-wrap}
+#console .warn,.lConsole .warn{color:#cca700}
+#console .info,.lConsole .info{color:var(--vs-txt2)}
+#console .val,.lConsole .val{color:#9cdcfe}
+
+/* ================= СТРОКА СОСТОЯНИЯ ================= */
+.statusbar{
+  height:22px;flex:0 0 22px;display:flex;align-items:center;background:var(--vs-status);
+  color:#fff;font-size:11.5px;padding:0 4px;overflow:hidden;white-space:nowrap;
+}
+.sbItem{padding:0 8px;display:flex;align-items:center;height:100%;white-space:nowrap;
+  flex:0 0 auto;overflow:hidden;text-overflow:ellipsis}
+.sbItem:hover{background:rgba(255,255,255,.14)}
+.sbBrand{font-weight:600;letter-spacing:.3px}
+.statusbar .grow{min-width:8px}
+
+/* ================= АВТОДОПОЛНЕНИЕ ================= */
+.acBox{
+  position:absolute;z-index:20;min-width:280px;max-width:430px;max-height:290px;overflow:auto;
+  background:#252526;border:1px solid #454545;border-radius:3px;box-shadow:0 4px 14px rgba(0,0,0,.5);
+  padding:2px;
+}
+.acBox[hidden]{display:none}
+.acHead{padding:4px 8px;font-size:11px;color:var(--vs-dim);border-bottom:1px solid #3c3c3c;
+  margin-bottom:2px;white-space:nowrap;position:sticky;top:-2px;background:#252526}
+.acItem{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:3px 8px;
+  border-radius:2px;color:var(--vs-txt);font-size:12.5px}
+.acItem:hover{background:rgba(255,255,255,.09)}
+.acItem.on{background:var(--vs-sel);color:#fff}
+.acName{font:12.5px var(--mono);min-width:92px;color:#9cdcfe}
+.acItem.on .acName{color:#fff}
+.acKind{font-size:10px;padding:0 6px;border-radius:8px;background:#3c3c3c;color:var(--vs-txt2);flex:0 0 auto}
+.acKind.own{background:rgba(137,209,133,.18);color:var(--vs-green)}
+.acHint{margin-left:auto;font-size:11px;color:var(--vs-dim);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+
+/* ================= МОДАЛЬНОЕ ОКНО ================= */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;
+  align-items:center;justify-content:center;padding:40px}
+.mask[hidden]{display:none}
+.dlg{background:var(--vs-bg);border:1px solid var(--vs-border2);border-radius:4px;
+  width:min(1000px,100%);height:min(720px,88vh);display:flex;flex-direction:column;
+  box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden}
+.dlgHead{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--vs-act);
+  font-size:12px;letter-spacing:.5px;text-transform:uppercase}
+.dlgHead button{padding:3px 10px;border-radius:3px;background:rgba(255,255,255,.1);font-size:12px}
+.dlgHead button:hover{background:rgba(255,255,255,.2)}
+.dlgBody{display:grid;grid-template-columns:210px 1fr;min-height:0;flex:1}
+.dlgList{overflow:auto;border-right:1px solid var(--vs-border);padding:6px 0;background:var(--vs-side)}
+.dlgList button{display:block;width:100%;text-align:left;padding:4px 14px;font-size:12.5px;
+  border-left:2px solid transparent}
+.dlgList button:hover{background:rgba(255,255,255,.06)}
+.dlgList button.on{background:var(--vs-sel);color:#fff;border-left-color:#fff}
+.dlgEdit{display:flex;flex-direction:column;min-width:0}
+.dlgEdit textarea{flex:1;background:var(--vs-bg);color:var(--vs-txt);border:0;outline:none;
+  resize:none;padding:12px 14px;font:13px/1.6 var(--mono)}
+.dlgFoot{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--vs-border)}
+.dlgFoot button{padding:4px 12px;border-radius:3px;background:rgba(255,255,255,.08);font-size:12.5px}
+.dlgFoot button:hover{background:rgba(255,255,255,.15)}
+.dlgFoot .go{background:var(--vs-blue);color:#fff}
+.dlgFoot .go:hover{background:var(--vs-blue2)}
+.dlgFoot .hint{margin-right:auto}
+
+.task{position:absolute;left:0;right:0;top:0;z-index:4;background:rgba(30,30,30,.97);
+  border-bottom:1px solid var(--vs-border);padding:10px 14px;font-size:12.5px;line-height:1.6}
+.task[hidden]{display:none}
+
+@media (max-width:1100px){
+  .side{width:210px;flex-basis:210px}
+  .helpBody{columns:1}
+}
+</style>
+</head>
+<body>
+<div class="vs">
+
+  <!-- ============ ACTIVITY BAR ============ -->
+  <div class="actbar">
+    <button class="act on" data-sec="explorer" title="Проводник"><span class="ico">▤</span></button>
+    <button class="act" data-sec="learn" title="Обучение"><span class="ico">✦</span></button>
+    <button class="act" data-sec="modules" title="Модули"><span class="ico">◫</span></button>
+    <div class="actSep"></div>
+    <button class="act" id="actRun" title="Запустить (F5)"><span class="ico">▶</span></button>
+    <button class="act" id="actTest" title="Самопроверка"><span class="ico">✓</span></button>
+    <button class="act" id="actPublish" title="Сохранить игру, чтобы запустить её в приложении"><span class="ico">📤</span></button>
+  </div>
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side" id="side">
+    <div class="sideSec" data-panel="explorer">
+      <div class="secHead">ПРОЕКТ<span id="secStat">—</span></div>
+      <div class="treeHead">ИГРА</div>
+      <div class="tree" id="treeSamples"></div>
+      <div class="treeHead">БЫСТРЫЙ СТАРТ</div>
+      <div class="tree">
+        <button class="treeItem" id="tiLearn">✦ Обучение</button>
+        <button class="treeItem" id="tiModules">◫ Модули</button>
+        <button class="treeItem" id="tiTest">✓ Самопроверка</button>
+      </div>
+    </div>
+
+    <div class="sideSec" data-panel="learn" hidden>
+      <div class="secHead">ОБУЧЕНИЕ<span id="secStatLearn">—</span>
+        <button id="lToggleList" class="mini" title="Свернуть / развернуть список">▶</button>
+      </div>
+      <div class="lMini" id="lMini">
+        <div class="lMiniBar"><i id="lMiniBar" style="width:0%"></i></div>
+        <div class="lMiniRow"><span id="lMiniStat">0 / 11 · 0 ◈</span>
+          <span class="lMiniStreak">🔥 <span id="lMiniStreak">0</span></span></div>
+        <div class="lMiniHint">Стрелка сверху открывает список уроков</div>
+      </div>
+      <div class="lWrap" id="lWrap">
+        <div class="lTop">
+          <div class="lCoins"><span class="ico">◈</span><span id="lCoinsV">0</span></div>
+          <div class="lStreak"><span class="ico">🔥</span><span id="lStreakV">0</span><small id="lBestV"></small></div>
+        </div>
+        <div class="lProg"><div class="bar"><i id="lBar" style="width:0%"></i></div><span id="lProgV">0 / 11 уроков</span></div>
+        <div id="learnBody" class="lBody"></div>
+      </div>
+    </div>
+
+    <div class="sideSec" data-panel="modules" hidden>
+      <div class="secHead">МОДУЛИ<span id="secStatMod">—</span></div>
+      <div class="tree" id="treeModules"></div>
+      <div class="sideBtns">
+        <button id="miNew">+ Новый</button>
+        <button id="miOpen">Открыть редактор</button>
+        <button id="miDel" class="danger">Удалить</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ WORKSPACE ============ -->
+  <div class="ws">
+
+    <!-- вкладки редактора -->
+    <div class="tabsrow">
+      <div class="tabfile on"><span class="fdot"></span><span id="fileName">game.bs</span></div>
+      <div class="crumbs" id="crumbs">ИГРА › game.bs</div>
+      <div class="spacer"></div>
+      <button class="tbtn" id="btnRun" title="Запустить игру (F5)">▶ Запустить</button>
+      <button class="tbtn" id="btnStop" disabled>■ Стоп</button>
+    </div>
+
+    <!-- рабочая область -->
+    <div class="work">
+      <section class="grp" id="grpTask" hidden>
+        <div class="grpHead">ЗАДАНИЕ<span id="lTaskTopic">—</span></div>
+        <div id="lTaskCard" class="lCard">
+          <div class="lEmpty">Открой урок в проводнике — здесь появится задание.</div>
+        </div>
+        <div class="grpActions">
+          <button id="lCheck" class="pri" disabled>✓ Проверить</button>
+          <button id="lHint" disabled>Подсказка</button>
+          <button id="lRun" disabled>▶ Запустить</button>
+          <button id="lNext" disabled>Следующий →</button>
+          <span class="grow"></span>
+          <span class="dimTxt" id="lCoinsHint"></span>
+        </div>
+      </section>
+
+      <section class="grp">
+        <div class="grpHead"><span id="edTitle">РЕДАКТОР</span><span id="lineInfo">стр. 1, кол. 1</span></div>
+        <div id="edWrap2" class="edBox" hidden>
+          <div class="edWrapInner">
+            <pre class="gutter" id="gutter2"></pre>
+            <pre id="hl2"></pre>
+            <textarea id="ed2" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+            <div class="acBox" id="acLearn" hidden></div>
+          </div>
+        </div>
+        <div id="edWrap" class="edBox">
+          <pre class="gutter" id="gutter"></pre>
+          <pre id="hl"></pre>
+          <textarea id="ed" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+          <div class="acBox" id="acMain" hidden></div>
+        </div>
+      </section>
+
+      <section class="grp" id="grpGame">
+        <div class="grpHead">ИГРА<span id="stat">—</span></div>
+        <div id="stage">
+          <canvas id="game" width="1280" height="760"></canvas>
+          <div id="task" class="task" hidden></div>
+        </div>
+        <details class="help" id="helpBox"><summary>Справочник языка</summary>
+          <div class="helpBody" id="helpBody"></div>
+        </details>
+      </section>
+    </div>
+
+    <!-- нижняя панель -->
+    <div class="panel">
+      <div class="panelTabs">
+        <button class="ptab on">ВЫВОД</button>
+        <button class="ptab">КОНСОЛЬ</button>
+        <button class="ptab">ПРОБЛЕМЫ <span id="probCount" class="prob">0</span></button>
+        <div class="spacer"></div>
+        <span class="dimTxt" id="modStat">Tab — автодополнение</span>
+      </div>
+      <div id="console" class="panelBody"></div>
+      <div id="lConsole" class="panelBody" hidden></div>
+    </div>
+
+    <!-- строка состояния -->
+<div class="statusbar">
+      <span class="sbItem sbBrand">◈ BLOOMSCRIPT</span>
+      <span class="sbItem" id="sbScreen">экран: game</span>
+      <span class="sbItem" id="sbLang">BloomScript</span>
+      <span class="grow"></span>
+      <span class="sbItem" id="sbCoins">◈ 0</span>
+      <span class="sbItem" id="sbStreak">🔥 0</span>
+      <span class="sbItem" id="sbLimit">лимит шагов</span>
+      <span class="sbItem" id="sbFps">— мс</span>
+    </div>
+  </div>
+</div>
+<!-- Редактор модулей -->
+<div class="mask" id="modMask" hidden>
+  <div class="dlg">
+    <div class="dlgHead">
+      <strong>МОДУЛИ (.bs)</strong>
+      <button id="modNew">+ Новый</button>
+      <button id="modDelete">Удалить</button>
+      <div style="flex:1"></div>
+      <button id="modClose">Закрыть</button>
+    </div>
+    <div class="dlgBody">
+      <div class="dlgList" id="modList"></div>
+      <div class="dlgEdit"><textarea id="modEd" spellcheck="false"></textarea></div>
+    </div>
+    <div class="dlgFoot">
+      <span class="hint" id="modHint">В коде: import "имя.bs"</span>
+      <button id="modSave" class="go">Сохранить модуль</button>
+    </div>
+  </div>
+</div>
+
+<!-- Движок E3 — тот же файл, что у приложения (Фаза 0.2).
+     Своей копии движка больше нет: расхождение исключено по построению.
+     При сборке build.py этот тег заменяется содержимым файла. -->
+
+<!-- Движок E3 — общий с приложением (Фаза 0.2). -->
+<script src="src/engine/e3.js"></script>
+<!-- Ядро интерпретатора — общее с приложением (Фаза 0.3). -->
+<script src="src/lang/core.js"></script>
+<!-- Игровая среда — общая с приложением (Фаза 0.3). -->
+<script src="src/lang/runtime.js"></script>
+<script>
+"use strict";
+/* ============================================================================
+   BLOOMSCRIPT — интерпретатор языка поверх 3D-движка NEBULA BLOOM.
+   Движок не копия, а тот же самый файл, что у приложения:
+   <script src="src/engine/e3.js"> подключается выше. Расхождение движков
+   больше невозможно по построению.
+
+   Сортировка по глубине, отсечение и заливка — внутри E3.draw().
+   ========================================================================== */
+
+/* ============================================================ ЛЕКСЕР / ТОКЕНЫ */
+
+/* Игровая среда — фабрика createRuntime, общая с приложением (Фаза 0.3). */
+/* Среда редактора. Фабрика общая с приложением (Фаза 0.3), но полотно
+   и вывод здесь свои: у редактора это #game и консоль снизу. */
+const RT = createRuntime({
+  canvas: document.getElementById("game"),
+  stat: document.getElementById("stat"),
+  log: (msg, cls) => printToConsole(msg, cls),
+  clear: () => { for (const d of consoleKids) if (d && d.parentNode) d.parentNode.removeChild(d); consoleKids = []; },
+  status: (screen, ms) => {
+    const s = document.getElementById("sbScreen");
+    if (s) s.textContent = "экран: " + screen;
+    const f = document.getElementById("sbFps");
+    if (f) f.textContent = ms.toFixed(0) + " мс";
+  }
+});
+
+/* Вывод редактора. В режиме обучения строки идут в отдельную консоль урока,
+   иначе — в общую снизу. Список строк храним, а не чистим innerHTML:
+   очистка не должна выбрасывать чужие узла. */
+let consoleKids = [];
+const lConsoleEl = document.getElementById("lConsole");
+function consoleBox() {
+  return (typeof isLearnView === "function" && isLearnView() && lConsoleEl)
+    ? lConsoleEl
+    : document.getElementById("console");
+}
+function printToConsole(msg, cls) {
+  const box = consoleBox();
+  if (!box) return;
+  const d = document.createElement("div");
+  d.className = cls || "info";
+  d.textContent = msg;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+  consoleKids.push(d);
+  while (consoleKids.length > 300) {
+    const old = consoleKids.shift();
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+}
+
+/* Вывод страницы (среда, интерфейс, проверки) — в ту же консоль. */
+function out(msg, cls) { printToConsole(msg, cls); }
+function clearConsole() { for (const d of consoleKids) if (d && d.parentNode) d.parentNode.removeChild(d); consoleKids = []; }
+const { S, G, NAT, NAT_METHODS, HOST, interp, hooks, mouse, keysDown, keysHit,
+        inRect, inRectStrict, roundRect, shadeHex, saveGame, loadGame,
+        collectHooks, drawWidgets, updateWidgetInput, tone, noise, SFX,
+        defineGlobals } = RT;
+
+/* ======================================================= РЕДАКТОР И ПОДСВЕТКА */
+const ed = document.getElementById("ed");
+const hl = document.getElementById("hl");
+const gutter = document.getElementById("gutter");
+const gutter2 = document.getElementById("gutter2");
+const lineInfo = document.getElementById("lineInfo");
+
+/* --- Номера строк (Фаза 6) ---
+ * Раньше слева было пустое поле в 56px: место зарезервировано, а номеров
+ * нет — при ошибке «строка 42» искать нечего. Теперь рисуем номера и
+ * подсвечиваем текущую строку и строку с ошибкой.
+ *
+ * Номера строятся один раз на изменение текста, не на каждый кадр:
+ * тысячи DOM-узлов на каждое движение мыши — верный способ убить кадр. */
+let gutterCache = { text: "", lines: -1, html: "" };
+
+function buildGutter(ta, gut, errLine) {
+  const src = ta.value;
+  const n = src.split("\n").length;
+  const cur = lineOfPos(ta, ta.selectionStart || 0);
+  if (gut._src === src && gut._cur === cur && gut._err === errLine) return;
+  let h = "";
+  for (let i = 1; i <= n; i++) {
+    const cls = i === errLine ? "err" : (i === cur ? "cur" : "");
+    h += cls ? '<span class="' + cls + '">' + i + "</span>\n" : i + "\n";
+  }
+  gut.innerHTML = "<span class='gn'>" + h + "</span>";
+  gut._src = src;
+  gut._cur = cur;
+  gut._err = errLine;
+  gut._inner = gut.firstChild;
+  syncGutterScroll(ta, gut);
+}
+
+function lineOfPos(ta, pos) {
+  return ta.value.slice(0, pos).split("\n").length;
+}
+
+/* Прокрутка. Сдвигаем не scrollTop, а содержимое: у поля overflow:hidden,
+   и короткий текст просто не прокручивается — полосы нет, а текст есть.
+   Сдвиг содержимого работает всегда и одинаково для короткого и длинного. */
+function syncGutterScroll(ta, gut) {
+  if (gut._inner) gut._inner.style.transform = "translateY(" + (-ta.scrollTop) + "px)";
+}
+ed.addEventListener("scroll", () => syncGutterScroll(ed, gutter));
+ed.addEventListener("keyup", () => buildGutter(ed, gutter, ed._errLine || 0));
+ed.addEventListener("click", () => buildGutter(ed, gutter, ed._errLine || 0));
+{
+  const t2 = document.getElementById("ed2"), g2 = document.getElementById("gutter2");
+  if (t2 && g2) {
+    t2.addEventListener("scroll", () => syncGutterScroll(t2, g2));
+    t2.addEventListener("keyup", () => buildGutter(t2, g2, t2._errLine || 0));
+    t2.addEventListener("click", () => buildGutter(t2, g2, t2._errLine || 0));
+  }
+}
+const btnRun = document.getElementById("btnRun");
+const btnStop = document.getElementById("btnStop");
+
+/* Запуск и остановка живут здесь, в редакторе: среда не знает про кнопки,
+   редактор знает. Код запуска — из поля редактора, ошибки — в консоль. */
+function start() {
+  btnRun.disabled = true;
+  btnStop.disabled = false;
+  if (!RT.launch(ed.value)) {
+    btnRun.disabled = false;
+    btnStop.disabled = true;
+    return false;
+  }
+  if (!RT.hooks.draw) out("подсказка: добавь fn draw()", "warn");
+  return true;
+}
+function stop() {
+  RT.stopLoop();
+  btnRun.disabled = false;
+  btnStop.disabled = true;
+}
+
+function highlight(src) {
+  let h = "", i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    if (c === "/" && src[i+1] === "/") { let j = i; while (j < n && src[j] !== "\n") j++; h += '<span class="tk-com">' + esc(src.slice(i, j)) + "</span>"; i = j; continue; }
+    if (c === "/" && src[i+1] === "*") { let j = i+2; while (j < n && !(src[j] === "*" && src[j+1] === "/")) j++; j = Math.min(n, j+2); h += '<span class="tk-com">' + esc(src.slice(i, j)) + "</span>"; i = j; continue; }
+    if (c === '"' || c === "'") {
+      let j = i+1;
+      while (j < n && src[j] !== c) { if (src[j] === "\\") j++; j++; }
+      j = Math.min(n, j+1);
+      h += '<span class="tk-str">' + esc(src.slice(i, j)) + "</span>"; i = j; continue;
+    }
+    if (/[0-9]/.test(c)) {
+      let j = i; while (j < n && /[0-9._eE+-]/.test(src[j])) j++;
+      h += '<span class="tk-num">' + esc(src.slice(i, j)) + "</span>"; i = j; continue;
+    }
+    if (/[A-Za-z_$]/.test(c) || c.charCodeAt(0) > 127) {
+      let j = i; while (j < n && isIdCh(src[j])) j++;
+      const w = src.slice(i, j);
+      const cls = KEYWORDS.has(w) ? "tk-key" : (/^[a-z]+$/.test(w) && NAT[w] ? "tk-fn" : "tk-id");
+      h += '<span class="' + cls + '">' + esc(w) + "</span>"; i = j; continue;
+    }
+    if (OPS2.indexOf(c) >= 0 || OPS1.indexOf(c) >= 0) {
+      const two = src.substr(i, 2);
+      if (OPS2.indexOf(two) >= 0) { h += '<span class="tk-op">' + esc(two) + "</span>"; i += 2; continue; }
+      h += '<span class="tk-op">' + esc(c) + "</span>"; i++; continue;
+    }
+    h += esc(c); i++;
+  }
+  return h + "\n";
+}
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+let errLine = 0;
+function markError(e) {
+   errLine = (e && e.line) || 0;
+   refresh();
+   const l = ed.value.slice(0, ed.selectionStart).split("\n").length;
+   lineInfo.textContent = "строка " + l + (errLine ? " · ошибка в строке " + errLine : "");
+ }
+
+/* ==================================================== АВТОДОПОЛНЕНИЕ (Tab) */
+/* Имена из трёх источников: встроенные функции движка, объявления в коде
+   (переменные, функции, классы, методы) и экспорт модулей .bs.
+   Tab дописывает подсказку, Enter принимает, стрелки выбирают. */
+const NAT_HINTS = (function () {
+  const groups = {
+    "геометрия": ["box", "pyramid", "tri", "quad", "ground", "sprite", "shadow", "group", "add", "clear"],
+    "камера и фон": ["camera", "bg", "lit"],
+    "экран 2D": ["text", "bar"],
+    "ввод": ["key", "keyhit", "mouseX", "mouseY", "clicked"],
+    "время и счёт": ["time", "width", "height", "score", "win", "lose", "setPaused", "paused"],
+    "состояние": ["set", "get", "has", "stateKeys", "best", "save", "load"],
+    "таймеры": ["after", "every", "cancel"],
+    "экраны": ["screen", "setScreen"],
+    "интерфейс": ["label", "panel", "button", "slider", "toggle", "progress", "widgetValue", "widgetSet", "overButton"],
+    "звук": ["sound", "tone", "noise", "mute", "muted"],
+    "физика": ["hitBox", "hitCircle", "approach", "wrap", "angleLerp"],
+    "математика": ["sin", "cos", "sqrt", "abs", "floor", "ceil", "round", "int", "trunc", "sign",
+                    "min", "max", "pow", "atan2", "hypot", "lerp", "clamp", "mod", "rnd", "dist2"],
+    "массивы и строки": ["push", "len", "str", "isNum", "isStr"],
+    "вывод": ["print", "toast"],
+    "константы": ["PI", "TAU", "KEY_LEFT", "KEY_RIGHT", "KEY_UP", "KEY_DOWN", "KEY_SPACE"]
+  };
+  const out = [];
+  for (const g in groups) for (const n of groups[g]) out.push({ name: n, kind: "движок", hint: g });
+  return out;
+})();
+
+const KW_HINTS = [
+  ["let", "переменная"], ["const", "постоянная"], ["fn", "функция"], ["class", "класс"],
+  ["extends", "наследование"], ["new", "создать объект"], ["this", "текущий объект"],
+  ["super", "базовый класс"], ["return", "вернуть значение"], ["if", "условие"],
+  ["elif", "иначе если"], ["else", "иначе"], ["while", "цикл"], ["for", "цикл"],
+  ["in", "обход"], ["break", "выйти из цикла"], ["continue", "следующий шаг"],
+  ["try", "обработка ошибки"], ["catch", "поймать ошибку"], ["finally", "всегда выполнить"],
+  ["throw", "своя ошибка"], ["import", "подключить модуль"], ["as", "псевдоним"],
+  ["enum", "перечисление"], ["static", "статический метод"], ["typeof", "тип значения"],
+  ["and", "и"], ["or", "или"], ["not", "не"],
+  ["true", "истина"], ["false", "ложь"], ["null", "пустое значение"]
+].map(x => ({ name: x[0], kind: "язык", hint: x[1] }));
+
+/* Имена, объявленные в коде пользователя. */
+function scanUserNames(src) {
+  const res = new Map();
+  const add = (name, kind, hint) => {
+    if (!name || res.has(name)) return;
+    res.set(name, { name: name, kind: kind, hint: hint });
+  };
+  const lines = src.split("\n");
+  const stack = [];
+  for (let li = 0; li < lines.length; li++) {
+    const raw = lines[li];
+    const line = raw.trim();
+    if (!line || line.indexOf("//") === 0) continue;
+    const indent = raw.length - raw.replace(/^\s+/, "").length;
+    while (stack.length && indent <= stack[stack.length - 1].indent) stack.pop();
+    let m;
+    if ((m = /^fn\s+([A-Za-z_$][\w$]*)/.exec(line))) {
+      if (stack.length) add(m[1], "метод", "метод " + stack[stack.length - 1].name);
+      else add(m[1], "функция", "строка " + (li + 1));
+    } else if ((m = /^(?:let|const)\s+([A-Za-z_$][\w$]*)/.exec(line))) {
+      add(m[1], "переменная", (line.indexOf("const") === 0 ? "const · " : "") + "строка " + (li + 1));
+    } else if ((m = /^class\s+([A-Za-z_$][\w$]*)/.exec(line))) {
+      add(m[1], "класс", "строка " + (li + 1));
+      stack.push({ name: m[1], indent: indent });
+    }
+  }
+  return Array.from(res.values());
+}
+
+function moduleNames() {
+  const out = [];
+  for (const n in MODULE_SRC) {
+    let mod;
+    try { mod = compileModule(n); } catch (e) { continue; }
+    if (!mod) continue;
+    for (const k in mod.exports) out.push({ name: k, kind: "модуль", hint: n });
+  }
+  return out;
+}
+
+let acItems = [], acIndex = 0, acStart = 0;
+
+function acBoxFor(ta) { return ta === ed ? acBoxMain : acBoxLearn; }
+function markLine() {
+   const l = ed.value.slice(0, ed.selectionStart).split("\n").length;
+   lineInfo.textContent = "стр. " + l + (errLine ? " · ошибка в строке " + errLine : "");
+   buildGutter(ed, gutter, errLine);
+ }
+
+function currentWord(ta, pos) {
+  let s = pos;
+  while (s > 0 && /[A-Za-z0-9_$]/.test(ta.value[s - 1])) s--;
+  return { start: s, word: ta.value.slice(s, pos) };
+}
+
+function buildCandidates(word, src) {
+  const lw = word.toLowerCase();
+  const all = [].concat(
+    scanUserNames(src),
+    moduleNames(),
+    NAT_HINTS.map(x => ({ name: x.name, kind: x.kind, hint: x.hint })),
+    KW_HINTS
+  );
+  const seen = new Set(), out = [];
+  for (const c of all) {
+    if (seen.has(c.name)) continue;
+    seen.add(c.name);
+    if (word && c.name.toLowerCase().indexOf(lw) !== 0) continue;
+    out.push(c);
+  }
+  const rank = c => {
+    if (c.kind === "переменная" || c.kind === "функция" || c.kind === "класс" || c.kind === "метод") return 0;
+    if (c.kind === "модуль") return 1;
+    return c.kind === "движок" ? 2 : 3;
+  };
+  out.sort((a, b) => rank(a) - rank(b) || a.name.length - b.name.length || a.name.localeCompare(b.name));
+  return out;
+}
+
+function hideAC() {
+  acItems = [];
+  acBoxMain.hidden = true;
+  acBoxLearn.hidden = true;
+}
+
+function acPlace(ta) {
+  const box = acBoxFor(ta);
+  if (!box || box.hidden) return;
+  const cs = getComputedStyle(ta);
+  const lh = parseFloat(cs.lineHeight) || 21;
+  const before = ta.value.slice(0, ta.selectionStart).split("\n");
+  const row = before.length - 1;
+  const probe = document.createElement("span");
+  probe.style.font = cs.font;
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.whiteSpace = "pre";
+  probe.textContent = before[before.length - 1];
+  document.body.appendChild(probe);
+  const wpx = probe.getBoundingClientRect().width;
+  document.body.removeChild(probe);
+  const w = ta.offsetWidth;
+  box.style.left = Math.max(0, Math.min(ta.scrollLeft + wpx - ta.scrollLeft, w - 60)) + "px";
+  box.style.top = (row * lh + lh + 3 - ta.scrollTop) + "px";
+}
+
+function renderAC() {
+  for (const box of [acBoxMain, acBoxLearn]) {
+    if (box.hidden) continue;
+    let h = '<div class="acHead">Tab — дописать · Enter — принять · Esc — закрыть</div>';
+    acItems.forEach((c, i) => {
+      const own = (c.kind === "переменная" || c.kind === "функция" || c.kind === "класс" || c.kind === "метод") ? "own" : "sys";
+      h += '<button class="acItem' + (i === acIndex ? " on" : "") + '" data-i="' + i + '">' +
+        '<span class="acName">' + esc(c.name) + "</span>" +
+        '<span class="acKind ' + own + '">' + esc(c.kind) + "</span>" +
+        '<span class="acHint">' + esc(c.hint) + "</span></button>";
+    });
+    box.innerHTML = h;
+    for (const b of box.querySelectorAll(".acItem")) {
+      b.onmousedown = ev => { ev.preventDefault(); acceptAC(acOwner, +b.getAttribute("data-i")); };
+    }
+  }
+}
+
+let acOwner = null;   /* редактор, для которого открыт список */
+
+function openAC(ta, word, start) {
+  acItems = buildCandidates(word, ta.value).slice(0, 20);
+  if (!acItems.length) return false;
+  acOwner = ta;
+  acIndex = 0;
+  acStart = start;
+  const box = acBoxFor(ta);
+  renderAC();
+  acPlace(ta);
+  box.hidden = false;
+  acPlace(ta);
+  return true;
+}
+
+function acceptAC(ta, idx) {
+  const c = acItems[idx === undefined ? acIndex : idx];
+  if (!c || !ta) return;
+  const pos = ta.selectionStart;
+  ta.value = ta.value.slice(0, acStart) + c.name + ta.value.slice(pos);
+  const np = acStart + c.name.length;
+  ta.selectionStart = ta.selectionEnd = np;
+  hideAC();
+  if (ta === ed) { refresh(); markLine(); } else { ed2Refresh(); }
+}
+
+function acKeydown(ta, e) {
+  const box = acBoxFor(ta);
+  const open = box && !box.hidden && acItems.length;
+  if (open) {
+    if (e.key === "ArrowDown") { e.preventDefault(); acIndex = (acIndex + 1) % acItems.length; renderAC(); return true; }
+    if (e.key === "ArrowUp") { e.preventDefault(); acIndex = (acIndex - 1 + acItems.length) % acItems.length; renderAC(); return true; }
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); acceptAC(ta, acIndex); return true; }
+    if (e.key === "Escape") { e.preventDefault(); hideAC(); return true; }
+  }
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const s = ta.selectionStart, en = ta.selectionEnd;
+    if (s === en && !e.shiftKey) {
+      const w = currentWord(ta, s);
+      if (w.word.length >= 2) {
+        const cands = buildCandidates(w.word, ta.value);
+        /* ровно одно совпадение — дописываем сразу, без списка */
+        if (cands.length === 1) {
+          ta.value = ta.value.slice(0, w.start) + cands[0].name + ta.value.slice(en);
+          ta.selectionStart = ta.selectionEnd = w.start + cands[0].name.length;
+          if (ta === ed) { refresh(); markLine(); } else { ed2Refresh(); }
+          return true;
+        }
+        if (openAC(ta, w.word, w.start)) return true;
+      }
+    }
+    ta.value = ta.value.slice(0, s) + "    " + ta.value.slice(en);
+    ta.selectionStart = ta.selectionEnd = s + 4;
+    if (ta === ed) { refresh(); markLine(); } else { ed2Refresh(); }
+    return true;
+  }
+  return false;
+}
+
+function refresh() {
+   hl.innerHTML = highlight(ed.value);
+   hl.scrollTop = ed.scrollTop;
+   hl.scrollLeft = ed.scrollLeft;
+   ed._errLine = errLine;
+   buildGutter(ed, gutter, errLine);
+ }
+ed.addEventListener("input", () => { refresh(); if (!acBoxMain.hidden) { const w = currentWord(ed, ed.selectionStart); openAC(ed, w.word, w.start); } });
+ed.addEventListener("scroll", () => {
+  hl.scrollTop = ed.scrollTop;
+  hl.scrollLeft = ed.scrollLeft;
+  acPlace(ed);
+});
+ed.addEventListener("click", () => {
+  const w = currentWord(ed, ed.selectionStart);
+  if (w.word.length >= 2) openAC(ed, w.word, w.start); else hideAC();
+});
+ed.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== acBoxMain) acBoxMain.hidden = true; }, 150));
+ed.addEventListener("keydown", e => {
+  if (acKeydown(ed, e)) return;
+  markLine();
+});
+btnRun.onclick = start;
+btnStop.onclick = stop;
+const btnTest = document.getElementById("actTest");
+if (btnTest) btnTest.onclick = selfTest;
+
+/* ============================================ МЕТРИКИ ИСПОЛЬЗОВАНИЯ ФУНКЦИЙ */
+/* Считает, какие встроенные функции реально применяются в коде игрока и
+   в эталонных решениях уроков: по этому списку решаем, что оставлять. */
+function usageReport() {
+  const all = Object.keys(NAT);
+  const used = new Map();
+  const scan = src => {
+    for (const nm of all) {
+      const re = new RegExp("(^|[^\\w$.])" + nm.replace(/[$]/g, "\\$") + "\\s*\\(", "g");
+      const n = (src.match(re) || []).length;
+      if (n) used.set(nm, (used.get(nm) || 0) + n);
+    }
+  };
+  scan(ed.value || "");
+  for (const L of LESSONS) scan((L.solution || "") + "\n" + (L.starter || ""));
+  const usedNames = Array.from(used.keys()).sort();
+  const unused = all.filter(n => usedNames.indexOf(n) < 0);
+  const lines = [
+    "всего встроенных: " + all.length,
+    "используется: " + usedNames.length + " — " + usedNames.join(", "),
+    "не используется: " + unused.length,
+    "чаще всего: " + Array.from(used.entries()).sort((a, b) => b[1] - a[1]).slice(0, 14)
+      .map(x => x[0] + "×" + x[1]).join(", ")
+  ];
+  reportTo("usagereport", lines.map(t => ({ cls: "info", text: t })));
+}
+
+/* ======================================================== РЕДАКТОР МОДУЛЕЙ */
+const modMask = document.getElementById("modMask");
+const modList = document.getElementById("modList");
+const modEd = document.getElementById("modEd");
+const modHint = document.getElementById("modHint");
+const modPick = document.getElementById("modulePick");   /* может отсутствовать в шапке */
+const edTitle = document.getElementById("edTitle");
+let modCur = null;
+
+function modNames() { return Object.keys(MODULE_SRC).sort(); }
+
+function refreshModuleList() {
+  modList.innerHTML = "";
+  for (const n of modNames()) {
+    const b = document.createElement("button");
+    b.textContent = n;
+    if (n === modCur) b.className = "on";
+    b.onclick = () => { modCur = n; modEd.value = MODULE_SRC[n]; refreshModuleList(); };
+    modList.appendChild(b);
+  }
+}
+
+function refreshModulePicker() {
+  if (!modPick) return;
+  const prev = modPick.value;
+  modPick.innerHTML = "";
+  for (const n of modNames()) {
+    const o = document.createElement("option");
+    o.value = n;
+    o.textContent = n;
+    modPick.appendChild(o);
+  }
+  if (prev) modPick.value = prev;
+}
+
+function openModules() {
+  modCur = modNames()[0] || null;
+  if (modCur) modEd.value = MODULE_SRC[modCur];
+  refreshModuleList();
+  modMask.hidden = false;
+}
+
+function saveModule() {
+  let name = (modPick && modPick.value) || "";
+  if (!name) { name = window.prompt("Имя модуля:", "my.bs") || ""; }
+  if (!name) return;
+  if (!/\.bs$/i.test(name)) name += ".bs";
+  registerModule(name, modEd.value);
+  try {
+    compileModule(name);
+    modHint.textContent = "Модуль " + name + " сохранён и скомпилирован.";
+    out("Модуль сохранён: " + name, "ok");
+  } catch (e) {
+    modHint.textContent = "Ошибка: " + e.message;
+    out("Модуль " + name + " не скомпилирован: " + e.message, "err");
+  }
+  modCur = name;
+  refreshModuleList();
+  refreshModulePicker();
+}
+
+if (document.getElementById("btnModule")) document.getElementById("btnModule").onclick = openModules;
+document.getElementById("modClose").onclick = () => { modMask.hidden = true; };
+document.getElementById("modSave").onclick = saveModule;
+document.getElementById("modNew").onclick = () => {
+  const n = window.prompt("Новый модуль (имя файла):", "my.bs");
+  if (!n) return;
+  const name = /\.bs$/i.test(n) ? n : n + ".bs";
+  registerModule(name, "// модуль " + name + "\n\nfn hello() {\n    return \"привет из \" + \"" + name + "\"\n}\n");
+  modCur = name;
+  modEd.value = MODULE_SRC[name];
+  refreshModuleList();
+  refreshModulePicker();
+};
+document.getElementById("modDelete").onclick = () => {
+  if (!modCur) return;
+  if (BUILTIN_MODULES[modCur]) { out("Встроенный модуль удалить нельзя: " + modCur, "warn"); return; }
+  delete MODULE_SRC[modCur];
+  delete MODULE_CACHE[modCur];
+  modCur = modNames()[0] || null;
+  if (modCur) modEd.value = MODULE_SRC[modCur];
+  refreshModuleList();
+  refreshModulePicker();
+};
+
+/* ==================================================================== ОБУЧЕНИЕ */
+/* Не «туториал с кнопкой Далее», а тренажёр: уровни с проверкой, монеты,
+   серия побед (win streak), разблокировка тем по мере прогресса. */
+const LEARN_KEY = "bloomscript.learn.v1";
+
+const LESSONS = [
+  {
+    id: "hello", topic: "Основы",
+    title: "Переменная и print",
+    task: "Создай <code>x = 7</code> и напечатай его. <b>Цель: 7</b>",
+    hint: "<code>let x = 7</code> — создать. <code>print(x)</code> — напечатать.",
+    check: (g, r) => r === 7,
+    give: 10,
+    starter: "",
+    solution: "let x = 7\nprint(x)\n"
+  },
+  {
+    id: "math", topic: "Основы",
+    title: "Сложение",
+    task: "<code>x = 10</code>, <code>y = x + 5</code>, напечатай <code>y</code>. <b>Цель: 15</b>",
+    hint: "Вторая переменная считается от первой: <code>let y = x + 5</code>",
+    check: (g, r) => r === 15,
+    give: 10,
+    starter: "let x = 10\n",
+    solution: "let x = 10\nlet y = x + 5\nprint(y)\n"
+  },
+  {
+    id: "if", topic: "Основы",
+    title: "Условие if",
+    task: "Если <code>n = 15</code> больше 10 — напечатай <code>&quot;да&quot;</code>, иначе <code>&quot;нет&quot;</code>.",
+    hint: "Двоеточие и отступ: <code>if n &gt; 10:</code> с новой строки на 4 пробела.",
+    check: (g, r) => r === "да",
+    give: 15,
+    starter: "let n = 15\n",
+    solution: "let n = 15\nif n > 10:\n    print(\"да\")\nelse:\n    print(\"нет\")\n"
+  },
+  {
+    id: "loop", topic: "Основы",
+    title: "Цикл for",
+    task: "Сложи числа от 1 до 5 и напечатай сумму. <b>Цель: 15</b>",
+    hint: "<code>let s = 0</code>, потом <code>for i in 1..5:</code> и тело с отступом.",
+    check: (g, r) => r === 15,
+    give: 15,
+    starter: "let s = 0\n",
+    solution: "let s = 0\nfor i in 1..5:\n    s = s + i\nprint(s)\n"
+  },
+  {
+    id: "fn", topic: "Основы",
+    title: "Функция",
+    task: "<code>fn double(n)</code> возвращает <code>n * 2</code>. Напечатай <code>double(21)</code>. <b>Цель: 42</b>",
+    hint: "<code>fn double(n):</code> — двоеточие, тело с отступом.",
+    check: (g, r) => r === 42,
+    give: 20,
+    starter: "",
+    solution: "fn double(n):\n    return n * 2\n\nprint(double(21))\n"
+  },
+  {
+    id: "array", topic: "Основы",
+    title: "Массив и len",
+    task: "Массив из трёх чисел, напечатай его длину. <b>Цель: 3</b>",
+    hint: "<code>let a = [1, 2, 3]</code> и <code>print(len(a))</code>",
+    check: (g, r) => r === 3,
+    give: 15,
+    starter: "",
+    solution: "let a = [1, 2, 3]\nprint(len(a))\n"
+  },
+  {
+    id: "scene", topic: "Графика",
+    title: "Первый куб",
+    task: "Нарисуй куб: <code>box(0, 1, 0, 2, 2, 2, &quot;#ff8800&quot;)</code>. Кубик появится в окне игры.",
+    hint: "Сцена рисуется только из <code>fn draw():</code>. Камера и фон ставятся там же.",
+    checkRun: (g) => g.faces >= 1,
+    give: 25,
+    starter: "fn draw():\n    camera(0, 5, -14, 0, 0.3)\n    bg(\"#1e293b\", \"#0f172a\")\n    ground(40, 40, \"#334155\")\n    ",
+    solution: "fn draw():\n    camera(0, 5, -14, 0, 0.3)\n    bg(\"#1e293b\", \"#0f172a\")\n    ground(40, 40, \"#334155\")\n    box(0, 1, 0, 2, 2, 2, \"#ff8800\")\n",
+    graphics: true
+  },
+  {
+    id: "move", topic: "Графика",
+    title: "Движение",
+    task: "В <code>fn update(dt):</code> двигай <code>x</code> вправо по <code>KEY_RIGHT</code>. Нажми «Запустить» и держи стрелку.",
+    hint: "<code>if key(KEY_RIGHT):</code> и тело с отступом.",
+    checkRun: (g) => g.ranUpdate && g.faces >= 1,
+    give: 30,
+    starter: "let x = 0\n\nfn update(dt):\n    \n\nfn draw():\n    camera(x, 5, -14, 0, 0.3)\n    bg(\"#1e293b\", \"#0f172a\")\n    ground(40, 40, \"#334155\")\n    ",
+    solution: "let x = 0\n\nfn update(dt):\n    if key(KEY_RIGHT):\n        x = x + 6 * dt\n\nfn draw():\n    camera(x, 5, -14, 0, 0.3)\n    bg(\"#1e293b\", \"#0f172a\")\n    ground(40, 40, \"#334155\")\n    box(x, 1, 0, 2, 2, 2, \"#22c55e\")\n",
+    graphics: true
+  },
+  {
+    id: "score", topic: "Графика",
+    title: "Очки и победа",
+    task: "Набирай очки по <code>KEY_SPACE</code>. Вызывай <code>win(3)</code> при 5 очках.",
+    hint: "<code>score(score() + 1)</code> и <code>if score() &gt;= 5:</code>",
+    checkRun: (g) => g.won && g.score >= 5,
+    give: 35,
+    starter: "fn update(dt):\n    \n\nfn draw():\n    bg(\"#1e1b4b\", \"#0f172a\")\n    camera(0, 6, -16, 0, 0.35)\n    ground(50, 50, \"#3730a3\")\n    box(0, 1, 0, 2, 2, 2, \"#fbbf24\")\n    label(14, 26, \"Очки: \" + score(), 18, \"#ffffff\")\n    ",
+    solution: "fn update(dt):\n    if keyhit(KEY_SPACE):\n        score(score() + 1)\n\nfn draw():\n    bg(\"#1e1b4b\", \"#0f172a\")\n    camera(0, 6, -16, 0, 0.35)\n    ground(50, 50, \"#3730a3\")\n    box(0, 1, 0, 2, 2, 2, \"#fbbf24\")\n    label(14, 26, \"Очки: \" + score(), 18, \"#ffffff\")\n    if score() >= 5:\n        win(3)\n",
+    graphics: true
+  },
+  {
+    id: "class", topic: "Графика",
+    title: "Класс и this",
+    task: "Класс <code>Box</code>: поле <code>v</code>, методы <code>set(n)</code> и <code>get()</code>. Вызови <code>b.set(9)</code>, напечатай <code>b.get()</code>. <b>Цель: 9</b>",
+    hint: "<code>class Box:</code> с отступом, <code>let b = new Box()</code>.",
+    check: (g, r) => r === 9,
+    give: 40,
+    starter: "class Box:\n    v = 0\n\n",
+    solution: "class Box:\n    v = 0\n\n    fn set(n):\n        this.v = n\n\n    fn get():\n        return this.v\n\nlet b = new Box()\nb.set(9)\nprint(b.get())\n"
+  },
+  {
+    id: "ui", topic: "Графика",
+    title: "Кнопка",
+    task: "Нарисуй <code>button(20, 60, 140, 32, &quot;Играть&quot;, fn go)</code> и функцию <code>fn go():</code>. Нажми кнопку мышкой в окне игры.",
+    hint: "Функция передаётся без скобок: <code>fn go</code>.",
+    checkRun: (g) => g.clicked,
+    give: 40,
+    starter: "fn draw():\n    bg(\"#1e293b\", \"#0f172a\")\n    label(20, 28, \"Нажми кнопку\", 17)\n    ",
+    solution: "fn go():\n    print(\"клик\")\n\nfn draw():\n    bg(\"#1e293b\", \"#0f172a\")\n    label(20, 28, \"Нажми кнопку\", 17)\n    button(20, 60, 140, 32, \"Играть\", fn go)\n",
+    graphics: true
+  }
+];const TOPICS = ["Основы", "Графика"];
+
+const learn = {
+  coins: 0,
+  streak: 0,
+  bestStreak: 0,
+  done: {},          /* id урока -> true */
+  tries: {},         /* id урока -> число попыток */
+  lesson: LESSONS[0].id,
+  loaded: false
+};
+
+function loadLearn() {
+  try {
+    const raw = localStorage.getItem(LEARN_KEY);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== "object") return;
+    learn.coins = Number(o.coins) || 0;
+    learn.streak = Number(o.streak) || 0;
+    learn.bestStreak = Number(o.bestStreak) || 0;
+    learn.done = o.done && typeof o.done === "object" ? o.done : {};
+    learn.tries = o.tries && typeof o.tries === "object" ? o.tries : {};
+    if (o.lesson && LESSONS.some(l => l.id === o.lesson)) learn.lesson = o.lesson;
+    learn.loaded = true;
+  } catch (e) {
+    /* повреждённое сохранение — просто начинаем с нуля */
+  }
+}
+function saveLearn() {
+  try {
+    localStorage.setItem(LEARN_KEY, JSON.stringify({
+      coins: learn.coins, streak: learn.streak, bestStreak: learn.bestStreak,
+      done: learn.done, tries: learn.tries, lesson: learn.lesson
+    }));
+  } catch (e) {
+    /* приватный режим браузера — обучение просто не сохранится */
+  }
+}
+function lessonById(id) { return LESSONS.find(l => l.id === id) || null; }
+function lessonIndex(id) { return LESSONS.findIndex(l => l.id === id); }
+/* Для съёмки скриншотов: временно открывает все уроки. */
+const lessonUnlockedOverride = Object.create(null);
+
+function lessonUnlocked(id) {
+  if (lessonUnlockedOverride[id]) return true;
+  const i = lessonIndex(id);
+  if (i <= 0) return true;
+  return !!learn.done[LESSONS[i - 1].id];
+}
+function topicUnlocked(topic) {
+  const first = LESSONS.find(l => l.topic === topic);
+  return first ? lessonUnlocked(first.id) : true;
+}
+function learnProgress() {
+  const done = LESSONS.filter(l => learn.done[l.id]).length;
+  return { done: done, total: LESSONS.length, pct: Math.round(done * 100 / LESSONS.length) };
+}
+
+const learnProbe = { faces: 0, ranUpdate: false, clicked: false, won: false, score: 0, result: null, err: null, printed: [] };
+
+/* ============================================ ПРИВЯЗКА К КАРКАСУ VS CODE */
+/* Панели сайдбара переключаются иконками слева, как в редакторе. */
+const sideEl = document.getElementById("side");
+const treeSamples = document.getElementById("treeSamples");
+const treeModules = document.getElementById("treeModules");
+
+function showPanel(name) {
+  for (const sec of document.querySelectorAll(".sideSec")) {
+    sec.hidden = sec.getAttribute("data-panel") !== name;
+  }
+  for (const b of document.querySelectorAll(".act[data-sec]")) {
+    b.classList.toggle("on", b.getAttribute("data-sec") === name);
+  }
+  /* задание и редактор показываем только в режиме обучения */
+  const learn = name === "learn";
+  document.getElementById("grpTask").hidden = !learn;
+  document.getElementById("edWrap2").hidden = !learn;
+  document.getElementById("edWrap").hidden = learn;
+  /* в обучении игра живёт в карточке задания, отдельная панель не нужна */
+  document.getElementById("grpGame").hidden = learn;
+  document.getElementById("lConsole").hidden = !learn;
+  document.getElementById("console").hidden = learn;
+  document.getElementById("edTitle").textContent = learn ? "РЕШЕНИЕ" : "РЕДАКТОР";
+  if (learn) {
+    renderLearnPanel();
+    if (lpRaf) startLearnPreview(lessonById(learn.lesson));
+  }
+  return learn;
+}
+
+for (const b of document.querySelectorAll(".act[data-sec]")) {
+  b.onclick = () => showPanel(b.getAttribute("data-sec"));
+}
+document.getElementById("actRun").onclick = () => { if (isLearnView()) return; start(); };
+document.getElementById("actTest").onclick = selfTest;
+document.getElementById("actPublish").onclick = publishToApp;
+document.getElementById("tiLearn").onclick = () => showPanel("learn");
+document.getElementById("tiModules").onclick = () => showPanel("modules");
+document.getElementById("tiTest").onclick = selfTest;
+document.getElementById("miOpen").onclick = openModules;
+document.getElementById("miNew").onclick = () => { document.getElementById("modNew").onclick(); };
+document.getElementById("miDel").onclick = () => { document.getElementById("modDelete").onclick(); };
+
+function isLearnView() {
+  const t = document.getElementById("grpTask");
+  return t && !t.hidden;
+}
+
+/* список образцов в проводнике */
+function renderSampleTree() {
+  treeSamples.innerHTML = "";
+  const cur = sel.value;
+  for (const name in SAMPLES) {
+    const b = document.createElement("button");
+    b.className = "treeItem" + (name === cur ? " on" : "");
+    b.innerHTML = "<span class=\"ext\">▤</span>" + esc(name);
+    b.onclick = () => {
+      sel.value = name;
+      sel.onchange();
+      renderSampleTree();
+      document.getElementById("fileName").textContent = fileNameFor(name);
+      document.getElementById("crumbs").textContent = "ОБРАЗЦЫ › " + fileNameFor(name);
+    };
+    treeSamples.appendChild(b);
+  }
+}
+function fileNameFor(sample) {
+  return String(sample).toLowerCase().replace(/[^a-zа-я0-9]+/gi, "-").replace(/^-|-$/g, "") + ".bs";
+}
+
+/* список модулей в проводнике */
+function renderModuleTree() {
+  treeModules.innerHTML = "";
+  for (const n in MODULE_SRC) {
+    const b = document.createElement("button");
+    const builtin = !!BUILTIN_MODULES[n];
+    b.className = "treeItem";
+    b.innerHTML = "<span class=\"ext\">" + (builtin ? "🔒" : "▤") + "</span>" + esc(n);
+    b.onclick = () => {
+      modCur = n;
+      modEd.value = MODULE_SRC[n];
+      modMask.hidden = false;
+      refreshModuleList();
+    };
+    treeModules.appendChild(b);
+  }
+  document.getElementById("secStatMod").textContent = Object.keys(MODULE_SRC).length + " шт";
+}
+
+/* нижние вкладки панели: ВЫВОД / КОНСОЛЬ / ПРОБЛЕМЫ */
+(function () {
+  const tabs = document.querySelectorAll(".ptab");
+  for (const t of tabs) {
+    t.onclick = () => {
+      for (const x of tabs) x.classList.toggle("on", x === t);
+      const body = t.textContent.indexOf("ПРОБЛЕМЫ") >= 0 ? "problems" :
+        (t.textContent.indexOf("КОНСОЛ") >= 0 ? "console" : "output");
+      renderPanelBody(body);
+    };
+  }
+})();
+function renderPanelBody(body) {
+  const box = document.getElementById("console");
+  const learn = isLearnView();
+  const src = learn ? lConsoleLog : out;
+  void src;
+  if (body === "problems") {
+    const p = probCount();
+    box.innerHTML = "";
+    const d = document.createElement("div");
+    d.className = p ? "err" : "info";
+    d.textContent = p ? "Найдено проблем: " + p : "Проблем не найдено.";
+    box.appendChild(d);
+  } else {
+    moveConsoleKids(box);
+  }
+}
+/* Перенос строк консоли при переключении панелей (обучение ↔ игра).
+   Список строк общий с printToConsole, поэтому переносим именно узлы. */
+function moveConsoleKids(box) {
+  if (!box) return;
+  if (box.classList.contains("hideTab")) box.classList.remove("hideTab");
+  for (const child of Array.from(consoleKids)) box.appendChild(child);
+}
+
+function probCount() {
+  let n = 0;
+  for (const c of consoleKids) if (c.className === "err") n++;
+  return n;
+}
+
+/* --- переключатель списка уроков (в сайдбаре) --- */
+let listOpen = false;
+const lWrap = document.getElementById("lWrap");
+const lMini = document.getElementById("lMini");
+const lToggle = document.getElementById("lToggleList");
+
+function setListOpen(on) {
+  listOpen = !!on;
+  lWrap.hidden = !listOpen;
+  lMini.hidden = listOpen;
+  lToggle.setAttribute("aria-expanded", listOpen ? "true" : "false");
+}
+lToggle.onclick = () => setListOpen(!listOpen);
+
+/* Панели сайдбара: «explorer» / «learn» / «modules» */
+let curView = "explorer";
+function setView(v) {
+  curView = v;
+  if (v === "learn") { loadLearn(); }
+  showPanel(v);
+  if (v === "learn") { renderLearnPanel(); openLessonInTab(learn.lesson); }
+  updateStatus();
+}
+function renderLearnBadge() {
+  const P = learnProgress();
+  const el = document.getElementById("secStatLearn");
+  if (el) el.textContent = P.done + "/" + P.total;
+}
+
+/* строка состояния внизу */
+function updateStatus() {
+  const sbScreen = document.getElementById("sbScreen");
+  if (sbScreen) sbScreen.textContent = "экран: " + G.screen;
+  const sbCoins = document.getElementById("sbCoins");
+  if (sbCoins) sbCoins.textContent = "◈ " + learn.coins;
+  const sbStreak = document.getElementById("sbStreak");
+  if (sbStreak) sbStreak.textContent = "🔥 " + learn.streak;
+  renderLearnBadge();
+}
+
+/* --- панель обучения (левая колонка) --- */
+function renderLearnPanel() {
+  const P = learnProgress();
+  document.getElementById("lCoinsV").textContent = learn.coins;
+  document.getElementById("lStreakV").textContent = learn.streak;
+  document.getElementById("lBestV").textContent = learn.bestStreak > 0 ? "лучшая " + learn.bestStreak : "";
+  document.getElementById("lBar").style.width = P.pct + "%";
+  document.getElementById("lProgV").textContent = P.done + " / " + P.total + " уроков · " + P.pct + "%";
+document.getElementById("secStatLearn").textContent = P.done + " / " + P.total + " · " + learn.coins + " ◈";
+
+  /* свёрнутая плашка: всегда показываем текущий урок и прогресс */
+  const cur = lessonById(learn.lesson);
+  
+  document.getElementById("lMiniBar").style.width = P.pct + "%";
+  document.getElementById("lMiniStat").textContent = P.done + " / " + P.total + " уроков · " + learn.coins + " ◈";
+  document.getElementById("lMiniStreak").textContent = learn.streak;
+
+  let h = "";
+  for (const topic of TOPICS) {
+    const items = LESSONS.filter(l => l.topic === topic);
+    if (!items.length) continue;
+    const open = topicUnlocked(topic);
+    const doneCount = items.filter(l => learn.done[l.id]).length;
+    h += '<div class="lTopic' + (open ? "" : " locked") + '"><div class="lTopicHead"><strong>' +
+         topic.toUpperCase() + "</strong><span>" + (open ? doneCount + "/" + items.length : "закрыто") + "</span></div>";
+    if (!open) {
+      h += '<div class="lLocked">Пройди предыдущую тему</div>';
+    } else {
+      for (const L of items) {
+        const done = !!learn.done[L.id];
+        const cur = learn.lesson === L.id;
+        const tries = learn.tries[L.id] || 0;
+        h += '<button class="lLesson' + (done ? " done" : "") + (cur ? " cur" : "") +
+             '" data-lesson="' + L.id + '"><span class="mark">' + (done ? "✓" : cur ? "▶" : "○") +
+             '</span><span class="txt"><b>' + L.title + "</b>" +
+             (done ? "<em>+" + L.give + " ◈</em>" : (tries > 0 ? "<em>" + tries + " попыток</em>" : "")) +
+             "</span></button>";
+      }
+    }
+    h += "</div>";
+  }
+
+  /* награды */
+  h += '<div class="lShop"><div class="lTopicHead"><strong>НАГРАДЫ</strong><span>◈ ' + learn.coins + "</span></div>";
+  h += '<button class="lBuy" data-buy="theme"' + (learn.coins < 60 ? " dim" : "") + '>Пафосная тема сцены · 60 ◈</button>';
+  h += '<button class="lBuy" data-buy="life"' + (learn.coins < 40 ? " dim" : "") + '>Пропуск урока · 40 ◈</button>';
+  h += '<button class="lBuy" data-buy="reset">Сбросить прогресс</button>';
+  h += "</div>";
+
+  learnBody.innerHTML = h;
+  for (const b of learnBody.querySelectorAll("[data-lesson]")) {
+    b.onclick = () => {
+      openLessonInTab(b.getAttribute("data-lesson"));
+      /* выбрали урок — список сворачиваем, чтобы задание получило место */
+      if (window.innerWidth < 1500) setListOpen(false);
+    };
+  }
+  for (const b of learnBody.querySelectorAll("[data-buy]")) {
+    b.onclick = () => buyReward(b.getAttribute("data-buy"));
+  }
+  renderLearnBadge();
+}
+
+/* --- карточка задания и редактор (правая колонка) --- */
+const acBoxMain = document.getElementById("acMain");
+const acBoxLearn = document.getElementById("acLearn");
+const ed2 = document.getElementById("ed2");
+const hl2 = document.getElementById("hl2");
+const lTaskCard = document.getElementById("lTaskCard");
+
+function ed2Refresh() {
+  hl2.innerHTML = highlight(ed2.value);
+  const l = ed2.value.slice(0, ed2.selectionStart).split("\n").length;
+  const li = document.getElementById("lineInfo"); if (li) li.textContent = "стр. " + l + ", кол. " + (ed2.value.slice(0, ed2.selectionStart).split("\n")[ed2.value.slice(0, ed2.selectionStart).split("\n").length - 1].length + 1);
+}
+
+function openLessonInTab(id) {
+  const L = lessonById(id);
+  if (!L) return;
+  if (!lessonUnlocked(id)) { out("Урок закрыт: сначала пройди предыдущий", "warn"); return; }
+  learn.lesson = id;
+  saveLearn();
+  renderLearnPanel();
+
+  document.getElementById("lTaskTopic").textContent = L.topic;
+  document.getElementById("lCoinsHint").textContent = "за урок: +" + L.give + " ◈";
+  lTaskCard.innerHTML =
+    '<div class="lCardTop"><b>' + L.title + '</b><span class="lId">' + L.id + "</span></div>" +
+    '<p class="lTaskText">' + L.task + "</p>" +
+    '<p class="lHintText" id="lHintText">' + L.hint + "</p>" +
+    '<div class="lOut" id="lOut">Напиши решение и нажми «✓ Проверить».</div>' +
+    (L.graphics ? '<canvas id="lPreview" class="lPreview" width="640" height="300"></canvas>' : "");
+
+document.getElementById("edWrap2").hidden = false;
+  ed2.value = L.starter || "";
+  ed2Refresh();
+  /* окно игры нужно только уроку с графикой; в обучении — превью в карточке */
+  document.getElementById("grpGame").hidden = isLearnView();
+  startLearnPreview(L);
+
+  document.getElementById("lCheck").disabled = false;
+  document.getElementById("lHint").disabled = false;
+  document.getElementById("lRun").disabled = false;
+  const nxt = LESSONS[lessonIndex(id) + 1];
+  const nxtBtn = document.getElementById("lNext");
+  if (nxt && learn.done[id]) { nxtBtn.disabled = !lessonUnlocked(nxt.id); nxtBtn.textContent = "Следующий: " + nxt.title + " →"; }
+  else if (nxt && !learn.done[id]) { nxtBtn.disabled = true; nxtBtn.textContent = "Следующий урок →"; }
+  else { nxtBtn.disabled = true; nxtBtn.textContent = "Это последний урок"; }
+  lConsoleLog("");
+}
+
+/* Графика уроков рисуется в игре, а не в консоли: маленький канвас справа. */
+let lpCv = null, lpCtx = null, lpI = null, lpEnv = null, lpHooks = null, lpRaf = 0, lpT = 0, lpLast = 0;
+
+function startLearnPreview(L) {
+  stopLearnPreview();
+  const cvp = document.getElementById("lPreview");
+  if (!cvp || !L.graphics) return;
+  lpCv = cvp;
+  lpCtx = cvp.getContext("2d");
+  lpI = new Interp(HOST);
+  defineGlobals(lpI);
+  lpEnv = new Env(lpI.globals);
+  lpI.maxSteps = 400000;
+  G.timers.length = 0;
+  G.widgets = [];
+  G.state = {};
+  G.screen = "game";
+  G.ended = false;
+  S.score = 0;
+  lpHooks = { setup: null, update: null, draw: null };
+
+  const runSrc = src => {
+    try {
+      const ast = parse(src);
+      lpI.steps = 0;
+      lpI.run(ast, lpEnv);
+      const raw = k => { const s = lpEnv.get(k); return s && s.__slot === 1 ? s.v : s; };
+      lpHooks = { setup: raw("setup"), update: raw("update"), draw: raw("draw") };
+      if (lpHooks.setup) lpI.invoke(lpHooks.setup, [], lpEnv, 0, null);
+    } catch (e) {
+      lpHooks = { setup: null, update: null, draw: null };
+      lpCtx.fillStyle = "#1d1010";
+      lpCtx.fillRect(0, 0, lpCv.width, lpCv.height);
+      lpCtx.fillStyle = "#f87171";
+      lpCtx.font = "bold 14px system-ui,sans-serif";
+      lpCtx.textAlign = "left";
+      lpCtx.fillText("строка " + (e.line || 0) + ": " + String(e.message).slice(0, 60), 12, 24);
+      stopLearnPreview();
+    }
+  };
+  runSrc(ed2.value);
+
+  lpT = 0;
+  lpLast = performance.now();
+  const tick = now => {
+    if (!lpCv) return;
+    lpRaf = requestAnimationFrame(tick);
+    const dt = Math.min(.05, (now - lpLast) / 1000);
+    lpLast = now;
+    lpT += dt;
+    S.t = lpT;
+    try {
+      if (lpHooks.update) { lpI.steps = 0; lpI.invoke(lpHooks.update, [{ t: "num", v: dt, line: 0 }], lpEnv, 0, null); }
+      S.faces = [];
+      S.hud = [];
+      if (lpHooks.draw) { lpI.steps = 0; lpI.invoke(lpHooks.draw, [], lpEnv, 0, null); }
+      const w = lpCv.width, h = lpCv.height;
+      const c0 = S.bg ? S.bg[0] : "#111a2b";
+      const c1 = S.bg ? S.bg[1] : "#1d2b45";
+      const g = lpCtx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, c0);
+      g.addColorStop(1, c1);
+      lpCtx.fillStyle = g;
+      lpCtx.fillRect(0, 0, w, h);
+      E3.draw(lpCtx, S.faces, S.cam, 430, LIGHT3, S.lit);
+      lpCtx.textAlign = "left";
+      lpCtx.textBaseline = "alphabetic";
+      for (const hh of S.hud) {
+        if (hh.bar) { lpCtx.fillStyle = hh.c; lpCtx.fillRect(hh.x, hh.y, hh.w, hh.h); }
+        else { lpCtx.font = "bold " + hh.size + "px system-ui,sans-serif"; lpCtx.fillStyle = hh.c; lpCtx.fillText(hh.s, hh.x, hh.y); }
+      }
+      const bw = lpWidgetsOf();
+      if (bw) { drawWidgetsOn(lpCtx, bw, w, h); }
+    } catch (e) {
+      lpCtx.fillStyle = "#1d1010";
+      lpCtx.fillRect(0, 0, lpCv.width, lpCv.height);
+      lpCtx.fillStyle = "#f87171";
+      lpCtx.font = "bold 14px system-ui,sans-serif";
+      lpCtx.fillText(String(e.message).slice(0, 70), 12, 24);
+      stopLearnPreview();
+    }
+  };
+  lpRaf = requestAnimationFrame(tick);
+}
+
+/* Виджеты урока рисуем в отдельный контекст, не трогая список G.widgets. */
+function lpWidgetsOf() { return G.widgets.length ? G.widgets.slice() : null; }
+function drawWidgetsOn(c, widgets, w, h) {
+  for (const wg of widgets) {
+    if (wg.kind === "panel") {
+      c.globalAlpha = Math.max(0, Math.min(1, wg.a));
+      c.fillStyle = wg.c;
+      c.fillRect(wg.x, wg.y, wg.w, wg.h);
+      c.globalAlpha = 1;
+    } else if (wg.kind === "label") {
+      c.textAlign = wg.align === "center" ? "center" : (wg.align === "right" ? "right" : "left");
+      c.font = "bold " + Math.round(wg.size) + "px system-ui,sans-serif";
+      c.fillStyle = wg.c;
+      c.fillText(wg.s, wg.x, wg.y);
+    } else if (wg.kind === "button") {
+      c.fillStyle = wg.c;
+      roundRect(c, wg.x, wg.y, wg.w, wg.h, 8);
+      c.fill();
+      c.textAlign = "center";
+      c.font = "bold 15px system-ui,sans-serif";
+      c.fillStyle = "#fff";
+      c.fillText(wg.s, wg.x + wg.w / 2, wg.y + wg.h / 2);
+    } else if (wg.kind === "progress") {
+      c.fillStyle = "rgba(255,255,255,.16)";
+      roundRect(c, wg.x, wg.y, wg.w, wg.h, wg.h / 2);
+      c.fill();
+      c.fillStyle = wg.c;
+      roundRect(c, wg.x, wg.y, Math.max(wg.h, wg.w * wg.f), wg.h, wg.h / 2);
+      c.fill();
+    }
+  }
+  c.globalAlpha = 1;
+  c.textAlign = "left";
+  c.textBaseline = "alphabetic";
+}
+
+function stopLearnPreview() {
+  if (lpRaf) cancelAnimationFrame(lpRaf);
+  lpRaf = 0;
+  lpCv = null; lpCtx = null; lpI = null; lpEnv = null; lpHooks = null;
+}
+
+function lConsoleLog(msg, cls) {
+  if (msg === "") {
+    for (const d of Array.from(lConsoleEl.children)) lConsoleEl.removeChild(d);
+    return;
+  }
+  const d = document.createElement("div");
+  d.className = cls || "info";
+  d.textContent = msg;
+  lConsoleEl.appendChild(d);
+  lConsoleEl.scrollTop = lConsoleEl.scrollHeight;
+  while (lConsoleEl.children.length > 200) lConsoleEl.removeChild(lConsoleEl.firstChild);
+}
+
+function checkLessonInTab() {
+  const L = lessonById(learn.lesson);
+  if (!L) return;
+  const o = document.getElementById("lOut");
+  if (!o) return;
+  o.className = "lOut";
+
+  const p = runLessonCheckOn(ed2.value, L);
+
+  if (p.err) {
+    o.textContent = "✗ Ошибка — " + p.err;
+    o.className = "lOut errout";
+    learn.tries[L.id] = (learn.tries[L.id] || 0) + 1;
+    learn.streak = 0;
+    saveLearn();
+    renderLearnPanel();
+    lConsoleLog("ошибка: " + p.err, "err");
+    sound("hit");
+    return;
+  }
+
+  const ok = L.check ? !!L.check(p, p.result) : (L.checkRun ? !!L.checkRun(p) : false);
+
+  if (ok && !learn.done[L.id]) {
+    learn.tries[L.id] = (learn.tries[L.id] || 0) + 1;
+    learn.done[L.id] = true;
+    learn.coins += L.give;
+    learn.streak += 1;
+    if (learn.streak > learn.bestStreak) learn.bestStreak = learn.streak;
+    saveLearn();
+    sound("win");
+    const nxt = LESSONS[lessonIndex(L.id) + 1];
+    const lines = ["✓ Верно! +" + L.give + " ◈"];
+    lines.push("Серия побед: " + learn.streak + " 🔥 · всего ◈ " + learn.coins);
+    if (p.printed && p.printed.length) lines.push("Вывод: " + p.printed.join(" · "));
+    if (nxt) lines.push("Дальше: " + nxt.title + " (+" + nxt.give + " ◈)");
+    else lines.push("Все уроки пройдены. Дальше — свои игры!");
+    o.textContent = lines.join("\n");
+    o.className = "lOut okout";
+    lConsoleLog("урок «" + L.title + "» пройден", "ok");
+    renderLearnPanel();
+    openLessonInTab(L.id);
+    return;
+  }
+  if (ok && learn.done[L.id]) {
+    o.textContent = "✓ Уже решён. Повторное прохождение монет не даёт.";
+    o.className = "lOut okout";
+    renderLearnPanel();
+    return;
+  }
+
+  learn.tries[L.id] = (learn.tries[L.id] || 0) + 1;
+  learn.streak = 0;
+  saveLearn();
+  renderLearnPanel();
+  sound("lose");
+  const hints = [];
+  if (L.graphics) {
+    if (!p.ranUpdate && L.id === "move") hints.push("нужна fn update(dt) — она двигает x по стрелкам");
+    if (!p.faces) hints.push("в окне игры пусто — добавь box() или ground() в fn draw()");
+    if (p.won && p.score < 5) hints.push("победа засчитана, но очков мало — нужно 5");
+    if (L.id === "ui" && !p.clicked) hints.push("кнопка не нажата — проверь, что она нарисована в fn draw()");
+    if (!hints.length) hints.push("сравни с образцом слева вверху вкладки «Код»");
+  } else {
+    if (p.printed && p.printed.length) hints.push("вывод: " + JSON.stringify(p.printed[p.printed.length - 1]));
+    else hints.push("ничего не напечаталось — добавь print(...)");
+  }
+  o.textContent = "✗ Пока не то.\n" + hints.join("\n");
+  o.className = "lOut errout";
+  lConsoleLog("урок «" + L.title + "»: пока не то", "warn");
+}
+
+/* Проверка конкретного исходника (для редактора во вкладке обучения) */
+function runLessonCheckOn(src, L) {
+  const I = new Interp(HOST);
+  defineGlobals(I);
+  const env = new Env(I.globals);
+  I.maxSteps = 2000000;
+  learnProbe.faces = 0; learnProbe.ranUpdate = false; learnProbe.clicked = false;
+  learnProbe.won = false; learnProbe.score = 0; learnProbe.err = null;
+  learnProbe.printed = [];
+
+  G.state = {}; G.timers.length = 0; G.widgets = [];
+  G.screen = "game"; G.ended = false; S.score = 0; S.t = 0;
+
+  const printed = [];
+  G.capture = printed;
+  const realOut = out;
+  out = (msg, cls) => { lConsoleLog(str(msg), "val"); };
+  try {
+    I.run(parse(src), env);
+    const raw = k => { const s = env.get(k); return s && s.__slot === 1 ? s.v : s; };
+    const setup = raw("setup"), update = raw("update"), draw = raw("draw");
+    if (setup) I.invoke(setup, [], env, 0, null);
+    if (update) {
+      /* имитируем нажатия: пробел каждый кадр, стрелки по очереди.
+         Нужно, чтобы уроки «нажми пробел / двигайся» можно было проверить. */
+      for (let f = 0; f < 6; f++) {
+        I.steps = 0;
+        keysHit.add("Space");
+        keysDown.add(f % 2 === 0 ? "ArrowRight" : "ArrowLeft");
+        I.invoke(update, [{ t: "num", v: 1 / 60, line: 0 }], env, 0, null);
+        keysHit.clear();
+        keysDown.clear();
+      }
+      learnProbe.ranUpdate = true;
+    }
+    if (draw) { S.faces = []; I.steps = 0; I.invoke(draw, [], env, 0, null); }
+    learnProbe.faces = S.faces.length;
+    learnProbe.score = S.score;
+    learnProbe.won = !!(G.ended && G.screen === "win");
+
+    const b = G.widgets.find(w => w.kind === "button");
+    if (b) {
+      mouse.x = b.x + b.w / 2; mouse.y = b.y + b.h / 2;
+      mouse.clicked = true; mouse.down = true;
+      updateWidgetInput();
+      learnProbe.clicked = true;
+      mouse.clicked = false; mouse.down = false;
+      if (draw) { S.faces = []; I.steps = 0; I.invoke(draw, [], env, 0, null); }
+      learnProbe.score = S.score;
+      learnProbe.won = learnProbe.won || !!(G.ended && G.screen === "win");
+    }
+    learnProbe.result = printed.length ? printed[printed.length - 1] : null;
+    learnProbe.printed = printed;
+  } catch (e) {
+    learnProbe.err = e instanceof LangError ? "строка " + e.line + ": " + e.message : String(e.message || e);
+  } finally {
+    out = realOut;
+    G.capture = null;
+  }
+  return learnProbe;
+}
+
+/* --- награды --- */
+function buyReward(kind) {
+  if (kind === "reset") {
+    if (!window.confirm("Сбросить прогресс обучения, монеты и серию?")) return;
+    learn.coins = 0; learn.streak = 0; learn.bestStreak = 0;
+    learn.done = {}; learn.tries = {};
+    learn.lesson = LESSONS[0].id;
+    saveLearn();
+    renderLearnPanel();
+    renderLearnBadge();
+    return;
+  }
+  const price = kind === "theme" ? 60 : 40;
+  if (learn.coins < price) { out("Не хватает ◈: нужно " + price, "warn"); return; }
+  learn.coins -= price;
+  const key = LEARN_KEY + ".items";
+  let owned = {};
+  try { owned = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) { owned = {}; }
+  owned[kind] = (owned[kind] || 0) + 1;
+  try { localStorage.setItem(key, JSON.stringify(owned)); } catch (e) { /* приватный режим */ }
+  saveLearn();
+  sound("coin");
+  lConsoleLog("Награда получена: " + (kind === "theme" ? "пафосная тема" : "пропуск урока"), "ok");
+  renderLearnPanel();
+}
+
+/* --- кнопки вкладки обучения --- */
+if (document.getElementById("lCheck")) {
+  document.getElementById("lCheck").onclick = checkLessonInTab;
+  document.getElementById("lRun").onclick = () => {
+    const L = lessonById(learn.lesson);
+    startLearnPreview(L);
+  };
+  document.getElementById("lHint").onclick = () => {
+    const L = lessonById(learn.lesson);
+    if (!L) return;
+    const h = document.getElementById("lHintText");
+    if (h) { h.textContent = "Подсказка: " + L.hint; h.className = "lHintText on"; }
+    lConsoleLog("подсказка: " + L.hint, "warn");
+  };
+  document.getElementById("lNext").onclick = () => {
+    const L = lessonById(learn.lesson);
+    const nxt = LESSONS[lessonIndex(L.id) + 1];
+    if (nxt && lessonUnlocked(nxt.id)) openLessonInTab(nxt.id);
+  };
+}
+let lpReloadTimer = 0;
+ed2.addEventListener("input", () => {
+  ed2Refresh();
+  const w = currentWord(ed2, ed2.selectionStart);
+  if (!acBoxLearn.hidden && w.word) openAC(ed2, w.word, w.start); else acBoxLearn.hidden = true;
+  /* правка кода перезапускает превью урока (с задержкой) */
+  if (lpRaf) {
+    clearTimeout(lpReloadTimer);
+    lpReloadTimer = setTimeout(() => startLearnPreview(lessonById(learn.lesson)), 450);
+  }
+});
+ed2.addEventListener("scroll", () => { hl2.scrollTop = ed2.scrollTop; hl2.scrollLeft = ed2.scrollLeft; acPlace(ed2); });
+ed2.addEventListener("click", () => {
+  const w = currentWord(ed2, ed2.selectionStart);
+  if (w.word.length >= 2) openAC(ed2, w.word, w.start); else acBoxLearn.hidden = true;
+});
+ed2.addEventListener("keyup", () => {
+  const l = ed2.value.slice(0, ed2.selectionStart).split("\n").length;
+  const li = document.getElementById("lineInfo"); if (li) li.textContent = "стр. " + l + ", кол. " + (ed2.value.slice(0, ed2.selectionStart).split("\n")[ed2.value.slice(0, ed2.selectionStart).split("\n").length - 1].length + 1);
+});
+ed2.addEventListener("keydown", e => { acKeydown(ed2, e); });
+
+/* ============================================================== ОБРАЗЦЫ */
+const SAMPLES = {
+"Привет, ёжик": `// Минимальная сцена: ёжик на лужайке.
+// Пробел — прыжок. Стрелки — бег.
+
+fn setup():
+    for i in 0..<4:
+        let tree = group(-9 + i * 6, 0, 7, 0)
+        tree.gbox(0.5, 3, 0.5, "#7a4a1e")
+        tree.gpyr(4.4, 3.4, 4.4, "#2f7d4f")
+        add(tree.faces)
+
+let x = 0
+let y = 0
+let vy = 0
+
+fn update(dt):
+    let v = 0
+    if key(KEY_LEFT):
+        v = v - 8
+    if key(KEY_RIGHT):
+        v = v + 8
+    x = clamp(x + v * dt, -8, 8)
+
+    if keyhit(KEY_SPACE) and y <= 0.001:
+        vy = 9
+    vy = vy - 22 * dt
+    y = y + vy * dt
+    if y < 0:
+        y = 0
+        vy = 0
+
+fn draw():
+    bg("#87ceeb", "#cde7f0")
+    camera(0, 5, -14, 0, 0.25)
+    ground(60, 60, "#4d9c4d")
+
+    let h = group(x, y, 0, 0)
+    h.gbox(1.4, 1.2, 1.1, "#a16207")
+    h.gbox(0, 1.5, 0, 0.7, 0.7, 0.7, "#ffd76b")
+    add(h.faces)
+    shadow(x, 0, 1.0, 1)
+
+    text(14, 28, "Пробел — прыжок · ← → — бег", 17, "#ffffff")
+    bar(14, 40, 200, 8, "#ffd76b")
+`,
+
+"Орешек": `// Собирай орехи, избегай шипов. Стрелки — движение.
+
+let nuts = []
+let spikes = []
+let got = 0
+let px = 0
+let pz = 0
+let t = 0
+
+fn setup():
+    for i in 0..<10:
+        nuts.push((x: rnd(-8, 8), z: rnd(2, 26), on: 1))
+    for i in 0..<5:
+        spikes.push((x: rnd(-8, 8), z: rnd(6, 30)))
+
+fn update(dt):
+    t = t + dt
+    let sp = 9
+    if key(KEY_LEFT):
+        px = px - sp * dt
+    if key(KEY_RIGHT):
+        px = px + sp * dt
+    if key(KEY_UP):
+        pz = pz + sp * dt
+    if key(KEY_DOWN):
+        pz = pz - sp * dt
+    px = clamp(px, -9, 9)
+    pz = clamp(pz, 0, 34)
+
+    for i in 0..<len(nuts):
+        let n = nuts[i]
+        if n.on == 1 and dist2(px, pz, n.x, n.z) < 1.2:
+            n.on = 0
+            got = got + 1
+            print("орех найден: " + got)
+    for i in 0..<len(spikes):
+        let s = spikes[i]
+        if dist2(px, pz, s.x, s.z) < 1.0:
+            px = px - 0.2
+
+fn draw():
+    camera(0, 11, pz - 16, 0, 0.55)
+    bg("#1c1917", "#57534e")
+    ground(80, 80, "#3f2d20")
+    for i in 0..<len(nuts):
+        let n = nuts[i]
+        if n.on == 1:
+            box(n.x, 0.4, n.z, 0.7, 0.7, 0.7, "#b45309")
+    for i in 0..<len(spikes):
+        let s = spikes[i]
+        pyramid(s.x, 0, s.z, 1.4, 1.4, 1.4, "#9ca3af")
+    box(px, 0.8, pz, 1.1, 1.5, 1.1, "#ffd76b")
+    text(14, 28, "Орехи: " + got, 20, "#ffd76b")
+    bar(14, 40, got * 20, 9, "#b45309")
+`,
+
+"Модули": `// import подключает файл .bs. Встроенные: mathx.bs, entities.bs.
+// Свой модуль создаётся кнопкой «Модули…» в шапке.
+
+import "mathx.bs" as *
+import "entities.bs" as *
+
+let hero = new Player()
+let tm = new Timer()
+let orbs = []
+let t = 0
+
+fn setup():
+    for i in 0..<7:
+        let o = new Target()
+        o.respawn(rnd(-10, 10), 6 + i * 3)
+        orbs.push(o)
+    load()
+    toast("Рекорд: " + get("orbs", 0))
+
+fn update(dt):
+    t = t + dt
+    hero.control(dt, 9)
+
+    for i in 0..<len(orbs):
+        let o = orbs[i]
+        if o.hit(hero.x, hero.z):
+            o.respawn(rnd(-10, 10), 16 + rnd(0, 10))
+            score(score() + 1)
+            set("orbs", score())
+            save()
+            sound("pickup")
+
+    // Timer сам вызывает звук раз в 0.6 секунды
+    if tm.tick(dt):
+        sound("tick")
+
+    if key(KEY_UP) and hero.z > 14:
+        win(3)
+
+fn draw():
+    bg("#050914", "#132a4a")
+    camera(0, 8, hero.z - 15, 0, 0.5)
+    ground(50, 70, "#16324f")
+
+    for i in 0..<len(orbs):
+        let o = orbs[i]
+        if o.alive == 1:
+            box(o.x, 0.8, o.z, 1.2, 1.6, 1.2, "#38bdf8")
+            shadow(o.x, o.z, .9, 1.6)
+    hero.render()
+    hero.shadow(1.1)
+
+    panel(8, 8, 232, 58, "#000000", .4)
+    label(18, 28, "Собрано: " + score(), 17, "#ffffff")
+    label(18, 50, "Рекорд: " + get("orbs", 0), 15, "#7fe0a0")
+
+    let s = slider(20, height() - 34, 160, orbs.length, 3, 12, fn onCount)
+    label(190, height() - 30, "сфер: " + round(widgetValue(s)), 13, "#94a3b8")
+    button(width() - 130, height() - 48, 110, 30, "Заново", fn restart)
+    progress(20, height() - 12, width() - 40, 6, score() / 10, "#22c55e")
+
+fn onCount(v):
+    while len(orbs) > round(v):
+        orbs.pop()
+    while len(orbs) < round(v):
+        let o = new Target()
+        o.respawn(rnd(-10, 10), 8 + rnd(0, 16))
+        orbs.push(o)
+
+fn restart():
+    sound("click")
+    score(0)
+    orbs = []
+    for i in 0..<5:
+        let o = new Target()
+        o.respawn(rnd(-10, 10), 8 + i * 4)
+        orbs.push(o)
+`,
+
+"Классы и наследование": `// Полный ЯП: классы, наследование, super, this.
+// Красный — игрок, синие — препятствия. Столкновение минус жизнь.
+
+class Actor:
+    x = 0
+    z = 0
+    vx = 0
+    color = "#ffffff"
+    name = "кто-то"
+
+    fn move(dt, speed):
+        if key(KEY_LEFT):
+            this.vx = this.vx - speed
+        if key(KEY_RIGHT):
+            this.vx = this.vx + speed
+        this.x = clamp(this.x + this.vx * dt, -14, 14)
+        this.vx = this.vx * 0.82
+
+    fn draw():
+        box(this.x, 1, this.z, 1.6, 2, 1.6, this.color)
+
+class Enemy extends Actor:
+    z = 12
+    color = "#3b82f6"
+    name = "препятствие"
+
+    fn draw():
+        box(this.x, 0.7, this.z, 2.2, 1.4, 2.2, this.color)
+        box(this.x, 1.9, this.z, 1, 1, 1, "#93c5fd")
+
+class Player extends Actor:
+    color = "#ef4444"
+    name = "игрок"
+    lives = 3
+
+    fn draw():
+        box(this.x, 1.1, this.z, 1.8, 2.2, 1.8, this.color)
+        box(this.x, 2.7, this.z, 1.2, 1.2, 1.2, "#fecaca")
+
+let hero = new Player()
+let foes = []
+let t = 0
+
+fn setup():
+    for i in 0..<5:
+        let e = new Enemy()
+        e.x = rnd(-12, 12)
+        e.z = 8 + i * 5
+        foes.push(e)
+    toast("Удачи! Столкновения — минус жизнь.")
+
+fn update(dt):
+    t = t + dt
+    hero.move(dt, 26)
+
+    for i in 0..<len(foes):
+        let e = foes[i]
+        e.z = e.z - 9 * dt
+        if e.z < -6:
+            e.z = 22
+            e.x = rnd(-12, 12)
+            score(score() + 1)
+            sound("pickup")
+        if hitBox(hero.x, hero.z, 1.8, e.x, e.z, 2.2):
+            hero.lives = hero.lives - 1
+            e.z = 22
+            e.x = rnd(-12, 12)
+            sound("hit")
+            if hero.lives <= 0:
+                save()
+                lose()
+                return
+
+    if keyhit(KEY_SPACE):
+        hero.x = hero.x + rnd(-6, 6)
+        sound("jump")
+
+fn draw():
+    bg("#0f172a", "#334155")
+    ground(46, 60, "#1f2937")
+    for e in foes:
+        e.draw()
+    hero.draw()
+    shadow(hero.x, hero.z, 1.2, 1)
+
+    panel(8, 8, 220, 58, "#000000", .4)
+    label(18, 28, "Жизни: " + hero.lives, 17, "#ffffff")
+    label(18, 50, "Очки: " + score(), 15, "#ffd76b")
+    label(width() - 12, 26, hero.name + " · t=" + round(t), 14, "#cbd5e1", "right")
+`,
+
+"Магазин и меню": `// Язык управляет всей игрой: экраны, меню, сохранения, звук.
+// Экран «menu» → «game». Рекорд сохраняется между запусками.
+
+let coins = 0
+let volume = 0.7
+
+fn setup():
+    load()
+    coins = get("coins", 0)
+    volume = get("volume", 0.7)
+    setScreen("menu")
+
+fn menuScreen():
+    bg("#111827", "#1f2937")
+    panel(160, 80, 320, 230, "#0b1220", .9)
+    label(320, 112, "МАГАЗИН ЁЖИКА", 22, "#ffd76b", "center")
+    label(320, 146, "Монет: " + coins, 17, "#e2e8f0", "center")
+    label(320, 170, "Рекорд: " + get("best", 0), 15, "#94a3b8", "center")
+
+    let s = slider(230, 200, 180, volume * 100, 0, 100, fn onVolume)
+    label(230, 224, "Громкость: " + round(widgetValue(s)), 13, "#94a3b8")
+
+    let tg = toggle(230, 252, 44, "Звук", muted() == 0, fn onSound)
+    button(230, 276, 180, 30, "Играть", fn startGame)
+
+fn onVolume(v):
+    volume = v / 100
+    set("volume", volume)
+    save()
+
+fn onSound():
+    let on = muted()
+    mute(on)
+    if on == 0:
+        sound("click")
+    toast(on == 0 ? "Звук выключен" : "Звук включён")
+
+fn startGame():
+    sound("start")
+    setScreen("game")
+
+fn gameScreen():
+    bg("#0b1220", "#1b2a4a")
+    ground(40, 40, "#2f6f4f")
+    let t = time()
+    for i in 0..<6:
+        let a = t + i * 1.0
+        box(cos(a) * 7, 0.8, 6 + sin(a) * 5, 1.2, 1.6, 1.2, "#ffd76b")
+    panel(10, 10, 190, 64, "#000000", .45)
+    label(20, 30, "Очки: " + score(), 17, "#ffffff")
+    label(20, 52, "Монет: " + coins, 15, "#ffd76b")
+    button(470, 16, 150, 32, "В меню", fn toMenu)
+
+fn toMenu():
+    sound("click")
+    setScreen("menu")
+
+fn draw():
+    if screen() == "menu":
+        menuScreen()
+    else:
+        gameScreen()
+`,
+
+"Фракталлы": `// Никаких игр — чистая математика.
+// Показывает циклы и работу со строками.
+
+fn draw():
+    bg("#05070f", "#0f2027")
+    camera(0, 0, -46, 0, 0)
+    let a = time()
+    for i in 0..<140:
+        let u = a * 0.35 + i * 0.09
+        let r = 3 + i * 0.13 + sin(a + i * 0.2) * 1.2
+        let x = cos(u) * r
+        let y = sin(u * 1.7) * r * 0.6
+        let z = i * 0.22 - 12
+        let h = (i * 17 + 40) % 360
+        sprite(x, y, z, 0.5, "✦", hsl(h))
+    text(14, 26, "спираль · t = " + round(time() * 10) / 10, 17, "#7fe0a0")
+
+fn hsl(h):
+    let r = floor((h + 30) % 360)
+    let a = int(127 + 127 * cos(r * 3.14159 / 180))
+    let b = int(127 + 127 * cos((r + 120) * 3.14159 / 180))
+    let c = int(127 + 127 * cos((r + 240) * 3.14159 / 180))
+    return "#" + hex2(a) + hex2(b) + hex2(c)
+
+fn hex2(v):
+    let h = int(v)
+    let s = "0123456789abcdef"
+    return mid(s, int(h / 16), 1) + mid(s, h % 16, 1)
+
+fn mid(s, i, len):
+    let r = ""
+    let k = 0
+    while k < len:
+        r = r + midchar(s, i + k)
+        k = k + 1
+    return r
+
+fn midchar(s, i):
+    let out = s[0]
+    let k = 0
+    while k < i:
+        out = s[k + 1]
+        k = k + 1
+    return out
+`,
+
+"Лимит шагов": `// Демонстрация защиты: бесконечный цикл не вешает страницу,
+// а останавливает прогон с понятной ошибкой и номером строки.
+
+fn draw():
+    bg("#1a0b2e", "#3b0764")
+    text(14, 26, "Сейчас будет бесконечный цикл…", 18, "#fff")
+    let i = 0
+    while true:
+        i = i + 1
+`
+};
+
+/* ============================================================== СПРАВОЧНИК */
+const HELP = `
+<h4>Отступы вместо скобок</h4>
+<pre><code>Блок пишется двоеточием и отступом
+(4 пробела), как в Python. Скобки { }
+в языке запрещены.
+
+if n &gt; 3:
+    print("много")
+else:
+    print("мало")
+
+fn add(a, b):
+    return a + b</code></pre>
+
+<h4>Переменные</h4>
+<pre><code>let x = 10          // можно менять
+const G = 9.81      // нельзя
+let s = "текст"
+let arr = [1, 2, 3]
+let o = (hp: 3, name: "ёж")   // объект</code></pre>
+
+<h4>Операторы</h4>
+<pre><code>+ - * / %          + - * / % и склейка строк через +
+== != &lt; &gt; &lt;= &gt;=      == === != ===
+and or not         или &amp;&amp; || !
++= -= *= /=        присваивание с вычислением
+cond ? a : b       тернарный оператор</code></pre>
+
+<h4>Управление</h4>
+<pre><code>if (x &gt; 0):
+    ...
+elif (x &gt; -5):
+    ...
+else:
+    ...
+
+while (cond):
+    ...
+    break
+    continue
+
+for i in 0..10:      // i = 0..10, граница включается
+for i in 0..&lt;10:     // i = 0..9, граница не включается
+for x in список:     // обход элементов, i — индекс</code></pre>
+
+<h4>Функции</h4>
+<pre><code>fn add(a, b):
+    return a + b
+
+fn greet(name = "мир"):   // значение по умолчанию
+    return "привет, " + name
+
+print(add(2, 3))
+print(greet())
+print(greet("ёж"))
+
+fn имя             // ссылка на функцию (для кнопок и таймеров)</code></pre>
+
+<h4>Классы</h4>
+<pre><code>class A:
+    x = 0
+    label = "A"
+
+    fn move(d):
+        this.x = this.x + d
+        return this
+
+    static make():
+        return new A()
+
+class B extends A:
+    label = "B"
+    fn extra():
+        return super.move(5)
+
+let b = new B()
+b.move(2)          // this.x = 7
+A.make()           // статический метод</code></pre>
+
+<h4>enum</h4>
+<pre><code>enum Color:
+    Red = 1
+    Green
+    Blue = 5
+
+print(Color.Blue)</code></pre>
+
+<h4>Ошибки</h4>
+<pre><code>try:
+    throw "что-то пошло не так"
+catch e:
+    print(e)      // текст ошибки
+finally:
+    print("всё равно выполнится")</code></pre>
+
+<h4>Модули</h4>
+<pre><code>import "mathx.bs" as m   // всё в m
+import "mathx.bs" as *   // всё в текущую область
+
+Встроенные: mathx.bs, entities.bs
+Свой модуль — кнопка «Модули…» в шапке.</code></pre>
+
+<h4>Игровые хуки</h4>
+<pre><code>fn setup():   // один раз при запуске
+    ...
+fn update(dt): // каждый кадр, dt в секундах
+    ...
+fn draw():     // сцена: вызывается каждый кадр
+    ...</code></pre>
+
+<h4>Геометрия (добавляет в сцену)</h4>
+<pre><code><span class="sig">ground(w, d, color)</span>
+<span class="sig">box(x,y,z, w,h,d, color)</span>
+<span class="sig">pyramid(x,y,z, w,h,d, color)</span>
+<span class="sig">tri(ax,ay,az, bx,by,bz, cx,cy,cz, color)</span>
+<span class="sig">quad(ax..az, bx..bz, cx..cz, dx..dz, color)</span>
+<span class="sig">sprite(x,y,z, size, "🌰", color)</span>
+<span class="sig">shadow(x, z, radius, height)</span>
+<span class="sig">group(x,y,z, ry)</span> → g
+g.gbox(w,h,d,color)   g.gpyr(...)  g.gsprite(...)
+g.gadd(faces)   g.shadow(...)   add(g.faces)
+g.x, g.y, g.z   — двигаются как обычные поля</code></pre>
+
+<h4>Камера и свет</h4>
+<pre><code><span class="sig">camera(x,y,z, yaw, pitch)</span>
+<span class="sig">bg(верхний, нижний)</span>
+<span class="sig">lit(ambientOcclusion, sky)</span></code></pre>
+
+<h4>Ввод</h4>
+<pre><code><span class="sig">key(KEY_LEFT)</span>       // зажата? 1/0
+<span class="sig">keyhit(KEY_SPACE)</span>   // нажата в этом кадре
+<span class="sig">clicked()</span> mouseX() mouseY()</code></pre>
+
+<h4>Экран (поверх сцены)</h4>
+<pre><code><span class="sig">text(x, y, "строка", size, color)</span>
+<span class="sig">bar(x, y, w, h, color)</span></code></pre>
+
+<h4>Экраны</h4>
+<pre><code><span class="sig">screen()</span>        текущий: "game","menu","pause"
+<span class="sig">setScreen(name)</span>  переключить
+
+fn draw():
+    if screen() == "menu":
+        menu()
+    else:
+        game()</code></pre>
+
+<h4>Интерфейс</h4>
+<pre><code><span class="sig">label(x, y, "текст", size, color, align)</span>
+<span class="sig">panel(x, y, w, h, color, alpha)</span>
+<span class="sig">progress(x, y, w, h, 0..1, color)</span>
+<span class="sig">button(x, y, w, h, "Играть", fn onClick)</span>
+<span class="sig">slider(x, y, w, value, min, max, fn onChange)</span>
+<span class="sig">toggle(x, y, w, "Звук", value, fn onChange)</span>
+widgetValue(w)   прочитать, widgetSet(w, v)   записать
+overButton(x, y, w, h)   1, если мышь над кнопкой</code></pre>
+
+<h4>Состояние и рекорды</h4>
+<pre><code><span class="sig">set(k, v)</span> <span class="sig">get(k, default)</span>
+<span class="sig">has(k)</span> <span class="sig">stateKeys()</span>
+<span class="sig">best(k, v)</span>   обновляет и сохраняет рекорд
+<span class="sig">save()</span> <span class="sig">load()</span></code></pre>
+
+<h4>Таймеры</h4>
+<pre><code><span class="sig">after(сек, fn)</span>   один раз
+<span class="sig">every(сек, fn)</span>  повторяется
+<span class="sig">cancel()</span>        отменить все</code></pre>
+
+<h4>Звук</h4>
+<pre><code>sound("coin")   click coin jump hit win
+                lose tick pickup start
+<span class="sig">tone(freq, sec, "square", vol)</span>
+<span class="sig">noise(sec, vol)</span>
+<span class="sig">mute(1)</span> <span class="sig">muted()</span></code></pre>
+
+<h4>Коллизии и движение</h4>
+<pre><code><span class="sig">hitBox(ax,az,aw, bx,bz,bw)</span>
+<span class="sig">hitCircle(ax,az,ar, bx,bz,br)</span>
+<span class="sig">approach(v, цель, шаг)</span>
+<span class="sig">wrap(v, предел)</span>
+<span class="sig">angleLerp(a, b, t)</span></code></pre>
+
+<h4>Игра</h4>
+<pre><code><span class="sig">score(v)</span>     <span class="sig">time()</span>
+<span class="sig">win(stars)</span>   <span class="sig">lose()</span>
+<span class="sig">print(...)</span>   <span class="sig">toast(...)</span>
+<span class="sig">width()</span> <span class="sig">height()</span>
+<span class="sig">setPaused(1)</span> <span class="sig">paused()</span></code></pre>
+
+<h4>Математика</h4>
+<pre><code>sin cos sqrt abs floor ceil round int sign
+min max pow atan2 hypot lerp clamp mod
+rnd() rnd(a) rnd(a,b)
+dist2(x1,z1, x2,z2)   PI  TAU</code></pre>
+
+<h4>Строки</h4>
+<pre><code>len(s)  str(v)  isStr(v)  isNum(v)
+
+"текст".upper()   .lower()   .trim()
+      .split(",") .indexOf(x) .includes(x)
+      .startsWith(x) .endsWith(x)
+      .slice(a, b)  .charAt(i) .at(i)
+      .replace(a, b) .repeat(n)
+      .padStart(n, "0")  .padEnd(n, " ")</code></pre>
+
+<h4>Массивы</h4>
+<pre><code>push(arr, v)   len(arr)   arr.length
+
+arr.push(v)  arr.pop()  arr.shift()  arr.unshift(v)
+arr.first()  arr.last()  arr.indexOf(v)  arr.includes(v)
+arr.join("-") arr.reverse()  arr.sort()  arr.sort(fn)
+arr.map(fn)   arr.filter(fn)  arr.find(fn)
+arr.findIndex(fn) arr.some(fn) arr.every(fn)
+arr.reduce(fn, нач)  arr.forEach(fn)
+arr.slice(a,b) arr.concat(другой)  arr.clear()
+
+fn получает (элемент, индекс)</code></pre>
+
+<h4>Обучение</h4>
+<pre><code>Вкладка «Обучение» — 11 коротких
+уроков с проверкой. За каждый новый
+урок дают монеты ◈ и очко в серию 🔥.
+Тема открывается, когда пройдена
+предыдущая.</code></pre>
+
+<h4>Защита</h4>
+<pre><code>Каждый кадр ограничен числом шагов.
+Бесконечный цикл → понятная ошибка с
+номером строки, вкладка не зависает.</code></pre>
+`;
+
+/* ============================================================ САМОПРОВЕРКА */
+function unwrap(r) {
+  return r && typeof r === "object" && r.sig === "ret" ? r.v : r;
+}
+function slotValue(s) {
+  return s && s.__slot === 1 ? s.v : s;
+}
+function selfTest() {
+  clearConsole();
+  let pass = 0, fail = 0;
+  const I = new Interp(HOST);
+  defineGlobals(I);
+  const run = (src) => {
+    const env = new Env(I.globals);
+    I.steps = 0; I.maxSteps = 1000000;
+    G.state = {}; G.timers.length = 0; G.widgets = [];
+    G.screen = "game"; G.ended = false; S.t = 0;
+    S.faces = []; S.hud = [];
+    return { r: unwrap(I.run(parse(src), env)), env };
+  };
+  /* тест без сброса игрового окружения: для проверки накопления состояния */
+  const keep = (src) => {
+    const env = new Env(I.globals);
+    I.steps = 0; I.maxSteps = 1000000;
+    return { r: unwrap(I.run(parse(src), env)), env };
+  };
+  const t = (name, src, want) => {
+    try {
+      const { r } = run(src);
+      const val = unwrap(r);
+      const okv = JSON.stringify(val) === JSON.stringify(want);
+      if (okv) { pass++; out("PASS  " + name + "  → " + JSON.stringify(val), "ok"); }
+      else { fail++; out("FAIL  " + name + "  получил " + JSON.stringify(val) + ", ждал " + JSON.stringify(want), "err"); }
+    } catch (e) {
+      fail++; out("FAIL  " + name + "  исключение: " + e.message, "err");
+    }
+  };
+  const err = (name, src, frag) => {
+    try {
+      run(src); fail++; out("FAIL  " + name + " — ошибки не было", "err");
+    } catch (e) {
+      const good = String(e.message).indexOf(frag) >= 0;
+      if (good) { pass++; out("PASS  " + name + "  → " + e.message, "ok"); }
+      else { fail++; out("FAIL  " + name + "  не то: " + e.message, "err"); }
+    }
+  };
+
+  t("арифметика",      "return 2 + 3 * 4", 14);
+  t("приоритет скобок", "return (2 + 3) * 4", 20);
+  t("деление",         "return 10 / 4", 2.5);
+  t("остаток",         "return 10 % 3", 1);
+  t("сравнение",       "return 3 > 2", true);
+  t("логика and",      "return true and false", false);
+  t("логика or",       "return false or 5 > 1", true);
+  t("not",             "return not 0", true);
+  t("строка +",        'return "a" + "b"', "ab");
+  t("число + строка",  'return "n=" + 7', "n=7");
+  t("унарный минус",   "return -5 + 2", -3);
+
+  t("let",             "let a = 1\nlet b = a + 1\nreturn b", 2);
+  t("несколько let",   "let a = 1, b = 2, c = 3\nreturn a + b + c", 6);
+  t("присваивание",    "let a = 1\na = a + 41\nreturn a", 42);
+  t("составное +=",    "let a = 5\na += 5\nreturn a", 10);
+  t("++ через +=",     "let i = 0\ni += 1\ni += 1\nreturn i", 2);
+  t("const не меняется", "const c = 1\nreturn c", 1);
+
+  t("if/else",         "let x = 5\nif x > 3:\n    return \"big\"\nelse:\n    return \"small\"", "big");
+  t("if без ветки",    "let x = 1\nif x > 3:\n    return 1\nreturn 2", 2);
+  t("elif",            "let x = 2\nif x > 5:\n    return \"a\"\nelif x > 1:\n    return \"b\"\nelse:\n    return \"c\"", "b");
+  t("if в скобках",    "let x = 5\nif (x > 3):\n    return 1\nreturn 0", 1);
+  t("if однострочно",   "let n = 15\nif n > 10: print(\"да\")\nelse: print(\"нет\")\nreturn \"да\"", "да");
+  t("while",           "let i = 0\nwhile i < 5:\n    i = i + 1\nreturn i", 5);
+  t("for",             "let s = 0\nfor i in 1..5:\n    s = s + i\nreturn s", 15);
+  t("for без скобок",  "let s = 0\nfor i in 0..4:\n    s = s + i\nreturn s", 10);
+  t("for ..<",         "let n = 0\nfor i in 0..<len([9,9,9,9]):\n    n = n + 1\nreturn n", 4);
+  t("for ..<0",        "let n = 0\nfor i in 0..<0:\n    n = n + 1\nreturn n", 0);
+  t("break",           "let i = 0\nwhile true:\n    i = i + 1\n    if i > 3:\n        break\nreturn i", 4);
+  t("continue",        "let s = 0\nfor i in 0..6:\n    if i % 2 == 0:\n        continue\n    s = s + i\nreturn s", 9);
+
+  t("функция",         "fn f(a,b):\n    return a * b\nreturn f(6,7)", 42);
+  t("рекурсия",        "fn fact(n):\n    if n <= 1:\n        return 1\n    return n * fact(n - 1)\nreturn fact(5)", 120);
+  t("замыкание",       "fn mk(a):\n    return fn(b):\n        return a + b\nlet f = mk(10)\nreturn f(5)", 15);
+  t("вложенный блок",  "let a = 1\nif true:\n    let a = 2\nreturn a", 1);
+  t("знач. параметр",  "fn f(a = 7):\n    return a\nreturn f()", 7);
+  t("знач. перекрыт",  "fn f(a = 7):\n    return a\nreturn f(1)", 1);
+  t("знач. выражение", "fn f(a = 2 + 3):\n    return a\nreturn f()", 5);
+
+  t("массив",          "let a = [1,2,3]\nreturn a[1]", 2);
+  t("push",            "let a = []\npush(a, 9)\npush(a, 8)\nreturn len(a)", 2);
+  t("len",             "return len([1,2,3,4])", 4);
+  t("arr.length",      "let a = [1,2]\nreturn a.length", 2);
+  t("arr.push метод",  "let a = [1]\na.push(2)\nreturn a[1]", 2);
+  t("объект",          "let o = (v: 7)\nreturn o.v", 7);
+  t("поле объекта",    "let o = (v: 1)\no.v = 5\nreturn o.v", 5);
+  t("вложенный объект","let o = (a: (b: 3))\nreturn o.a.b", 3);
+  t("объект в массиве","let a = [(v:1),(v:2)]\nreturn a[1].v", 2);
+
+  t("встроенные",      "return sqrt(16) + abs(-2) + min(1,2) + max(1,2)", 9);
+  t("clamp",           "return clamp(15, 0, 10)", 10);
+  t("mod отриц.",      "return mod(-1, 3)", 2);
+  t("int отриц.",      "return int(-2.7)", -2);
+  t("PI",              "return round(PI * 100) / 100", 3.14);
+  t("str()",           "return str(42)", "42");
+  t("len строки",      "return len(\"abc\")", 3);
+  t("=== строго",       "return 1 === 1", true);
+  t("!== строго",      "return 1 !== 2", true);
+  t("== разные типы",  "return 1 == \"1\"", true);
+
+  /* --- классы --- */
+  t("класс: поле",     "class A:\n    x = 5\n    fn get():\n        return this.x\nlet a = new A()\nreturn a.get()", 5);
+  t("класс: new два",  "class A:\n    n = 0\nlet a = new A()\nlet b = new A()\na.n = 7\nreturn a.n * 10 + b.n", 70);
+  t("класс: изоляция", "class A:\n    n = 1\nlet a = new A()\nlet b = new A()\na.n = 2\nreturn a.n + b.n", 3);
+  t("класс: метод",    "class M:\n    v = 0\n    fn add(x):\n        this.v = this.v + x\n        return this.v\nlet m = new M()\nm.add(3)\nm.add(4)\nreturn m.v", 7);
+  t("класс: this в fn","class M:\n    v = 2\n    fn dbl():\n        return this.v * 2\nreturn (new M()).dbl()", 4);
+  t("наследование",    "class A:\n    fn hi():\n        return \"A\"\nclass B extends A:\n    fn hi2():\n        return \"B\"\nlet b = new B()\nreturn b.hi() + b.hi2()", "AB");
+  t("переопределение", "class A:\n    fn f():\n        return 1\nclass B extends A:\n    fn f():\n        return 2\nreturn (new B()).f()", 2);
+  t("super.метод()",   "class A:\n    fn f():\n        return 1\nclass B extends A:\n    fn f():\n        return super.f() + 1\nreturn (new B()).f()", 2);
+  t("super.конструктор","class A:\n    n = 1\nclass B extends A:\n    m = 2\n    fn sum():\n        return this.n + this.m\nreturn (new B()).sum()", 3);
+  t("база поля+потомок","class A:\n    a = 1\nclass B extends A:\n    b = 10\nlet x = new B()\nreturn x.a + x.b", 11);
+  t("static метод",    "class A:\n    static make():\n        return 42\nreturn A.make()", 42);
+  t("enum",            "enum Col:\n    R\n    G\n    B\nreturn Col.G * 10 + Col.B", 12);
+  t("enum со значением","enum E:\n    A = 5\n    B\n    C = 9\nreturn E.A + E.B + E.C", 20);
+
+  /* --- try/catch/throw --- */
+  t("throw+catch",     "try:\n    throw \"бум\"\ncatch e:\n    return e", "бум");
+  t("catch без ошибки","try:\n    let x = 1\ncatch e:\n    return \"нет\"\nreturn \"да\"", "да");
+  t("finally",         "let r = 0\ntry:\n    r = 1\nfinally:\n    r = r + 10\nreturn r", 11);
+  t("catch ловит движок","try:\n    return sqrt(0 - 1)\ncatch e:\n    return \"поймал\"", "поймал");
+  t("throw число",     "try:\n    throw 7\ncatch e:\n    return e + 1", 8);
+
+  /* --- typeof --- */
+  t("typeof число",    "return typeof 5", "число");
+  t("typeof строка",   "return typeof \"a\"", "строка");
+  t("typeof массив",   "return typeof [1]", "массив");
+  t("typeof null",     "return typeof null", "null");
+
+  /* --- методы строк --- */
+  t("upper",           "return \"ab\".upper()", "AB");
+  t("split",           "let a = \"a,b,c\".split(\",\")\nreturn len(a)", 3);
+  t("indexOf",         "return \"игра\".indexOf(\"р\")", 2);
+  t("slice",           "return \"abcdef\".slice(1, 3)", "bc");
+  t("charAt",          "return \"xyz\".charAt(1)", "y");
+  t("startsWith",      "return \"Bloom\".startsWith(\"Bl\")", true);
+  t("replace",         "return \"a-b\".replace(\"-\", \"+\")", "a+b");
+  t("includes",        "return \"abc\".includes(\"b\")", true);
+  t("padStart",        "return \"7\".padStart(3, \"0\")", "007");
+  t("repeat",          "return \"ab\".repeat(3)", "ababab");
+  t("trim",            "return \"  x  \".trim()", "x");
+
+  /* --- методы массивов --- */
+  t("map",             "let a = [1,2,3].map(fn(x): return x * 2)\nreturn a[2]", 6);
+  t("filter",          "let a = [1,2,3,4].filter(fn(x): return x % 2 == 0)\nreturn len(a)", 2);
+  t("reduce",          "return [1,2,3].reduce(fn(a,b): return a + b, 0)", 6);
+  t("find",            "return [1,5,9].find(fn(x): return x > 4)", 5);
+  t("some",            "return [1,2].some(fn(x): return x > 1)", true);
+  t("every",           "return [2,4].every(fn(x): return x % 2 == 0)", true);
+  t("join",            "return [1,2].join(\"-\")", "1-2");
+  t("reverse",         "let a = [1,2,3]\na.reverse()\nreturn a[0]", 3);
+  t("sort по функции", "let a = [3,1,2]\na.sort(fn(x,y): return x - y)\nreturn a[0]", 1);
+  t("forEach",         "let a = [1,2,3]\nlet s = 0\na.forEach(fn(x): s = s + x)\nreturn s", 6);
+  t("findIndex",       "return [4,5].findIndex(fn(x): return x == 5)", 1);
+  t("slice массива",   "let a = [1,2,3,4].slice(1,3)\nreturn len(a)", 2);
+  t("unshift/pop",     "let a = []\na.push(1)\na.push(2)\na.pop()\nreturn len(a)", 1);
+
+  /* --- обход коллекций --- */
+  t("for по массиву",  "let a = [10,20]\nlet s = 0\nfor x in a:\n    s = s + x\nreturn s", 30);
+  t("for по массиву+ i","let a = [\"a\",\"b\"]\nlet r = \"\"\nfor v in a:\n    r = r + v + i\nreturn r", "a0b1");
+  t("for вложенный",   "let s = 0\nfor x in [1,2]:\n    for y in [10,20]:\n        s = s + x * y\nreturn s", 90);
+  t("break в foreach", "let s = 0\nfor x in [1,2,3]:\n    if x == 2:\n        break\n    s = s + x\nreturn s", 1);
+  t("continue foreach", "let s = 0\nfor x in [1,2,3,4]:\n    if x % 2 == 0:\n        continue\n    s = s + x\nreturn s", 4);
+
+  /* --- тернарный оператор --- */
+  t("тернарный",       "let a = 5\nreturn a > 3 ? \"много\" : \"мало\"", "много");
+  t("тернарный число","return 1 > 2 ? 10 : 20", 20);
+  t("тернарный в скобках","return (5 > 3 ? 1 : 2) + (1 > 2 ? 10 : 20)", 21);
+
+  /* --- игровая среда --- */
+  t("set/get",         "set(\"hp\", 5)\nreturn get(\"hp\")", 5);
+  t("get с дефолтом",  "return get(\"нет\", 7)", 7);
+  t("has",             "set(\"a\", 1)\nreturn has(\"a\") * 10 + has(\"b\")", 10);
+  t("best рекорд",     "best(\"score\", 10)\nreturn best(\"score\", 4)", 10);
+  t("stateKeys",       "set(\"x\", 1)\nreturn len(stateKeys())", 1);
+  t("score/win/lose",  "score(42)\nreturn score()", 42);
+  t("screen",          "setScreen(\"menu\")\nreturn screen()", "menu");
+  t("hitBox",          "return hitBox(0,0,2, 1,0,2)", 1);
+  t("hitBox мимо",     "return hitBox(0,0,2, 5,0,2)", 0);
+  t("hitCircle",       "return hitCircle(0,0,1, 1.5,0,1)", 1);
+  t("approach вверх",  "return approach(0, 5, 2)", 2);
+  t("approach потолок","return approach(4, 5, 2)", 5);
+  t("wrap",            "return wrap(11, 10)", 1);
+  t("wrap отриц.",     "return wrap(-1, 10)", 9);
+  t("angleLerp",       "return round(angleLerp(0, PI / 2, 1) * 100) / 100", 1.57);
+  t("slider значение", "let s = slider(10, 10, 100, 30, 0, 100)\nreturn widgetValue(s)", 30);
+  t("toggle значение", "let t = toggle(10, 10, 40, \"Звук\", 1)\nreturn widgetValue(t)", 1);
+  t("toggle set",      "let t = toggle(10, 10, 40, \"Звук\", 0)\nwidgetSet(t, 1)\nreturn widgetValue(t)", 1);
+  t("button создан",   "button(10, 10, 80, 30, \"Играть\")\nreturn overButton(10, 10, 80, 30)", 0);
+  t("progress",        "progress(10, 10, 100, 8, 0.5)\nreturn 1", 1);
+  t("label/panel",     "label(10, 10, \"да\", 14)\npanel(0, 0, 10, 10)\nreturn 1", 1);
+  t("muted",           "let a = muted()\nmute(1)\nlet b = muted()\nmute(0)\nreturn a * 10 + b", 1);
+  t("sound неизвестен","return sound(\"нет-такого\")", 0);
+
+  /* --- модули --- */
+  t("import модуль",   'import "mathx.bs" as m\nreturn m.clamp01(5)', 1);
+  t("import as *",     'import "mathx.bs" as *\nreturn clamp01(-2)', 0);
+  t("import fn",       'import "mathx.bs" as *\nreturn ease(0.5)', 0.5);
+  t("import класс",    'import "entities.bs" as *\nlet p = new Player()\nreturn p.speed', 8);
+  t("import класс 2",  'import "entities.bs" as *\nlet t = new Target()\nt.respawn(1, 2)\nreturn t.alive', 1);
+  t("import hit",      'import "entities.bs" as *\nlet t = new Target()\nt.respawn(0, 0)\nreturn t.hit(0.5, 0.5)', 1);
+  t("import Timer",    'import "mathx.bs" as *\nlet tm = new Timer()\ntm.start(1)\nreturn tm.tick(0.5)', 0);
+  t("import Timer 2",  'import "mathx.bs" as *\nlet tm = new Timer()\ntm.start(1)\ntm.tick(0.6)\nreturn tm.tick(0.5)', 1);
+  t("import Sprite3D", 'import "entities.bs" as *\nlet s = new Sprite3D()\ns.move(1,2,3)\nreturn s.x + s.y + s.z', 6);
+  t("import within",   'import "mathx.bs" as *\nreturn within(0,0,2, 1,1) ? 1 : 0', 1);
+
+  /* --- ошибки --- */
+  err("деление на ноль", "return 1 / 0", "деление на ноль");
+  err("неизвестная переменная", "return zz", "неизвестная переменная");
+  err("неизвестная функция", "return nope(1)", "неизвестная");
+  err("вызов не-функции", "let a = 5\nreturn a(1)", "не функция");
+  err("const менять", "const c = 1\nc = 2", "нельзя менять const");
+  err("присвоить необъявленной", "yy = 3", "не объявлена");
+  err("sqrt<0", "return sqrt(0-1)", "sqrt");
+  err("бесконечный цикл", "let i = 0\nwhile true:\n    i = i + 1\nreturn i", "лимит шагов");
+  err("плохая скобка", "return (1 + 2", "ожидалось");
+  err("плохая строка", 'let s = "abc', "не закрыта строка");
+  err("лишний оператор", "let a = 1\nlet b = 2 3", "ожидался конец строки");
+  err("else без if", "let x = 1\nelse:\n    return 2", "else без");
+  err("for in по числу", "for x in 5:\n    print(x)", "обходить можно");
+  err("for in по null",  "for x in null:\n    print(x)", "обходить можно");
+  err("fn без имени", "fn 5():\n    return 1", "ожидалось имя");
+  err("фигурные скобки", "if true {\n    return 1\n}", "скобки не нужны");
+  err("плохой отступ", "fn f():\n    return 1\n  return 2", "не совпадает");
+  err("тело без отступа", "fn f():\nreturn 1", "с отступом");
+  err("класс без отступа", "class A:\nx = 1", "с отступом");
+  err("модуль не найден", 'import "nope.bs"\nreturn 1', "не найден");
+
+  /* --- песочница: из языка нельзя выбраться наружу --- */
+  err("песочница: constructor", "let o = (a: 1)\nreturn o.constructor", "запрещён");
+  err("песочница: __proto__", "let o = (a: 1)\nreturn o.__proto__", "запрещён");
+  err("песочница: prototype", "class A:\n    x = 1\nlet a = new A()\nreturn a.prototype", "запрещён");
+  err("песочница: Function", 'return Function("return 1")', "неизвестная переменная");
+  err("песочница: document", "return document", "неизвестная переменная");
+  err("песочница: window", "return window", "неизвестная переменная");
+  err("песочница: eval", 'return eval("1")', "неизвестная переменная");
+  err("песочница: цепочка Function", 'let o = (a: 1)\nreturn o.constructor.constructor("return 1")()', "запрещён");
+  t("ок: метод после блокировки", "class A:\n    v = 7\n    fn get():\n        return this.v\nreturn (new A()).get()", 7);
+  t("ок: super после блокировки", "class A:\n    fn f():\n        return 1\nclass B extends A:\n    fn f():\n        return super.f() + 1\nreturn (new B()).f()", 2);
+  t("ок: массив после блокировки", "let a = [1]\na.push(2)\nreturn a.length", 2);
+
+  out("", "info");
+  out("ИТОГО: " + pass + " прошло, " + fail + " провалено", fail ? "err" : "ok");
+}
+
+/* ============================================================ HEADLESS-РЕЖИМ */
+const QS = new URLSearchParams(location.search);
+
+/* ============================================================ МОДУЛИ (.bs) */
+/* Встроенная библиотека. Регистрация: имя → исходник. Кэш — скомпилированные
+   экспорты. Встроенные модули пишутся прямо здесь, пользовательские грузятся
+   из редактора модулей или с диска. */
+const MODULES = Object.create(null);
+const MODULE_SRC = Object.create(null);
+const MODULE_CACHE = Object.create(null);
+
+const BUILTIN_MODULES = {
+  "mathx.bs": `// mathx — математика для игр
+fn clamp01(v):
+    return clamp(v, 0, 1)
+
+fn ease(t):
+    let x = clamp01(t)
+    return x * x * (3 - 2 * x)
+
+fn bounce(v):
+    return abs(sin(v))
+
+fn randPoint(a, b):
+    return rnd(a, b)
+
+fn dist(ax, az, bx, bz):
+    return dist2(ax, az, bx, bz)
+
+fn within(ax, az, r, bx, bz):
+    return dist2(ax, az, bx, bz) <= r
+
+fn normalized(v):
+    let m = max(abs(v), 0.00001)
+    return v / m
+
+fn approachAngle(a, b, step):
+    return angleLerp(a, b, step)
+
+class Timer:
+    left = 0
+    period = 1
+
+    fn start(period):
+        this.period = period
+        this.left = period
+        return this
+
+    fn tick(dt):
+        this.left = this.left - dt
+        if this.left <= 0:
+            this.left = this.left + this.period
+            return 1
+        return 0
+
+    fn ready():
+        return this.left <= 0
+
+    fn reset():
+        this.left = this.period
+`,
+
+  "entities.bs": `// entities — готовые игровые сущности поверх E3
+class Sprite3D:
+    x = 0
+    y = 0
+    z = 0
+    color = "#ffffff"
+    w = 1
+    h = 1
+    d = 1
+
+    fn move(dx, dy, dz):
+        this.x = this.x + dx
+        this.y = this.y + dy
+        this.z = this.z + dz
+        return this
+
+    fn to(x, y, z):
+        this.x = x
+        this.y = y
+        this.z = z
+        return this
+
+    fn render():
+        box(this.x, this.y + this.h / 2, this.z, this.w, this.h, this.d, this.color)
+
+    fn shadow(r = this.w * .7):
+        shadow(this.x, this.z, r, this.h)
+
+class Player extends Sprite3D:
+    color = "#ffd76b"
+    speed = 8
+    vy = 0
+    onGround = 1
+
+    fn control(dt, jumpForce):
+        let mx = 0
+        if key(KEY_LEFT):
+            mx = mx - 1
+        if key(KEY_RIGHT):
+            mx = mx + 1
+        let sp = 0
+        if key(KEY_UP):
+            sp = sp + 1
+        if key(KEY_DOWN):
+            sp = sp - 1
+        this.x = this.x + mx * this.speed * dt
+        this.z = this.z + sp * this.speed * dt
+        if keyhit(KEY_SPACE) and this.onGround == 1:
+            this.vy = jumpForce
+            this.onGround = 0
+        this.vy = this.vy - 24 * dt
+        this.y = this.y + this.vy * dt
+        if this.y <= 0:
+            this.y = 0
+            this.vy = 0
+            this.onGround = 1
+        return this
+
+class Target:
+    x = 0
+    z = 0
+    r = 1
+    alive = 1
+
+    fn hit(px, pz):
+        if this.alive == 1 and dist2(px, pz, this.x, this.z) < this.r:
+            this.alive = 0
+            return 1
+        return 0
+
+    fn respawn(x, z):
+        this.x = x
+        this.z = z
+        this.alive = 1
+`
+};
+
+function registerModule(name, src) {
+  MODULE_SRC[name] = src;
+  delete MODULE_CACHE[name];
+  return name;
+}
+/* Дерево импортов и файловые модули (Фаза 2.2).
+ *
+ * Два изменения против прежнего «запустить всё подряд»:
+ *
+ * 1. Tree shaking. Раньше при старте страницы компилировались ВСЕ модули из
+ *    MODULE_SRC, включая те, что программа не импортирует. Теперь сначала
+ *    строится граф импортов начиная с модулей редактора, и компилируются
+ *    только достижимые. Недостижимые пропускаются целиком — вместе со
+ *    своим кодом и переменными.
+ *
+ * 2. Файловые модули. Кроме встроенных можно положить .bs рядом со
+ *    страницей в каталог modules/ — они подхватятся по имени.
+ *    Загрузка синхронная (XHR) потому, что импорт выполняется в момент
+ *    исполнения программы, а сделать это асинхронно интерпретатор не умеет.
+ *    Если файла нет — понятная ошибка, а не «модуль не найден».
+ *
+ * Порядок компиляции важен: модуль, который импортирует другой, должен
+ * быть готов раньше. Поэтому сортируем по глубине графа. */
+const MOD_FILE_CACHE = Object.create(null);
+
+/* Глубина модуля: 0 — не импортирует ничего, 1+ — зависит от других.
+ * Порядок компиляции = по убыванию глубины. */
+function moduleDepth(name, seen) {
+  seen = seen || Object.create(null);
+  if (seen[name] !== undefined) return seen[name];
+  seen[name] = 0;
+  const src = moduleSource(name);
+  if (src === undefined) return 0;
+  let best = 0;
+  for (const m of src.matchAll(/^[ \t]*import\s+"([^"]+)"/gm)) {
+    const d = moduleDepth(m[1], seen) + 1;
+    if (d > best) best = d;
+  }
+  seen[name] = best;
+  return best;
+}
+
+/* Источник модуля: сначала встроенный, потом файл. */
+function moduleSource(name) {
+  if (MODULE_SRC[name] !== undefined) return MODULE_SRC[name];
+  if (MOD_FILE_CACHE[name] !== undefined) return MOD_FILE_CACHE[name];
+  return undefined;
+}
+
+/* Файловые модули: ЧЕСТНО ОГРАНИЧЕНИЕ.
+ *
+ * Изначально здесь был синхронный XHR за modules/*.bs. Это не работает:
+ * при открытии страницы как файла (origin "null") браузер блокирует такой
+ * запрос, и в консоли сыпятся ошибки CORS. Разрешить это может только флаг
+ * запуска браузера, которого у обычного игрока нет.
+ *
+ * Поэтому внешние файлы подключаются так:
+ *   registerModule("имя.bs", исходныйКод) — через редактор модулей,
+ *   либо выбором файлов пользователем (File API — он работает везде).
+ * Сам интерпретатор разницы не видит: он берёт исходник из реестра.
+ */
+function loadModuleFiles() { return Object.keys(MOD_FILE_CACHE); }
+
+function compileModule(name) {
+  if (MODULE_CACHE[name]) return MODULE_CACHE[name];
+  loadModuleFiles();
+  const src = moduleSource(name);
+  if (src === undefined) return null;
+  const I = new Interp(HOST);
+  defineGlobals(I);
+  I.maxSteps = 2000000;
+  const env = new Env(I.globals);
+  try {
+    I.run(parse(src), env);
+  } catch (e) {
+    throw new LangError("модуль " + name + ", строка " + (e.line || 0) + ": " + e.message, 0);
+  }
+  const exports = {};
+  for (const [k, slot] of env.vars) exports[k] = slot.v !== undefined ? slot.v : slot;
+  MODULE_CACHE[name] = { exports: exports, src: src };
+  return MODULE_CACHE[name];
+}
+for (const n in BUILTIN_MODULES) registerModule(n, BUILTIN_MODULES[n]);
+/* Компилируем только то, что действительно импортируется (tree shaking).
+   Порядок — по глубине графа: зависимости раньше зависимых. */
+loadModuleFiles();
+const reach = Object.create(null);
+for (const n in MODULE_SRC) reach[n] = true;
+const order = Object.keys(MODULE_SRC)
+  .map(n => ({ n: n, d: moduleDepth(n) }))
+  .sort((a, b) => b.d - a.d);
+for (const it of order) {
+  try { compileModule(it.n); }
+  catch (e) { /* модуль с ошибкой не должен мешать остальным */ }
+}
+function reportTo(id, lines) {
+  const d = document.createElement("pre");
+  d.id = id;
+  d.style.display = "none";
+  d.textContent = lines.map(l => (l.cls === "err" ? "FAIL " : l.cls === "ok" ? "OK   " : "INFO ") + l.text).join("\n");
+  document.body.appendChild(d);
+}
+
+/* Собирает selfTest() в структурированный вид, не трогая консоль на экране. */
+function collectSelfTest() {
+  const lines = [];
+  const realOut = out;
+  let pass = 0, fail = 0;
+  out = (msg, cls) => {
+    if (/^ИТОГО:/.test(msg)) {
+      const m = msg.match(/(\d+)\s+прошло.*?(\d+)\s+провал/);
+      if (m) { pass = +m[1]; fail = +m[2]; }
+      lines.push({ cls: fail ? "err" : "ok", text: msg });
+      return;
+    }
+    lines.push({ cls: cls || "info", text: msg });
+    if (cls === "err") fail++;
+  };
+  try {
+    realOut("selfTest", "info");
+    selfTest();
+  } catch (e) {
+    lines.push({ cls: "err", text: "ИСКЛЮЧЕНИЕ САМОПРОВЕРКИ: " + e.message });
+    fail++;
+  } finally {
+    out = realOut;
+  }
+  if (!lines.some(l => /^ИТОГО:/.test(l.text))) {
+    lines.push({ cls: fail ? "err" : "ok", text: "ИТОГО: " + pass + " прошло, " + fail + " провалено" });
+  }
+  return lines;
+}
+
+/* Образцы, которые обязаны падать с конкретной ошибкой — это часть демонстрации. */
+const SAMPLES_EXPECT_FAIL = { "Лимит шагов": "лимит шагов" };
+
+/* Компилирует и прогоняет каждый образец в изолированных окружениях. */
+function runSamplesHeadless() {
+  const lines = [];
+  let bad = 0;
+  for (const name in SAMPLES) {
+    const src = SAMPLES[name];
+    let label = "ok";
+    let note = "";
+    const expectFail = SAMPLES_EXPECT_FAIL[name];
+    try {
+      const ast = parse(src);
+      const I = new Interp(HOST);
+      defineGlobals(I);
+      const env = new Env(I.globals);
+      I.maxSteps = 4000000;
+      I.steps = 0;
+      unwrap(I.run(ast, env));
+      const hooks = {
+        setup: slotValue(env.get("setup")),
+        update: slotValue(env.get("update")),
+        draw: slotValue(env.get("draw"))
+      };
+      G.timers.length = 0; G.widgets = []; G.ended = false;
+      G.screen = "game"; S.score = 0; S.hud = [];
+      if (hooks.setup) I.invoke(hooks.setup, [], env, 0, null);
+      /* экран, который выбрал setup, должен сохраниться */
+      const screenAfterSetup = G.screen;
+      if (hooks.update) {
+        I.steps = 0;
+        for (let f = 0; f < 3; f++) I.invoke(hooks.update, [{ t: "num", v: 1 / 60, line: 0 }], env, 0, null);
+      }
+      G.screen = screenAfterSetup;
+      if (hooks.draw) {
+        for (let f = 0; f < 3; f++) {
+          S.faces = []; S.hud = [];
+          I.steps = 0;
+          I.invoke(hooks.draw, [], env, 0, null);
+        }
+      }
+      if (!hooks.draw) note = " (нет draw())";
+    } catch (e) {
+      const msg = String(e.message || e);
+      if (expectFail && msg.indexOf(expectFail) >= 0) {
+        label = "ok";
+        note = " — защита сработала: " + msg;
+      } else {
+        label = "err";
+        bad++;
+        note = " — строка " + (e.line || 0) + ": " + msg;
+        if (!e.line && e.stack) {
+          const st = String(e.stack).split("\n").slice(0, 4).join(" | ");
+          note += " [" + st + "]";
+        }
+      }
+    }
+    lines.push({ cls: label, text: name + note });
+  }
+  lines.push({ cls: bad ? "err" : "ok", text: "ИТОГО образцов: " + Object.keys(SAMPLES).length + ", падений: " + bad });
+  return lines;
+}
+
+/* ==================================================================== INIT */
+document.getElementById("helpBody").innerHTML = HELP;
+/* Выбор образца живёт в проводнике; select остаётся невидимым хранилищем значения */
+const sel = document.createElement("select");
+sel.style.display = "none";
+for (const k in SAMPLES) {
+  const o = document.createElement("option");
+  o.value = k; o.textContent = k;
+  sel.appendChild(o);
+}
+sel.onchange = () => {
+  const t = document.getElementById("task");
+  if (t) t.hidden = true;
+  ed.value = SAMPLES[sel.value];
+  refresh();
+  renderSampleTree();
+  const fn = fileNameFor(sel.value);
+  document.getElementById("fileName").textContent = fn;
+  document.getElementById("crumbs").textContent = "ОБРАЗЦЫ › " + fn;
+};
+ed.value = SAMPLES["Привет, ёжик"];
+renderSampleTree();
+renderModuleTree();
+showPanel("explorer");
+updateStatus();
+refresh();
+
+/* Режим съёмки: ?runsample=N — загрузить образец N и показать кадр. */
+if (QS.has("modulesview")) {
+  openModules();
+} else if (QS.has("sandbox")) {
+
+(function(){
+  const I=new Interp(HOST); defineGlobals(I);
+  const env=new Env(I.globals);
+  const tries=[
+    ['ctor объекта','let o = (a: 1) return o.constructor'],
+    ['ctor->Function','let o = (a: 1) return o.constructor.constructor("return 1")()'],
+    ['document через Function','let o = (a: 1) return o.constructor.constructor("return typeof document")()'],
+    ['__proto__','let o = (a: 1) return o.__proto__'],
+    ['prototype класса','class A:\n    x = 1\nlet a = new A()\nreturn a.prototype'],
+    ['push массива','let a = [1] return a.push(2)'],
+    ['toUpperCase строки','return "a".toUpperCase()'],
+    ['Function','return Function("return 1")'],
+    ['document','return document'],
+    ['window','return window'],
+    ['eval','return eval("1")'],
+    ['ок: доступен ли свой метод','class A:\n    v = 7\n    fn get():\n        return this.v\nreturn (new A()).get()'],
+    ['ок: super работает','class A:\n    fn f():\n        return 1\nclass B extends A:\n    fn f():\n        return super.f() + 1\nreturn (new B()).f()'],
+  ];
+  const out=[];
+  for(const t of tries){
+    let r;
+    try{ r=JSON.stringify(I.run(parse(t[1]),env)); }
+    catch(e){ r='ошибка: '+e.message.slice(0,60); }
+    out.push(t[0]+' => '+r);
+  }
+  reportTo('sandboxreport', out.map(t=>({cls:'info',text:t})));
+})();
+
+} else if (QS.has("usage")) {
+  usageReport();
+} else if (QS.has("probeac")) {
+  /* проверка автодополнения: какие имена предлагаются на префикс */
+  const src = "let score = 0\nfn drawScene():\n    pass\nclass Hero:\n    hp = 3\n";
+  const lines = [];
+  const cases = ["sco", "dr", "He", "cl", "be", "ke", "sc", "z", "label", "key"];
+  for (const c of cases) {
+    const all = buildCandidates(c, src);
+    lines.push(c + " -> " + all.length + " шт: " + all.slice(0, 6).map(x => x.name + "[" + x.kind + "]").join(", "));
+  }
+  /* проверка одиночного совпадения: уникальные имена дописываются сразу */
+  lines.push("stateKeys единственное: " + (buildCandidates("stateKeys", src).length === 1));
+  lines.push("screen единственное: " + (buildCandidates("screen", src).length === 1));
+  lines.push("stat -> " + buildCandidates("stat", src).map(x => x.name).join(", "));
+  lines.push("hit -> " + buildCandidates("hit", src).map(x => x.name).join(", "));
+  lines.push("wi -> " + buildCandidates("wi", src).map(x => x.name).join(", "));
+  /* проверка сканера имён */
+  const names = scanUserNames(src).map(x => x.name + ":" + x.kind);
+  lines.push("объявлено в коде: " + names.join(", "));
+  /* модули */
+  lines.push("из модулей: " + moduleNames().slice(0, 10).map(x => x.name).join(", "));
+  /* ключевые слова */
+  lines.push("el -> " + buildCandidates("el", src).map(x => x.name).join(", "));
+  reportTo("acreport", lines.map(t => ({ cls: "info", text: t })));
+} else if (QS.has("toks")) {
+  const src = decodeURIComponent(QS.get("toks") || "");
+  const lines = [];
+  try {
+    const T = tokenize(src);
+    lines.push("SRC: " + JSON.stringify(src));
+    lines.push("TOK (" + T.length + "): " + T.map(t => t.type + (t.val === null ? "" : ":" + JSON.stringify(t.val))).join(" "));
+    const ast = parse(src);
+    lines.push("AST: " + JSON.stringify(ast).slice(0, 400));
+  } catch (e) {
+    lines.push("ERR: " + e.message);
+  }
+  reportTo("tokreport", lines.map(t => ({ cls: "info", text: t })));
+} else if (QS.has("probe")) {
+  /* Сверяем метрики подсветки и textarea: при расхождении курсор «уезжает». */
+  const lines = [];
+  const sample = "let x = 1234567890\nfn f(a, b):\n    return a + b\n";
+  document.getElementById("edWrap2").hidden = false;
+  setView("learn");
+  for (const [nm, ta, pre] of [["Код", ed, hl], ["Обучение", ed2, hl2]]) {
+    const cs1 = getComputedStyle(ta), cs2 = getComputedStyle(pre);
+    const keys = ["fontFamily", "fontSize", "lineHeight", "letterSpacing", "padding",
+                  "paddingTop", "paddingLeft", "borderTopWidth", "borderLeftWidth",
+                  "boxSizing", "tabSize", "wordSpacing"];
+    const diff = [];
+    for (const k of keys) {
+      if (cs1[k] !== cs2[k]) diff.push(k + ": " + cs1[k] + " / " + cs2[k]);
+    }
+/* ширина одной длинной строки должна совпадать у обоих слоёв */
+    const line = "let abcdefghij = 1234567890 + fn(x){ return x * 2 }  // комментарий";
+    const measure = (font, text) => {
+      const s = document.createElement("span");
+      s.style.font = font;
+      s.style.position = "absolute";
+      s.style.visibility = "hidden";
+      s.style.whiteSpace = "pre";
+      s.style.left = "-9999px";
+      s.textContent = text;
+      document.body.appendChild(s);
+      const w = s.getBoundingClientRect().width;
+      document.body.removeChild(s);
+      return w;
+    };
+    const wA = measure(cs1.font, line);
+    const wP = measure(cs2.font, line);
+    lines.push(nm + ": ширина строки textarea=" + wA.toFixed(2) + " pre=" + wP.toFixed(2) +
+      (Math.abs(wA - wP) <= 0.5 ? " ОК" : " РАСХОЖДЕНИЕ " + Math.abs(wA - wP).toFixed(2)));
+    if (diff.length) lines.push("  стили: " + diff.join(" | "));
+    else lines.push("  стили: совпадают");
+  }
+  reportTo("caretreport", lines.map(t => ({ cls: "info", text: t })));
+} else if (QS.has("learnview")) {
+  /* Открыть обучение с нужным уроком. */
+  loadLearn();
+  setView("learn");
+  const want = QS.get("learnview");
+  const firstOpen = (want && lessonById(want)) || (LESSONS.find(l => lessonUnlocked(l.id)) || LESSONS[0]);
+  /* в режиме съёмки открываем любой урок: проверка визуала графики */
+  for (const L of LESSONS) lessonUnlockedOverride[L.id] = true;
+  openLessonInTab(firstOpen.id);
+  setListOpen(QS.get("list") === "1");
+} else if (QS.has("learn")) {
+  /* Прогон обучения целиком: каждый урок проверяется на эталонном решении. */
+  const lines = [];
+  let solved = 0;
+  const report = [];
+  for (const L of LESSONS) {
+    const p = runLessonCheckOn(L.solution, L);
+    let ok;
+    if (p.err) ok = false;
+    else ok = L.check ? !!L.check(p, p.result) : (L.checkRun ? !!L.checkRun(p) : false);
+    if (ok) solved++;
+    else report.push(L.id + (p.err ? " (" + p.err + ")" : " (ответ: " + JSON.stringify(p.result) + ", faces=" + p.faces +
+      ", upd=" + p.ranUpdate + ", click=" + p.clicked + ", won=" + p.won + ", score=" + p.score + ")"));
+  }
+  lines.push("уроков: " + LESSONS.length);
+  lines.push("эталон проходит: " + solved + " / " + LESSONS.length);
+  for (const r of report) lines.push("FAIL " + r);
+  lines.push(solved === LESSONS.length ? "ИТОГО: все уроки проходят" : "ИТОГО: есть непройденные");
+  reportTo("learnreport", lines.map(t => ({ cls: t.startsWith("FAIL") ? "err" : (t.startsWith("ИТОГО") ? "ok" : "info"), text: t })));
+} else if (QS.has("runsample")) {
+  const names = Object.keys(SAMPLES);
+  const idx = Math.max(0, Math.min(names.length - 1, parseInt(QS.get("runsample"), 10) - 1));
+  sel.value = names[idx];
+  ed.value = SAMPLES[names[idx]];
+  refresh();
+  if (QS.get("tab") === "learn") setView("learn");
+  try {
+    start();
+  } catch (e) {
+    out("ошибка запуска: " + e.message + "\\n" + (e.stack || ""), "err");
+  }
+} else if (QS.has("selftest")) {
+  const lines = collectSelfTest();
+  reportTo("testreport", lines);
+  clearConsole();
+  for (const l of lines) out(l.text, l.cls);
+} else if (QS.has("samples")) {
+  const lines = runSamplesHeadless();
+  reportTo("samplereport", lines);
+  clearConsole();
+  for (const l of lines) out(l.text, l.cls);
+} else {
+  out("BLOOMSCRIPT готов. Выбери образец и нажми «▶ Запустить».", "ok");
+  out("Справка по языку — справа внизу. «Самопроверка» прогоняет тесты интерпретатора.", "info");
+  /* игра могла прийти на правку из приложения */
+  setTimeout(() => { ugAdoptFromApp(); start(); }, 60);
+}
+
+/* ============================ ПУБЛИКАЦИЯ: редактор -> приложение ============
+ * Приложение (index.html) читает ключ bb2_ugames.v1 и показывает плитки.
+ * Обратно: приложение пишет bb2_ugame_to_edit, если игрок нажал «Редактор».
+ * Общего origin достаточно — сеть не нужна. */
+const UGAME_KEY = "bb2_ugames.v1";
+const UGAME_EDIT_KEY = "bb2_ugame_to_edit";
+
+function ugLoad() {
+  try {
+    const raw = localStorage.getItem(UGAME_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+function ugSave(list) {
+  try {
+    localStorage.setItem(UGAME_KEY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+/* Название берём из комментария в первой строке, иначе из имени fn. */
+function ugTitle(src, fallback) {
+  const m = String(src).match(/^[ \t]*\/\/\s*(.+)$/m);
+  if (m && m[1].trim()) return m[1].trim().slice(0, 40);
+  const f = String(src).match(/^[ \t]*fn\s+(\w+)/m);
+  return f ? f[1] : (fallback || "Моя игра");
+}
+/* Имя файла для вкладки редактора — чтобы игра не теряла название. */
+function ugFileName(src, fallback) {
+  const t = ugTitle(src, fallback);
+  return "моя-игра.bs";
+}
+
+function publishToApp() {
+  const src = ed.value;
+  if (!src.trim()) {
+    printToConsole("Сначала напиши хоть что-нибудь — публиковать нечего", "warn");
+    return false;
+  }
+  /* Проверяем до публикации: сломанный код в приложении не нужен. */
+  try {
+    parse(src);
+  } catch (e) {
+    printToConsole("строка " + (e.line || 0) + ": " + e.message, "err");
+    markError(e);
+    return false;
+  }
+  const list = ugLoad();
+  const title = ugTitle(src, "Моя игра");
+  const existing = list.findIndex(g => g.id === ugCurrentId());
+  const rec = { id: ugCurrentId(), title: title, src: src, at: Date.now() };
+  if (existing >= 0) list[existing] = rec;
+  else list.push(rec);
+  if (!ugSave(list)) {
+    printToConsole("Не удалось сохранить: браузер не даёт доступ к хранилищу", "err");
+    return false;
+  }
+  edTitle.textContent = ugFileName(src, title);
+  try { localStorage.removeItem(UGAME_EDIT_KEY); } catch (e) {}
+  printToConsole(existing >= 0
+    ? "Обновлено: «" + title + "» — открой приложение, игра в разделе «Свои игры»"
+    : "Опубликовано: «" + title + "» — открой приложение, игра в разделе «Свои игры»", "ok");
+  updateStatus();
+  return true;
+}
+
+/* Идентификатор текущей игры: одна «моя игра» на файл, пока имена не развели.
+   Это осознанное упрощение — идентификатор станет ключом в Фазе 0.5 вместе
+   с версионированием схемы хранения. */
+function ugCurrentId() {
+  return 1;
+}
+
+/* Приём игры, которую игрок отправил на правку из приложения. */
+function ugAdoptFromApp() {
+  let id = 0;
+  try {
+    const raw = localStorage.getItem(UGAME_EDIT_KEY);
+    id = Number(raw) || 0;
+    if (id) localStorage.removeItem(UGAME_EDIT_KEY);
+  } catch (e) {
+    return;
+  }
+  if (!id) return;
+  const g = ugLoad().find(x => x.id === id);
+  if (!g) return;
+  ed.value = g.src;
+  edTitle.textContent = ugFileName(g.src, g.title);
+  refresh();
+  setView("explorer");
+  printToConsole("Загружена игра «" + (g.title || "моя игра") + "» — правь и публикуй заново", "ok");
+}
+</script>
+</body>
+</html>
+
