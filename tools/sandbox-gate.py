@@ -77,6 +77,26 @@ allowed("строковые ключи",
         "let o = []\no[\"name\"] = \"x\"\nreturn o[\"name\"]");
 allowed("объявление через скобки не сломано", "let a=[]\na[0]=5\nreturn a[0]");
 
+/* --- лимиты, которые раньше не ловились --- */
+/* Проверяем, что выполнение ИМЕННО останавливается ошибкой. Прежняя
+   проверка смотрела только на время: 24 удвоения без счётчика памяти
+   укладываются в 10 мс, и гейт радовался. */
+function stops(name, src) {
+  const t0 = Date.now();
+  const r = run(src);
+  const ms = Date.now() - t0;
+  ok(ms < 4000 && !!r.e, name + " останавливается ошибкой за " + ms +
+     " мс" + (r.e ? ": " + String(r.e.message).slice(0, 40) : " — ОШИБКИ НЕ БЫЛО"));
+}
+let dbl = ["let a = [0]"];
+for (let k = 0; k < 24; k++) dbl.push("a = a.concat(a)");
+stops("удвоение массива", dbl.join("\n"));
+stops("повторение строки", "return \"a\".repeat(400000000)");
+stops("вечный цикл с catch",
+  ["let i = 0", "while true:", "    try:", "        i = i + 1",
+   "    catch e:", "        continue"].join("\n"));
+stops("обычный вечный цикл", "let i = 0\nwhile true:\n    i = i + 1");
+
 console.log("ИТОГ: FAIL " + fail);
 process.exitCode = fail ? 1 : 0;
 """

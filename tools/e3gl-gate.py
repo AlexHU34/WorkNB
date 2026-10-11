@@ -268,6 +268,144 @@ PROBE = r"""
   ok(simTM > 0.5, "рисунок сетки совпал с 2D-путём: " +
      (simTM * 100).toFixed(1) + "%");
 
+  /* ---- 4a. КАДР ЧИСТИТСЯ ----
+     Раньше beginFrame был объявлен дважды, и рабочая очистка была
+     недостижима: каждый кадр наслаивался на предыдущий, и сцена темнела.
+     Проверяем прямо: рисуем сцену, потом пустую, и смотрим, что от
+     сцены не осталось ничего. */
+  E3GL.draw(ctx2, scene(), cam, 430, LIGHT3);
+  E3GL.draw(ctx2, [], cam, 430, LIGHT3);
+  var pxClear = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pxClear);
+  var left = 0;
+  for (var z2 = 3; z2 < pxClear.length; z2 += 4)
+    if (pxClear[z2] > 8) left++;
+  ok(left < 200, "пустой кадр очищает предыдущий (осталось " + left + " px)");
+
+  /* ---- 4b. ТЕНЬ ПОЛУПРОЗРАЧНА ----
+     Считать надо ИМЕННО тень: раньше полупрозрачные пиксели давала
+     обводка, поэтому сломанная альфа проходила незамеченной. Здесь
+     сцена состоит только из тени — у неё нет и обводки. */
+  var shOnly = [].concat(E3.shadow(0, 0, 3, 2, {}));
+  E3GL.draw(ctx2, shOnly, cam, 430, LIGHT3);
+  var pxSh = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pxSh);
+  var shSoft = 0, shHard = 0;
+  for (var z3 = 3; z3 < pxSh.length; z3 += 4) {
+    if (pxSh[z3] === 255) shHard++;
+    else if (pxSh[z3] > 20 && pxSh[z3] < 240) shSoft++;
+  }
+  ok(shSoft > 500, "тень полупрозрачная: мягких пикселей " + shSoft +
+     " (жёстких " + shHard + ")");
+  ok(shHard < 200, "тень не рисуется непрозрачной: жёстких пикселей " + shHard);
+
+  /* ---- 4c. ОБВОДКА ПРАВИЛЬНОГО ЦВЕТА ----
+     Раньше гейт считал только число отрезков. При сбитом шаге цвет
+     читался из координат вершины — и гейт этого не замечал. Проверяем
+     сам цвет: обводка тёмно-синяя, то есть синий канал выше красного. */
+  /* ---- 4c. ОБВОДКА ПРАВИЛЬНОГО ЦВЕТА ----
+     Регулятор качества E3.maxFaces мог остаться от предыдущих кадров и
+     срезать всю сцену, поэтому перед каждой точечной проверкой он
+     сбрасывается. */
+  E3.maxFaces = 0;
+  var boxOnly = [].concat(E3.box(0, 1, 0, 4, 4, 4, "#c8c8c8"));
+  E3GL.draw(ctx2, boxOnly, cam, 430, LIGHT3);
+  var pxLn = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pxLn);
+/* Обводка ищем СРАВНЕНИЕМ двух кадров: с ней и без неё. Разница обязана
+     быть тонкой рамкой по краям куба. Если шаг в буфере обводки сбит,
+     линии ложатся не туда и картина рассыпается. */
+  E3.maxFaces = 0;
+  var savedStroke = E3.minStroke;
+  E3.minStroke = 0;
+  E3GL.draw(ctx2, boxOnly, cam, 430, LIGHT3);
+  var withLn = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, withLn);
+  E3.minStroke = 1e9;                      /* обводка выключена */
+  E3GL.draw(ctx2, boxOnly, cam, 430, LIGHT3);
+  var noLn = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, noLn);
+  E3.minStroke = savedStroke;
+
+  var facePx = 0, edgePx = 0;
+  for (var z7 = 0; z7 < W * H; z7++) {
+    var a7 = noLn[z7 * 4 + 3];
+    if (a7 > 200) facePx++;
+    if (Math.abs(withLn[z7 * 4] - noLn[z7 * 4]) > 6 ||
+        Math.abs(withLn[z7 * 4 + 1] - noLn[z7 * 4 + 1]) > 6 ||
+        Math.abs(withLn[z7 * 4 + 2] - noLn[z7 * 4 + 2]) > 6) edgePx++;
+  }
+  ok(edgePx > 100, "обводка что-то рисует: отличающихся пикселей " + edgePx);
+  ok(edgePx < facePx * 0.6, "обводка тонкая, а не заливка: " + edgePx +
+     " px разницы против " + facePx + " px грани");
+
+  var blueish = 0, junk = 0, bright = 0;
+  var dR = 0, dG = 0, dB = 0, dN = 0;
+  for (var z4 = 0; z4 < W * H; z4++) {
+    var r4 = withLn[z4 * 4], g4 = withLn[z4 * 4 + 1], b4 = withLn[z4 * 4 + 2];
+    if (withLn[z4 * 4 + 3] < 200) continue;
+    if (b4 > r4) blueish++;
+    if (r4 > 250 && g4 > 250 && b4 > 250) bright++;
+    if (b4 > r4 + 60) junk++;
+    var dr = noLn[z4 * 4] - withLn[z4 * 4];
+    var dg = noLn[z4 * 4 + 1] - withLn[z4 * 4 + 1];
+    var db = noLn[z4 * 4 + 2] - withLn[z4 * 4 + 2];
+    if (Math.abs(dr) + Math.abs(dg) + Math.abs(db) > 12) { dR += dr; dG += dg; dB += db; dN++; }
+  }
+  var sb6 = E3GL.stats();
+  ok(blueish > edgePx * 0.3, "обводка сине грани: " + blueish +
+     " из " + edgePx + " отмеченных пикселей");
+  ok(junk < 50, "цвет обводки не взят из координат: перекосов " + junk);
+  ok(bright < 50, "обводка не рисуется белым: " + bright + " px");
+
+  /* Цвет обводки — постоянный (10,10,25) при alpha .25, поэтому вклад
+     в R, G и B обязан быть почти одинаковым. При сбитом шаге буфера
+     цвет читается из координат вершины, и вклады расходятся. */
+  var mR = dN ? Math.abs(dR / dN) : 0, mG = dN ? Math.abs(dG / dN) : 0,
+      mB = dN ? Math.abs(dB / dN) : 0;
+  var spread = Math.max(mR, mG, mB) - Math.min(mR, mG, mB);
+  ok(dN > 100 && spread < Math.max(mR, mG, mB) * 0.35,
+     "вклад каналов обводки ровный: R " + mR.toFixed(1) + ", G " +
+     mG.toFixed(1) + ", B " + mB.toFixed(1) + ", разброс " + spread.toFixed(1));
+
+  /* ---- 4d. ГРАНЬ e:1 НЕ ОСВЕЩАЕТСЯ ----
+     В 2D-пути грань с флагом e:1 идёт плоской, своим цветом. В GL она
+     была освещена и темнела. Рисуем такую грань одну и сравниваем с её
+     собственным цветом. */
+  E3.maxFaces = 0;
+  /* Грань e:1 обязана остаться своего цвета, а та же грань без этого
+     флага — освещённой. Сравниваем их друг с другом: если флаг перестал
+     действовать, значения сойдутся и проверка это увидит. Раньше
+     сравнивалось только с ожидаемым числом, и при случайном повороте
+     камеры грань освещалась в полную, а проверка всё равно проходила. */
+  E3.maxFaces = 0;
+  var litTri = E3.tri([-2, 0, 3], [2, 0, 3], [0, 3, 3], "#808080",
+                      [-0.42, -0.75, -0.5]);
+  var flatTri = E3.tri([-2, 0, 3], [2, 0, 3], [0, 3, 3], "#808080",
+                       [-0.42, -0.75, -0.5]);
+  flatTri.e = 1;
+  function avgBright(face) {
+    E3GL.draw(ctx2, [face], cam, 430, LIGHT3);
+    var buf = new Uint8Array(W * H * 4);
+    gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    var s = 0, n = 0;
+    for (var z5 = 0; z5 < W * H; z5++) {
+      if (buf[z5 * 4 + 3] < 250) continue;
+      s += (buf[z5 * 4] + buf[z5 * 4 + 1] + buf[z5 * 4 + 2]) / 3;
+      n++;
+    }
+    return { avg: n ? s / n : 0, n: n };
+  }
+  var gLit = avgBright(litTri), gFlat = avgBright(flatTri);
+  ok(gFlat.n > 200 && gLit.n > 200, "обе грани нарисованы: освещённая " +
+     gLit.n + " px, плоская " + gFlat.n + " px");
+  ok(Math.abs(gLit.avg - gFlat.avg) > 25,
+     "фла�� e:1 меняет освещение: без флага " + gLit.avg.toFixed(1) +
+     ", с флагом " + gFlat.avg.toFixed(1));
+  ok(Math.abs(gFlat.avg - 128) < 8,
+     "плоская грань остаётся своего цвета #808080 (средняя " +
+     gFlat.avg.toFixed(1) + ")");
+
   /* ---- 5. откат: без GL страница живёт ---- */
   var before = E3GL.ok;
   E3GL.disable();
