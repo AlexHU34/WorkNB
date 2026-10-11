@@ -364,6 +364,35 @@ let _v = new Float32Array(FLOATS * 4 * 4096);
 let _vN = 0, _l = new Float32Array(L_STRIDE * L_CAP0), _lN = 0;
 const _items = [];      /* грани после отсева, для сортировки */
 const _sprites = [];    /* спрайты уходят на 2D-слой */
+/* Плоские буферы вместо массивов на вершину. E3.view и E3.proj создавали
+   новый массив на КАЖДУЮ вершину КАЖДОЙ грани: на тысячу граней это
+   четырнадцать тысяч выделений в кадре. Здесь переиспользуемые буферы. */
+const _pv = new Float64Array(3 * 8);   /* вершины в видовых координатах */
+const _pp = new Float64Array(2 * 8);   /* проекция на экран */
+let _pool = new Float64Array(5 * 4096);/* данные принятых граней */
+let _poolUsed = 0;
+let _uni = null;                       /* адреса униформ, ищутся один раз */
+
+/* Редкий случай: грань пересекает ближнюю плоскость и её надо обрезать.
+   E3.clipNear ждёт массив пар, поэтому на этот случай собираем его. */
+const _clipTmp = [];
+function _pvToArrays(n) {
+  _clipTmp.length = 0;
+  for (let k = 0; k < n; k++) _clipTmp.push([_pv[k * 3], _pv[k * 3 + 1], _pv[k * 3 + 2]]);
+  return _clipTmp;
+}
+
+function uniforms(gl) {
+  if (_uni) return _uni;
+  const P = S.prog;
+  _uni = {
+    uL: gl.getUniformLocation(P, "uL"), uAo: gl.getUniformLocation(P, "uAo"),
+    uSky: gl.getUniformLocation(P, "uSky"), uGrad: gl.getUniformLocation(P, "uGrad"),
+    uH: gl.getUniformLocation(P, "uH"), uL2: gl.getUniformLocation(P, "uL2"),
+    uL2w: gl.getUniformLocation(P, "uL2w"), uHasL2: gl.getUniformLocation(P, "uHasL2"),
+  };
+  return _uni;
+}
 const _camTmp = { };
 
 function pushV(x, y, z, nx, ny, nz, r, g, b, a, y0, y1, flat) {
@@ -429,12 +458,22 @@ function draw(ctx, faces, cam, fl, L, opts) {
   buffers();
   beginFrame();
 
-  _vN = 0; _lN = 0; _items.length = 0; _sprites.length = 0;
+  _vN = 0; _lN = 0; _poolUsed = 0; _items.length = 0; _sprites.length = 0;
 
   const near = (typeof E3 !== "undefined" && E3.near) || 0.15;
   const opt = opts || {};
   const Ao = opt.ao === undefined ? 0.16 : opt.ao;
   const Sky = opt.sky === undefined ? 0.12 : opt.sky;
+
+  /* Поворот камеры и центр экрана считаются ОДИН раз на кадр. Раньше
+     E3.view() звал cos/sin четыре раза на каждую вершину: на тысячу
+     граней это 16 тысяч вызовов ради четырёх значений. Здесь те же
+     формулы (порядок: сначала поворот по yaw, потом по pitch — так же,
+     как в E3.view), но без выделений: вершины пишутся в плоские буферы. */
+  const cyaw = Math.cos(-cam.yaw), syaw = Math.sin(-cam.yaw);
+  const cpit = Math.cos(-cam.pitch), spit = Math.sin(-cam.pitch);
+  const cxp = cam.x, cyp = cam.y, czp = cam.z;
+  const hx = LW / 2, hy = LH / 2;
   const minGrad = (typeof E3 !== "undefined" && E3.minGrad) || 7;
   const minStroke = (typeof E3 !== "undefined" && E3.minStroke) || 0;
 
@@ -510,19 +549,36 @@ function draw(ctx, faces, cam, fl, L, opts) {
     }
 
     const nv = (f.t || f.v[3] === f.v[0]) ? 3 : 4;
-    let pv = [E3.view(f.v[0], cam)];
-    for (let k = 1; k < nv; k++) pv.push(E3.view(f.v[k], cam));
+    let nOut = nv;
     let inside = 0, dmax = 0;
     for (let k = 0; k < nv; k++) {
-      if (pv[k][2] >= near) inside++;
-      if (pv[k][2] > dmax) dmax = pv[k][2];
+      const p = f.v[k];
+      const dx = p[0] - cxp, dy = p[1] - cyp, dz = p[2] - czp;
+      const x1 = dx * cyaw - dz * syaw;
+      const z1 = dx * syaw + dz * cyaw;
+      const ox = x1, oy = dy * cpit - z1 * spit, oz = dy * spit + z1 * cpit;
+      const o = k * 3;
+      _pv[o] = ox; _pv[o + 1] = oy; _pv[o + 2] = oz;
+      if (oz >= near) inside++;
+      if (oz > dmax) dmax = oz;
     }
     if (!inside) continue;
 
-    if (inside < nv) {                           /* отсечение ближней плоскости */
-      const cl = E3.clipNear(pv, near);
+    /* Отсечение ближней плоскости нужно редко, поэтому ради него
+       собираем обычные массивы — E3.clipNear их и ждёт. */
+    if (inside < nv) {
+      const cl = E3.clipNear(_pvToArrays(nv), near);
       if (!cl || cl.length < 3) continue;
-      pv = cl;
+      nOut = cl.length;
+      for (let k = 0; k < nOut; k++) {
+        const p = cl[k];
+        _pv[k * 3] = p[0]; _pv[k * 3 + 1] = p[1]; _pv[k * 3 + 2] = p[2];
+      }
+      dmax = 0;
+      for (let k = 0; k < nOut; k++) {
+        const z = _pv[k * 3 + 2];
+        if (z > dmax) dmax = z;
+      }
     }
 
     /* Отсев обратных граней — ровно как в 2D-пути (e3.js:303). Раньше здесь
@@ -533,14 +589,18 @@ function draw(ctx, faces, cam, fl, L, opts) {
     if (f.s && E3.cull !== false && dmax > near + 0.05) {
       const rn = E3.rotN(f.n, cam);
       let cx = 0, cy = 0, cz = 0;
-      for (let k = 0; k < pv.length; k++) {
-        cx += pv[k][0]; cy += pv[k][1]; cz += pv[k][2];
+      for (let k = 0; k < nOut; k++) {
+        cx += _pv[k * 3]; cy += _pv[k * 3 + 1]; cz += _pv[k * 3 + 2];
       }
       if (rn[0] * cx + rn[1] * cy + rn[2] * cz > 0) continue;
     }
 
-    const pp = [];
-    for (let k = 0; k < pv.length; k++) pp.push(E3.proj(pv[k], fl, LW, LH));
+    for (let k = 0; k < nOut; k++) {
+      const z = _pv[k * 3 + 2];
+      const s = fl / (z > 0.12 ? z : 0.12);
+      _pp[k * 2] = hx + _pv[k * 3] * s;
+      _pp[k * 2 + 1] = hy - _pv[k * 3 + 1] * s;
+    }
 
     /* Регулятор качества. В 2D-пути E3.maxFaces ограничивает число граней;
        здесь тот же предел, иначе на тяжёлых сценах кадр просто выпадает. */
@@ -549,7 +609,24 @@ function draw(ctx, faces, cam, fl, L, opts) {
       continue;
     }
 
-    _items.push({ d: dmax, f: f, pp: pp, nv: pv.length, pv: pv });
+    /* Данные грани кладём в общий переиспользуемый пул, а не в массивы.
+       Если хранить ссылку на _pv/_pp, следующая грань затрёт предыдущую,
+       а если копировать в массивы — вернёмся к выделениям. Пул живёт
+       между кадрами и растёт по мере надобности. */
+    const need = nOut * 5;
+    if (_poolUsed + need > _pool.length) {
+      const bigger = new Float64Array(Math.max(_pool.length * 2, _poolUsed + need));
+      bigger.set(_pool);
+      _pool = bigger;
+    }
+    const off = _poolUsed;
+    for (let k = 0; k < nOut; k++) {
+      const o = k * 3, q = off + k * 5;
+      _pool[q] = _pv[o]; _pool[q + 1] = _pv[o + 1]; _pool[q + 2] = _pv[o + 2];
+      _pool[q + 3] = _pp[k * 2]; _pool[q + 4] = _pp[k * 2 + 1];
+    }
+    _poolUsed += need;
+    _items.push({ d: dmax, f: f, o: off, nv: nOut });
   }
 
   /* ---- 2. сортировка от дальнего к ближнему ---- */
@@ -573,7 +650,6 @@ function draw(ctx, faces, cam, fl, L, opts) {
        пришлось бы передавать глубину и направление взгляда, а ради
        совпадения картинки важнее одно число. Шесть игр ставят E3.fog. */
     if (!flat && f.c && f.c.charAt(0) === "#") {
-      const V = it.pv;
       if (E3.fog) {
         const fk = Math.max(0, Math.min(1,
           (it.d - E3.fog[3]) / ((E3.fog[4] - E3.fog[3]) || 1)));
@@ -587,7 +663,11 @@ function draw(ctx, faces, cam, fl, L, opts) {
         const rv = E3.rotN(f.n, cam);
         const lv = E3.rotN(L, cam);
         let vx = 0, vy = 0, vz = 0;
-        for (let k = 0; k < V.length; k++) { vx -= V[k][0]; vy -= V[k][1]; vz -= V[k][2]; }
+        for (let k = 0; k < it.nv; k++) {
+          vx -= _pool[it.o + k * 5];
+          vy -= _pool[it.o + k * 5 + 1];
+          vz -= _pool[it.o + k * 5 + 2];
+        }
         const vl = Math.hypot(vx, vy, vz) || 1;
         const sp = E3.spec(rv, lv, [vx / vl, vy / vl, vz / vl], opt.spec, opt.shin);
         if (sp > 0) {
@@ -610,35 +690,36 @@ function draw(ctx, faces, cam, fl, L, opts) {
     }
 
     /* экранный размах грани: решает, будет ли градиент */
+    const o0 = it.o, nn = it.nv;
     let y0 = 1e9, y1 = -1e9;
-    const P = it.pp;
-    for (let k = 0; k < P.length; k++) {
-      if (P[k][1] < y0) y0 = P[k][1];
-      if (P[k][1] > y1) y1 = P[k][1];
+    for (let k = 0; k < nn; k++) {
+      const py = _pool[o0 + k * 5 + 4];
+      if (py < y0) y0 = py;
+      if (py > y1) y1 = py;
     }
 
-    const put = (p) => pushV(
-      p[0] / LW * 2 - 1, 1 - p[1] / LH * 2, 0.5,
-      nx, ny, nz, c[0], c[1], c[2], alpha, y0, y1, flat);
+    const put = (k) => {
+      const q = o0 + k * 5;
+      pushV(_pool[q + 3] / LW * 2 - 1, 1 - _pool[q + 4] / LH * 2, 0.5,
+            nx, ny, nz, c[0], c[1], c[2], alpha, y0, y1, flat);
+    };
 
-    const n = it.nv;
-    if (n >= 3) {
-      put(P[0]); put(P[1]); put(P[2]);
-      if (n === 4) { put(P[0]); put(P[2]); put(P[3]); }
-      else if (n > 4) {                    /* веер для произвольных граней */
-        for (let k = 3; k < n; k++) { put(P[0]); put(P[k - 1]); put(P[k]); }
+    if (nn >= 3) {
+      put(0); put(1); put(2);
+      if (nn === 4) { put(0); put(2); put(3); }
+      else if (nn > 4) {                    /* веер для произвольных граней */
+        for (let k = 3; k < nn; k++) { put(0); put(k - 1); put(k); }
       }
     }
 
     /* обводка — только у непрозрачных граней, как в E3 */
-    if (!f.e && minStroke <= 0 && P.length >= 3) {
+    if (!f.e && minStroke <= 0 && nn >= 3) {
       const col = [10 / 255, 10 / 255, 25 / 255, 0.25];
-      const cnt = P.length;
-      const lim = Math.min(cnt, 4);
+      const lim = Math.min(nn, 4);
       for (let k = 0; k < lim; k++) {
-        const a = P[k], b = P[(k + 1) % lim];
-        pushL(a[0] / LW * 2 - 1, 1 - a[1] / LH * 2,
-              b[0] / LW * 2 - 1, 1 - b[1] / LH * 2,
+        const a = o0 + k * 5 + 3, b = o0 + ((k + 1) % lim) * 5 + 3;
+        pushL(_pool[a] / LW * 2 - 1, 1 - _pool[a + 1] / LH * 2,
+              _pool[b] / LW * 2 - 1, 1 - _pool[b + 1] / LH * 2,
               col[0], col[1], col[2], col[3]);
       }
     }
@@ -657,18 +738,18 @@ function draw(ctx, faces, cam, fl, L, opts) {
   gl.disable(gl.CULL_FACE);
 
   gl.useProgram(S.prog);
-  const U = (n) => gl.getUniformLocation(S.prog, n);
-  gl.uniform3f(U("uL"), L[0], L[1], L[2]);
-  gl.uniform1f(U("uAo"), Ao);
-  gl.uniform1f(U("uSky"), Sky);
-  gl.uniform1f(U("uGrad"), minGrad);
-  gl.uniform1f(U("uH"), LH);
+  const U = uniforms(gl);
+  gl.uniform3f(U.uL, L[0], L[1], L[2]);
+  gl.uniform1f(U.uAo, Ao);
+  gl.uniform1f(U.uSky, Sky);
+  gl.uniform1f(U.uGrad, minGrad);
+  gl.uniform1f(U.uH, LH);
   if (opt.l2) {
-    gl.uniform3f(U("uL2"), opt.l2[0], opt.l2[1], opt.l2[2]);
-    gl.uniform1f(U("uL2w"), opt.l2w === undefined ? 0.3 : opt.l2w);
-    gl.uniform1f(U("uHasL2"), 1);
+    gl.uniform3f(U.uL2, opt.l2[0], opt.l2[1], opt.l2[2]);
+    gl.uniform1f(U.uL2w, opt.l2w === undefined ? 0.3 : opt.l2w);
+    gl.uniform1f(U.uHasL2, 1);
   } else {
-    gl.uniform1f(U("uHasL2"), 0);
+    gl.uniform1f(U.uHasL2, 0);
   }
 
   gl.bindVertexArray(S.vao);
