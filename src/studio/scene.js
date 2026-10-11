@@ -1,0 +1,251 @@
+/* NEBULA Studio — модель сцены и компиляция в BloomScript.
+ *
+ * Отделена от интерфейса намеренно: здесь нет DOM и нет localStorage,
+ * поэтому её можно проверять в Node как обычные данные (см. studio-gate).
+ *
+ * Главная идея, взятая у Unity и переделанная под нас: сцена — это ДАННЫЕ,
+ * а не код. Их можно сохранить, откатить и показать в инспекторе.
+ * Отличие от Unity в том, что нам не нужен отдельный «шаг сборки» с
+ * настройками: Studio компилирует сцену прямо в код BloomScript, который
+ * каталог уже умеет запускать через src/lang/play.js. Поэтому публикация —
+ * это одна кнопка, а не Build Settings.
+ *
+ * Вторая идея Unity, которую мы сознательно НЕ берём: префабы. У нас
+ * объекты плоские и дешёвые, а лишняя абстракция только мешает.
+ */
+(function () {
+
+const SCENE_VERSION = 1;
+const STORAGE_KEY = "bb2_studio_scene.v1";
+
+/* Виды объектов. keys — что уходит в сгенерированный вызов. */
+const KINDS = {
+  box:     { label: "Куб",     call: "box",     args: ["w", "h", "d"] },
+  pyramid: { label: "Пирамида", call: "pyramid", args: ["w", "h", "d"] },
+  sprite:  { label: "Метка",   call: "sprite",  args: ["size"] },
+};
+
+let seq = 1;
+function nextId() {
+  return "o" + (seq++).toString(36) + Date.now().toString(36).slice(-3);
+}
+
+/* Новая пустая сцена. Не одна функция create(), а конкретные значения:
+   редактор должен открываться на чем-то, что сразу видно. */
+function blank() {
+  return {
+    version: SCENE_VERSION,
+    title: "Моя сцена",
+    bg: ["#111a2b", "#1d2b45"],
+    ground: { w: 28, d: 28, color: "#1d3a2a" },
+    camera: { x: 0, y: 6, z: -10, yaw: 0, pitch: 0.42 },
+    animated: true,
+    objects: [],
+  };
+}
+
+/* Разбор приходит из хранилища и может быть чем угодно: правленым,
+   со старой версией, вовсе без version. Проверяем всё и чиним молча —
+   иначе один битый байт обнуляет работу человека над сценой. */
+function normalize(raw) {
+  const s = blank();
+  if (!raw || typeof raw !== "object") return s;
+  if (typeof raw.title === "string" && raw.title) s.title = raw.title.slice(0, 60);
+  if (Array.isArray(raw.bg) && raw.bg.length === 2) s.bg = [String(raw.bg[0]), String(raw.bg[1])];
+  if (raw.ground && typeof raw.ground === "object") {
+    s.ground = {
+      w: num(raw.ground.w, 28), d: num(raw.ground.d, 28),
+      color: str(raw.ground.color, "#1d3a2a"),
+    };
+  }
+  if (raw.camera && typeof raw.camera === "object") {
+    s.camera = {
+      x: num(raw.camera.x, 0), y: num(raw.camera.y, 6), z: num(raw.camera.z, -10),
+      yaw: num(raw.camera.yaw, 0), pitch: num(raw.camera.pitch, 0.42),
+    };
+  }
+  s.animated = raw.animated !== false;
+  const seen = Object.create(null);
+  if (Array.isArray(raw.objects)) {
+    for (const o of raw.objects) {
+      if (!o || typeof o !== "object") continue;
+      const kind = KINDS[o.kind] ? o.kind : "box";
+      let id = String(o.id || "");
+      if (!id || seen[id]) id = nextId();
+      seen[id] = 1;
+      s.objects.push({
+        id: id,
+        name: str(o.name, KINDS[kind].label).slice(0, 40),
+        kind: kind,
+        x: num(o.x, 0), y: num(o.y, 1), z: num(o.z, 0),
+        w: num(o.w, 2), h: num(o.h, 2), d: num(o.d, 2),
+        size: num(o.size, 2),
+        color: str(o.color, "#ff7043"),
+        phase: num(o.phase, 0),
+      });
+    }
+  }
+  return s;
+}
+
+function num(v, fallback) {
+  const n = typeof v === "number" ? v : parseFloat(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+function str(v, fallback) {
+  return typeof v === "string" && v ? v.slice(0, 24) : fallback;
+}
+
+/* Добавление объекта с разбросом по оси, чтобы новый куб не лез в
+   предыдущий — иначе в иерархии сразу видно, что сцена пустая. */
+function addObject(scene, kind) {
+  const k = KINDS[kind] ? kind : "box";
+  const n = scene.objects.length;
+  const o = {
+    id: nextId(),
+    name: KINDS[k].label + " " + (n + 1),
+    kind: k,
+    x: Math.round((n % 5) * 2.6 * 100) / 100,
+    y: k === "sprite" ? 2.5 : 1,
+    z: 0,
+    w: 2, h: 2, d: 2, size: 2,
+    color: ["#ff7043", "#4fc3f7", "#81c784", "#ba68c8", "#ffd54f"][n % 5],
+    phase: Math.round(n * 1.1 * 100) / 100,
+  };
+  scene.objects.push(o);
+  return o;
+}
+
+function removeObject(scene, id) {
+  const i = scene.objects.findIndex(o => o.id === id);
+  if (i < 0) return false;
+  scene.objects.splice(i, 1);
+  return true;
+}
+function findObject(scene, id) {
+  return scene.objects.find(o => o.id === id) || null;
+}
+
+/* ========================= КОМПИЛЯЦИЯ В BLOOMSCRIPT =========================
+ * Главная связка всего проекта: то, что человек собрал мышью, становится
+ * кодом, который каталог уже умеет запускать. Никакого отдельного
+ * «формата игры» — только язык, который уже проверен гейтами.
+ */
+function toBloomScript(scene) {
+  const L = [];
+  const q = (s) => '"' + String(s).replace(/"/g, "'") + '"';
+
+  L.push("// " + (scene.title || "Моя сцена"));
+  L.push("// Сделано в NEBULA Studio");
+  L.push("");
+
+  const anySprite = scene.objects.some(o => o.kind === "sprite");
+  if (scene.animated && scene.objects.length) L.push("let ang = 0");
+
+  L.push("fn setup():");
+  L.push("    lit(0.16, 0.14)");
+  L.push("    ground(" + n(scene.ground.w) + ", " + n(scene.ground.d) + ", " + q(scene.ground.color) + ")");
+  const c = scene.camera;
+  L.push("    camera(" + n(c.x) + ", " + n(c.y) + ", " + n(c.z) + ", " + n(c.yaw) + ", " + n(c.pitch) + ")");
+  L.push("");
+
+  if (scene.animated && scene.objects.length) {
+    L.push("fn update(dt):");
+    L.push("    ang = ang + dt");
+    L.push("");
+  }
+
+  L.push("fn draw():");
+  if (!scene.objects.length) {
+    L.push("    // сцена пуста — добавь объекты в Studio");
+    L.push("    text(10, 20, \"пусто\", 18, \"#9fb3c8\")");
+  } else {
+    for (const o of scene.objects) {
+      if (o.kind === "sprite") {
+        const bob = scene.animated ? " + 0.4 * sin(ang + " + n(o.phase) + ")" : "";
+        L.push("    sprite(" + n(o.x) + ", " + exprY(o, bob) + ", " + n(o.z) +
+               ", " + n(o.size) + ", " + q(o.name) + ", " + q(o.color) + ")");
+      } else {
+        const bob = scene.animated ? " + 0.25 * sin(ang + " + n(o.phase) + ")" : "";
+        L.push("    " + KINDS[o.kind].call + "(" + n(o.x) + ", " + exprY(o, bob) + ", " +
+               n(o.z) + ", " + n(o.w) + ", " + n(o.h) + ", " + n(o.d) + ", " + q(o.color) + ")");
+      }
+    }
+    L.push("    text(10, 20, \"очки: \" + score(), 18, \"#ffffff\")");
+  }
+  return L.join("\n") + "\n";
+}
+
+/* box/pyramid ждут центр объёма, поэтому y — это центр, и половина высоты
+   уходит вниз. Иначе куб «висит» над землёй на половину своего размера. */
+function exprY(o, bob) {
+  const half = o.kind === "sprite" ? 0 : (o.h || 2) / 2;
+  return "(" + n(o.y) + (half ? " - " + n(half) : "") + (bob || "") + ")";
+}
+
+function n(v) {
+  const r = Math.round((typeof v === "number" ? v : parseFloat(v) || 0) * 1000) / 1000;
+  return String(r);
+}
+
+/* ================================ ХРАНИЛИЩЕ ================================ */
+function save(scene) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(scene));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return normalize(raw ? JSON.parse(raw) : null);
+  } catch (e) {
+    return blank();
+  }
+}
+
+/* Публикация в общий каталог. Ключ и формат — те же, что у моста
+   src/lang/play.js, поэтому игра сразу появляется в лобби рядом со
+   встроенными и запускается оттуда. */
+function publish(scene) {
+  const src = toBloomScript(scene);
+  const list = readGames();
+  const id = "studio-" + Date.now().toString(36);
+  list.push({ id: id, src: src });
+  try {
+    localStorage.setItem("bb2_ugames.v1", JSON.stringify(list));
+  } catch (e) {
+    return { ok: false, error: "не удалось записать в хранилище" };
+  }
+  return { ok: true, id: id, src: src };
+}
+function readGames() {
+  try {
+    const raw = localStorage.getItem("bb2_ugames.v1");
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+const Studio = {
+  SCENE_VERSION: SCENE_VERSION,
+  STORAGE_KEY: STORAGE_KEY,
+  KINDS: KINDS,
+  blank: blank,
+  normalize: normalize,
+  addObject: addObject,
+  removeObject: removeObject,
+  findObject: findObject,
+  toBloomScript: toBloomScript,
+  save: save,
+  load: load,
+  publish: publish,
+};
+
+if (typeof window !== "undefined") window.Studio = Studio;
+else if (typeof globalThis !== "undefined") globalThis.Studio = Studio;
+})();

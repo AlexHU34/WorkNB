@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NEBULA Studio — редактор 3D-игр</title>
+<style>
+/* Тёмная тема — как в приложении, чтобы переход из каталога в редактор
+   не бивал по глазам. Панели узкие и жёсткие: как в Unity, справа и
+   слева всё умещается без прокрутки по горизонтали. */
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:#0e1420;color:#e6eef7;
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+  overflow:hidden;
+}
+#top{
+  height:52px;display:flex;align-items:center;gap:8px;padding:0 12px;
+  background:#141c2b;border-bottom:1px solid #22304a;
+}
+#top .logo{font-weight:800;letter-spacing:.5px;margin-right:6px}
+#top .logo span{color:#ff7043}
+#titleIn{
+  background:#0e1420;border:1px solid #22304a;color:#e6eef7;
+  border-radius:8px;padding:7px 10px;width:220px;font:inherit;
+}
+.btn{
+  background:#1c2740;border:1px solid #2c3d5e;color:#e6eef7;
+  border-radius:8px;padding:7px 11px;font:inherit;cursor:pointer;
+}
+.btn:hover{background:#243250}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:#2b6cff;border-color:#2b6cff;color:#fff}
+.btn.primary:hover{background:#3b78ff}
+.btn.danger{border-color:#7a2b2b;color:#ff9b9b;width:100%;margin-top:10px}
+.btn.stop{background:#c0392b;border-color:#c0392b;color:#fff}
+.sep{width:1px;height:26px;background:#22304a;margin:0 4px}
+#status{margin-left:auto;color:#7f93ad;font-size:12px}
+
+#main{display:flex;height:calc(100% - 52px)}
+.panel{background:#111a29;display:flex;flex-direction:column}
+#left{width:230px;border-right:1px solid #1e2b42}
+#right{width:280px;border-left:1px solid #1e2b42}
+.phead{
+  padding:9px 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;
+  color:#7f93ad;border-bottom:1px solid #1e2b42;font-weight:700;
+}
+.pbody{flex:1;overflow:auto;padding:8px}
+#hierBox,#inspBox{display:flex;flex-direction:column;gap:4px}
+.hrow{
+  display:flex;align-items:center;gap:8px;padding:6px 8px;
+  border-radius:7px;cursor:pointer;border:1px solid transparent;
+}
+.hrow:hover{background:#1a2436}
+.hrow.sel{background:#22314d;border-color:#3a5a8f}
+.hdot{width:12px;height:12px;border-radius:3px;flex:none;box-shadow:0 0 0 1px #0006 inset}
+.hname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inspHead{font-weight:700;color:#ffb27a;margin-bottom:6px}
+.irow{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.irow span{width:74px;flex:none;color:#9fb3c8;font-size:12px}
+.irow input{
+  flex:1;min-width:0;background:#0e1420;border:1px solid #22304a;color:#e6eef7;
+  border-radius:7px;padding:6px 8px;font:inherit;
+}
+.irow input[type=color]{padding:2px;height:32px}
+.irow input:disabled{opacity:.5}
+.hint{color:#6d819c;font-size:12px;padding:6px 2px}
+
+#center{flex:1;display:flex;flex-direction:column;min-width:0}
+#viewport{flex:1;position:relative;overflow:hidden}
+#scene{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#scene:active{cursor:grabbing}
+#logWrap{height:118px;border-top:1px solid #1e2b42;background:#0d1420;display:flex;flex-direction:column}
+#logBox{flex:1;overflow:auto;padding:8px 12px;font:12px/1.6 ui-monospace,Consolas,monospace}
+.logLine{color:#9fb3c8}
+.logLine.ok{color:#7ddc9a}
+.logLine.warn{color:#ffd54f}
+.logLine.err{color:#ff8a80}
+
+#codeWrap{
+  height:190px;border-top:1px solid #1e2b42;background:#0d1420;
+  display:flex;flex-direction:column;
+}
+#codeWrap[hidden]{display:none}
+#codeBox{
+  flex:1;overflow:auto;margin:0;padding:10px 12px;
+  font:12px/1.55 ui-monospace,Consolas,monospace;color:#b9cbe0;white-space:pre;
+}
+#codeWrap .phead{border-bottom:1px solid #1e2b42}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <div class="logo">NEBULA <span>STUDIO</span></div>
+  <input id="titleIn" placeholder="Название сцены" maxlength="60">
+  <div class="sep"></div>
+  <button class="btn" id="btnBox">+ Куб</button>
+  <button class="btn" id="btnPyr">+ Пирамида</button>
+  <button class="btn" id="btnSprite">+ Метка</button>
+  <button class="btn danger" id="btnClear" style="width:auto;margin:0">Очистить</button>
+  <div class="sep"></div>
+  <button class="btn primary" id="btnPlay">▶ Играть</button>
+  <button class="btn" id="btnSave">Сохранить</button>
+  <button class="btn" id="btnPublish">Опубликовать</button>
+  <button class="btn" id="btnCode">Код</button>
+  <div id="status">загрузка…</div>
+</div>
+
+<div id="main">
+  <div class="panel" id="left">
+    <div class="phead">Иерархия</div>
+    <div class="pbody"><div id="hierBox"></div></div>
+  </div>
+
+  <div id="center">
+    <div id="viewport"><canvas id="scene"></canvas></div>
+    <div id="codeWrap" hidden>
+      <div class="phead">Сгенерированный код BloomScript — его же увидит каталог</div>
+      <pre id="codeBox"></pre>
+    </div>
+    <div id="logWrap"><div id="logBox"></div></div>
+  </div>
+
+  <div class="panel" id="right">
+    <div class="phead">Инспектор</div>
+    <div class="pbody"><div id="inspBox"></div></div>
+  </div>
+</div>
+
+<!-- Движок и модель сцены. Интерфейс подключается последним: он
+     рассчитывает на то, что E3 и Studio уже объявлены. -->
+<script src="src/engine/e3.js"></script>
+<script src="src/engine/e3gl.js"></script>
+<script src="src/studio/scene.js"></script>
+<script src="src/studio/editor.js"></script>
+</body>
+</html>

@@ -37,10 +37,19 @@ SRC = os.path.join(ROOT, "src")
 DIST = os.path.join(ROOT, "dist")
 TOOLS = os.path.join(ROOT, "tools")
 
+# Без этой строки сборщик молча умирал на печати: консоль Windows отдаёт
+# русский текст в cp1251, и первый отчёт с «байт» ронял процесс
+# UnicodeEncodeError уже ПОСЛЕ того, как файлы были записаны.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # Имя исходника -> имя собранного файла.
 TARGETS = [
     ("index.html", "NebulaBloom.html"),
     ("lang.html", "BloomScript.html"),
+    ("studio.html", "NebulaStudio.html"),
 ]
 
 SRC_RE = re.compile(
@@ -120,11 +129,25 @@ def build():
         if n != refs:
             log("    ВНИМАНИЕ: найдено тегов %d, инлайнено %d" % (refs, n))
         out = os.path.join(DIST, outname)
-        with io.open(out, "w", encoding="utf-8", newline="\n") as f:
+        # Пишем во временный файл рядом и переименовываем: os.replace
+        # атомарен в пределах тома. Если сборку прервут, dist/ останется
+        # с прошлым рабочим файлом, а не с наполовину записанным.
+        tmp = out + ".building"
+        with io.open(tmp, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
+        os.replace(tmp, out)
         kb = os.path.getsize(out) // 1024
         log("    готово: dist/%s — %d КБ, модулей встроено %d" % (outname, kb, n))
         results.append((entry, outname, out, kb, n))
+    # Подчищаем огрызки прошлых прерванных сборок.
+    for f in os.listdir(DIST):
+        if f.endswith(".orig") or f.endswith(".building"):
+            try:
+                os.remove(os.path.join(DIST, f))
+                log("  удалён мусор: %s" % f)
+            except OSError:
+                pass
+
     log("")
     log("сборка завершена: %s" % stamp)
     return results
@@ -151,27 +174,27 @@ def verify(results):
             tester = os.path.join(TOOLS, "run-tests.py")
         elif entry == "lang.html":
             tester = os.path.join(TOOLS, "lang-tests.py")
+        elif entry == "studio.html":
+            tester = os.path.join(TOOLS, "studio-page-gate.py")
         if not (tester and os.path.isfile(tester)):
             log("  %s: нет тестера, пропуск" % outname)
             continue
 
-        original = out + ".orig"
-        os.replace(out, original)
-        shutil.copyfile(os.path.join(ROOT, entry), out)
-        try:
-            log("  %s: %s" % (outname, os.path.basename(tester)))
-            r = subprocess.run([sys.executable, tester], cwd=ROOT,
-                               capture_output=True, text=True,
-                               encoding="utf-8", errors="replace")
-            tail = [l for l in r.stdout.splitlines() if l.strip()][-4:]
-            for l in tail:
-                log("      " + l)
-            if r.returncode != 0:
-                ok = False
-                log("      FAIL (код %d)" % r.returncode)
-        finally:
-            os.replace(original, out)
-            log("      исходник на месте")
+        # Проверяем ИСХОДНИК, а не собранный файл, и никогда его не подменяем.
+        # Раньше ради проверки сборка отодвигалась в .orig, на её место
+        # копировался исходник, а тесты шли по исходнику. Прерывание в этом
+        # окне оставляло в dist/ исходник вместо сборки — то есть в
+        # dist попадало то, что никто не собирал.
+        log("  %s: %s" % (outname, os.path.basename(tester)))
+        r = subprocess.run([sys.executable, tester], cwd=ROOT,
+                           capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
+        tail = [l for l in r.stdout.splitlines() if l.strip()][-4:]
+        for l in tail:
+            log("      " + l)
+        if r.returncode != 0:
+            ok = False
+            log("      FAIL (код %d)" % r.returncode)
     log("")
     log("ИТОГ ПРОВЕРКИ: " + ("PASS" if ok else "FAIL"))
     return ok

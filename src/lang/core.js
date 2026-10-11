@@ -659,6 +659,18 @@ const FORBIDDEN_MEMBERS = {
   "__lookupGetter__": 1, "__lookupSetter__": 1
 };
 
+/* Текущий интерпретатор — нужен хелперам методов коллекций (map, filter,
+     forEach...): им не передают ссылку на интерпретатор, а вызывают колбэк
+     синхронно из тела программы.
+
+     Раньше здесь стояло «первый созданный за всю жизнь интерпретатор».
+     Это ломалось, как только интерпретаторов становилось больше одного
+     (игра в редакторе + игра в приложении): счётчик шагов списывался
+     не на тот счётчик, cykl в map() уходил не в ту переменную окружения,
+     а бесконечный цикл в чужой игре вообще не ловился — свой счётчик не
+     рос. Теперь это тот, кто исполняется прямо сейчас. */
+let I0 = null;
+
 class Interp {
   constructor(host) {
     this.maxDepth = 200;        /* предел вложенных вызовов функций */
@@ -672,7 +684,6 @@ class Interp {
     this.modules = {};
     this.depth = 0;
     this.objects = 0;
-    if (!I0) I0 = this;
   }
 
   /* Счётчики обнуляются на верхнем уровне запуска. Иначе между кадрами они
@@ -711,7 +722,9 @@ class Interp {
 
   run(ast, env) {
     const prev = this.curEnv;
+    const prevI0 = I0;
     this.curEnv = env;
+    I0 = this;
     try {
       for (const s of ast) {
         const r = this.exec(s, env);
@@ -720,6 +733,7 @@ class Interp {
       return null;
     } finally {
       this.curEnv = prev;
+      I0 = prevI0;
     }
   }
 
@@ -1087,6 +1101,20 @@ readMember(o, name, line, objNode) {
 
   invoke(f, argNodes, env, line, self) {
     this.budget();
+    /* Игровой цикл (update/draw) зовёт invoke() напрямую, минуя run().
+       Поэтому I0 ставится здесь же, а не только в run(): иначе вызов
+       колбэка из map() смотрел бы на интерпретатор, оставшийся от
+       чужого похода. */
+    const prevI0 = I0;
+    I0 = this;
+    try {
+      return this.invokeInner(f, argNodes, env, line, self);
+    } finally {
+      I0 = prevI0;
+    }
+  }
+
+  invokeInner(f, argNodes, env, line, self) {
     const args = argNodes.map(a => (a && a.t === "raw") ? a.v : this.eval(a, env));
     if (typeof f === "function") return f.apply(self === null ? undefined : self, args);
     if (f && f.__fn) {
@@ -1228,8 +1256,6 @@ function stringMethod(s, name) {
   }
 }
 
-/* Текущий интерпретатор — нужен хелперам методов коллекций. */
-let I0 = null;
 function invokeAsValue(f, args) {
   if (!I0) return null;
   const nodes = args.map(v => ({ t: "raw", v: v, line: 0 }));

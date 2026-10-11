@@ -5,19 +5,32 @@ var E3 = {
   const cx=Math.cos(-c.pitch),sx=Math.sin(-c.pitch);
   return [x1,dy*cx-z1*sx,dy*sx+z1*cx]},
  proj(p,fl,W,H){const s=fl/Math.max(.12,p[2]);return [W/2+p[0]*s,H/2-p[1]*s,s]},
- shade(hex,f){const n=parseInt(hex.slice(1),16);
-  const r=Math.min(255,((n>>16)&255)*f|0),g=Math.min(255,((n>>8)&255)*f|0),b=Math.min(255,(n&255)*f|0);
-  return "#"+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)},
+/* Цвет в оттенке. Раньше на ЛЮБУЮ строку, не начинающуюся с решётки,
+     вызывался parseInt(h.slice(1),16): для "rgba(10,10,25,.25)" это
+     parseInt("gba(…") = NaN, и грань молча становилась чёрной. Теперь
+     неизвестный формат проходит через как есть — начертание не ровно,
+     но лучше видимый объект, чем исчезнувший. */
+  shade(hex,f){const h=String(hex);if(h.charAt(0)!=="#")return h;
+   const n=parseInt(h.slice(1,7),16);
+   const r=Math.min(255,((n>>16)&255)*f|0),g=Math.min(255,((n>>8)&255)*f|0),b=Math.min(255,(n&255)*f|0);
+   return "#"+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)},
  /* нормаль по трём точкам (правая рука, против часовой при взгляде снаружи) */
  faceN(a,b,c){const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
   const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,l=Math.hypot(nx,ny,nz)||1;
   return [nx/l,ny/l,nz/l]},
  /* треугольник; 4-я вершина дублирует 1-ю, поэтому draw работает без веток */
  tri(a,b,c,col,n){return {v:[a,b,c,a],c:col,n:n||E3.faceN(a,b,c),t:1}},
- /* произвольный выпуклый n-угольник в плоскости; нормаль — из первых трёх точек */
- poly(pts,col,n){const k=pts.length;if(k<3)return [];
-  const v=pts.slice();while(v.length<4)v.push(pts[0]);
-  return [{v:v,c:col,n:n||E3.faceN(pts[0],pts[1],pts[2])}]},
+/* Произвольный выпуклый n-угольник в плоскости; нормаль — из первых трёх
+     точек. Для n>4 делается веер из треугольников: draw читает не больше
+     четырёх вершин, и раньше пятиугольник рисовался частично — молча,
+     без всякой ошибки. */
+  poly(pts,col,n){const k=pts.length;if(k<3)return [];
+   const nm=n||E3.faceN(pts[0],pts[1],pts[2]);
+   if(k===4)return [{v:pts.slice(),c:col,n:nm}];
+   const out=[];
+   for(let i=1;i<k-1;i++)
+    out.push({v:[pts[0],pts[i],pts[i+1]],c:col,n:nm,t:1});
+   return out},
  /* треугольная пирамида/призма — базовый объём для новых игр */
   pyramid(cx,cy,cz,w,h,d,col){
    const x=w/2,z=d/2,ap=[cx,cy+h,cz];
@@ -70,15 +83,20 @@ var E3 = {
    if(da>=0)out.push(a);
    if((da>=0)!==(db>=0)){const t=da/(da-db);out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,near])}}
   return out},
- /* тень на плоскости: эллипс, сплюснутый по глубине и сдвинутый против света.
-    h — высота объекта над плоскостью: чем выше, тем больше и светлее тень. */
+/* тень на плоскости: эллипс, сплюснутый по глубине и сдвинутый против света.
+     h — высота объекта над плоскостью: чем выше, тем больше и светлее тень.
+
+     Флага t:1 здесь больше нет. Он означал «треугольник», и четыре
+     РАЗНЫЕ вершины эллипса попадали в ветку на 3 вершины: тень
+     теряла четвёртый угол и рисовалась треугольником. Это задевало все
+     26 мест в играх, где тень звали E3.shadow. */
  shadow(x,z,r,h,o){
   const gy=(o&&o.y!==undefined)?o.y:0;
   const k=1/(1+(h||0)*.16);                       // с высотой тень растёт и бледнеет
   const a=o&&o.a!==undefined?o.a:.3;              // непрозрачность
   const sq=o&&o.sq!==undefined?o.sq:.55;          // сплющивание по глубине (ракурс камеры)
-  return [{v:[[x-r*k,gy,z-r*k*sq],[x+r*k,gy,z-r*k*sq],[x+r*k,gy,z+r*k*sq],[x-r*k,gy,z+r*k*sq]],
-          c:o&&o.c?o.c:"#000000",n:[0,1,0],t:1,e:2,a:a}]},
+return [{v:[[x-r*k,gy,z-r*k*sq],[x+r*k,gy,z-r*k*sq],[x+r*k,gy,z+r*k*sq],[x-r*k,gy,z+r*k*sq]],
+           c:o&&o.c?o.c:"#000000",n:[0,1,0],e:2,a:a}]},
  /* спрайт-эмодзи, участвующий в сортировке по глубине вместе с гранями.
     В отличие от ctx.fillText после draw() он корректно перекрывается геометрией. */
  sprite(x,y,z,size,text,col,glow){return {v:[x,y,z,x],c:col||"#fff",n:[0,0,1],k:1,p:[x,y,z],z:size,t2:text,g:glow||0}},
@@ -238,6 +256,15 @@ var E3 = {
   ctx.restore();
  },
  draw(ctx,faces,cam,fl,L,opts){
+  /* Переключение на WebGL2. Одно место, через которое проходят все 100
+     игр: ни одной из них править не пришлось. Проверка идёт на каждом
+     кадре, потому что E3GL грузится ПОСЛЕ E3 и на этапе разбора ещё не
+     существует. Если WebGL2 недоступен или не запрошен — просто идём
+     ниже обычным путём. */
+  if(typeof E3GL!=="undefined"&&E3GL.want){
+   if(!E3GL.ok)E3GL.attach(ctx);
+   if(E3GL.ok&&E3GL.want)return E3GL.draw(ctx,faces,cam,fl,L,opts);
+  }
   const _pf=E3.profile.on,_p0=_pf?performance.now():0;
   const LW=ctx.canvas._lw||ctx.canvas.width,LH=ctx.canvas._lh||ctx.canvas.height;
   const items=[],near=E3.near||.15;
@@ -294,7 +321,7 @@ var E3 = {
     if(sp>0)fcol=E3.mix(fcol,255,255,255,Math.min(.9,sp));
    }
    const fdep=dmax;
-   if(E3.fog){const fk=Math.max(0,Math.min(1,(fdep-E3.fog[3])/(E3.fog[4]-E3.fog[3])));if(fk>0)fcol=E3.mix(fcol,E3.fog[0],E3.fog[1],E3.fog[2],fk)}
+   if(E3.fog&&!flat){const fk=Math.max(0,Math.min(1,(fdep-E3.fog[3])/(E3.fog[4]-E3.fog[3])));if(fk>0)fcol=E3.mix(fcol,E3.fog[0],E3.fog[1],E3.fog[2],fk)}
    const pp=[];for(let k=0;k<pv.length;k++)pp.push(E3.proj(pv[k],fl,LW,LH));
    if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
    items.push({d:fdep,e:f.e?1:0,ea:f.e===2?2:0,a:f.a,p:pp,c:fcol})}
@@ -403,7 +430,11 @@ E3.auto={min:240,ms:16.7,frames:[],last:0,on:true,
   E3.auto.on=wasOn;E3.maxFaces=wasFaces;E3.auto.frames=[];E3.auto.last=0;
   return out},
  q:function(){return E3.maxFaces?Math.round(E3.maxFaces)+" граней":"полное качество"}};
-E3.mix=function(hex,r,g,b,k){const n=parseInt(hex.slice(1),16);
+/* Смешивание с цветом. Если первый аргумент — не #rrggbb (например,
+     CanvasPattern), возвращаем его же: раньше здесь был parseInt от
+     объекта, и паттерн вместе с туманом ронял кадр. */
+E3.mix=function(hex,r,g,b,k){const h=String(hex);if(h.charAt(0)!=="#")return hex;
+ const n=parseInt(h.slice(1,7),16);
  const R=Math.round(((n>>16)&255)*(1-k)+r*k),G=Math.round(((n>>8)&255)*(1-k)+g*k),B=Math.round((n&255)*(1-k)+b*k);
  return "#"+((1<<24)|(R<<16)|(G<<8)|B).toString(16).slice(1)};
 
@@ -482,7 +513,14 @@ E3.profile = {
  * для наших объёмов, и хуже чинится при динамических объектах.
  *
  * Включается явно: E3.grid.use = true. По умолчанию выключено, потому что
- * построение сетки само по себе стоит денег на маленьких сценах. */
+ * построение сетки само по себе стоит денег на маленьких сценах.
+ *
+ * УСТАРЕЛО, НОВОГО КОДА НЕ ПИШЕМ. Замер показал: в браузере сетка
+ * медленнее линейного прохода в 2,6 раза (15,1 мс против 39,4 мс на 1000
+ * граней), потому что кадр упирается в заливку, а не в отбор граней.
+ * В пути WebGL2 отсечение делает GPU бесплатно, и сетка там просто не
+ * читается. Код оставлен, потому что на нём стоит tools/grid-gate.py;
+ * удалять его имеет смысл вместе с отказом от пути 2D. */
 E3.grid = {
  /* minFaces — ниже этого сетка не строим: на маленьких сценах
     построение дороже самой отрисовки. far — половина стороны,

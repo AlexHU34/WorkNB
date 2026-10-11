@@ -17,6 +17,29 @@ function createRuntime(opts) {
   const ctx = cv.getContext("2d");
   const statEl = opts.stat || null;
 
+  /* Режим отрисовки. По умолчанию — привычный Canvas 2D. GL-слой
+     включается явно (?gl=1 или opts.gl), потому что переключать путь
+     отрисовки у проверенных игр молча нельзя: сначала гейт должен
+     убедиться, что оба пути дают одну картинку. */
+  let useGL = false;
+  const wantGL = opts.gl === true ||
+    (typeof location !== "undefined" && /[?&]gl=1(&|$)/.test(location.search || ""));
+  if (wantGL && typeof E3GL !== "undefined" && !E3GL.ok) {
+    if (E3GL.attach(ctx)) {
+      useGL = E3GL.enable();
+      const note = (opts.log || function () {})(
+        "WebGL2 включён" + (E3GL.stats().err ? ": " + E3GL.stats().err : ""), "ok");
+      void note;
+    } else {
+      (opts.log || function () {})(
+        "WebGL2 недоступен, работаем на 2D: " + (E3GL.stats().err || ""), "warn");
+    }
+  }
+  const onResizeGL = () => {
+    if (useGL) E3GL.resize(cv._lw, cv._lh);
+  };
+  if (useGL) window.addEventListener("resize", onResizeGL);
+
   /* Вывод наружу. Редактор пишет в консоль, приложение — в свой лог.
      Без подписчика строки просто не показываются, но кадр от этого не падает. */
   function out(msg, cls) { if (opts.log) opts.log(msg, cls || "info"); }
@@ -460,7 +483,9 @@ function createRuntime(opts) {
       /* весь кадр рисуем в логических координатах 640×380 */
       ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
 
-      /* фон */
+      /* Фон всегда рисуем на 2D-канве, даже когда включён GL. Слой GL лежит
+         СВЕРХУ и прозрачен, поэтому сквозь него виден фон снизу; если
+         убрать эту заливку, под геометрией окажется чёрное. */
       {
         const c0 = S.bg ? S.bg[0] : "#111a2b";
         const c1 = S.bg ? S.bg[1] : "#1d2b45";
@@ -468,16 +493,21 @@ function createRuntime(opts) {
         g.addColorStop(0, c0); g.addColorStop(1, c1);
         ctx.fillStyle = g; ctx.fillRect(0, 0, cv._lw, cv._lh);
       }
-      E3.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit);
+      if (useGL) E3GL.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit);
+      else E3.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit);
       const n = E3.stats.faces;
-      /* HUD: text() и bar() — слой над сценой */
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      /* HUD: text() и bar() — слой над сценой. При включённом GL он идёт
+         на отдельную канву ПОВЕРХ геометрии: игровая канва с HUD оказалась
+         бы под ней, и цифры пропали бы там, где сцена на них налезает. */
+      const hctx = (useGL && E3GL.hud()) ? E3GL.hud() : ctx;
+      hctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+      hctx.textAlign = "left"; hctx.textBaseline = "alphabetic";
       for (const h of S.hud) {
-        if (h.bar) { ctx.fillStyle = h.c; ctx.fillRect(h.x, h.y, h.w, h.h); }
-        else { ctx.font = "bold " + h.size + "px system-ui,sans-serif"; ctx.fillStyle = h.c; ctx.fillText(h.s, h.x, h.y); }
+        if (h.bar) { hctx.fillStyle = h.c; hctx.fillRect(h.x, h.y, h.w, h.h); }
+        else { hctx.font = "bold " + h.size + "px system-ui,sans-serif"; hctx.fillStyle = h.c; hctx.fillText(h.s, h.x, h.y); }
       }
       /* виджеты: label/panel/button/slider/toggle/progress */
-      drawWidgets();
+      if (useGL) drawWidgets(E3GL.hud()); else drawWidgets();
   if (statEl) statEl.textContent = "граней " + S.faces.length + " · нарисовано " + n +
         " · t=" + tAcc.toFixed(1) + "с · FPS-кадр " + (dt * 1000).toFixed(0) + "мс · экран " + G.screen;
       if (opts.status) opts.status(G.screen, dt * 1000, n);
@@ -497,71 +527,75 @@ function createRuntime(opts) {
   }
 
   /* Рисует виджеты интерфейса поверх сцены. */
-  function drawWidgets() {
-    ctx.textBaseline = "middle";
+  /* Виджеты рисуем на переданный слой: в режиме GL это канва ПОВЕРХ
+     геометрии, иначе игровая. Раньше ctx был единственным, и в GL-режиме
+     виджеты оказывались под сценой. */
+  function drawWidgets(into) {
+    const c = into || ctx;
+    c.textBaseline = "middle";
     for (const w of G.widgets) {
       if (w.kind === "panel") {
-        ctx.globalAlpha = Math.max(0, Math.min(1, w.a));
-        ctx.fillStyle = w.c;
-        ctx.fillRect(w.x, w.y, w.w, w.h);
-        ctx.globalAlpha = 1;
+        c.globalAlpha = Math.max(0, Math.min(1, w.a));
+        c.fillStyle = w.c;
+        c.fillRect(w.x, w.y, w.w, w.h);
+        c.globalAlpha = 1;
         continue;
       }
       if (w.kind === "label") {
-        ctx.textAlign = w.align === "center" ? "center" : (w.align === "right" ? "right" : "left");
-        ctx.font = "bold " + Math.round(w.size) + "px system-ui,sans-serif";
-        ctx.fillStyle = w.c;
-        ctx.fillText(w.s, w.x, w.y);
+        c.textAlign = w.align === "center" ? "center" : (w.align === "right" ? "right" : "left");
+        c.font = "bold " + Math.round(w.size) + "px system-ui,sans-serif";
+        c.fillStyle = w.c;
+        c.fillText(w.s, w.x, w.y);
         continue;
       }
       if (w.kind === "button") {
         const hov = inRect(w) && !G.drag;
-        ctx.fillStyle = hov ? shadeHex(w.c, 1.25) : w.c;
+        c.fillStyle = hov ? shadeHex(w.c, 1.25) : w.c;
         roundRect(ctx, w.x, w.y, w.w, w.h, 8);
-        ctx.fill();
-        ctx.textAlign = "center";
-        ctx.font = "bold 15px system-ui,sans-serif";
-        ctx.fillStyle = "#fff";
-        ctx.fillText(w.s, w.x + w.w / 2, w.y + w.h / 2);
+        c.fill();
+        c.textAlign = "center";
+        c.font = "bold 15px system-ui,sans-serif";
+        c.fillStyle = "#fff";
+        c.fillText(w.s, w.x + w.w / 2, w.y + w.h / 2);
         continue;
       }
       if (w.kind === "slider") {
         const track = 8, ty = w.y - track / 2;
-        ctx.fillStyle = "rgba(255,255,255,.18)";
-        roundRect(ctx, w.x, ty, w.w, track, track / 2); ctx.fill();
+        c.fillStyle = "rgba(255,255,255,.18)";
+        roundRect(ctx, w.x, ty, w.w, track, track / 2); c.fill();
         const f = (w.v - w.min) / (w.max - w.min || 1);
         const kx = w.x + w.w * Math.max(0, Math.min(1, f));
-        ctx.fillStyle = "#38bdf8";
-        roundRect(ctx, w.x, ty, Math.max(track, kx - w.x), track, track / 2); ctx.fill();
-        ctx.beginPath();
-        ctx.arc(kx, w.y, 9, 0, Math.PI * 2);
-        ctx.fillStyle = "#f8fafc"; ctx.fill();
+        c.fillStyle = "#38bdf8";
+        roundRect(ctx, w.x, ty, Math.max(track, kx - w.x), track, track / 2); c.fill();
+        c.beginPath();
+        c.arc(kx, w.y, 9, 0, Math.PI * 2);
+        c.fillStyle = "#f8fafc"; c.fill();
         continue;
       }
       if (w.kind === "toggle") {
         const bw = 44, bh = 24;
-        ctx.fillStyle = w.v ? "#22c55e" : "rgba(255,255,255,.22)";
-        roundRect(ctx, w.x, w.y - bh / 2, bw, bh, bh / 2); ctx.fill();
-        ctx.beginPath();
-        ctx.arc(w.x + (w.v ? bw - bh / 2 : bh / 2), w.y, bh / 2 - 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#fff"; ctx.fill();
-        ctx.textAlign = "left";
-        ctx.font = "15px system-ui,sans-serif";
-        ctx.fillStyle = "#e2e8f0";
-        ctx.fillText(w.s, w.x + bw + 10, w.y);
+        c.fillStyle = w.v ? "#22c55e" : "rgba(255,255,255,.22)";
+        roundRect(ctx, w.x, w.y - bh / 2, bw, bh, bh / 2); c.fill();
+        c.beginPath();
+        c.arc(w.x + (w.v ? bw - bh / 2 : bh / 2), w.y, bh / 2 - 3, 0, Math.PI * 2);
+        c.fillStyle = "#fff"; c.fill();
+        c.textAlign = "left";
+        c.font = "15px system-ui,sans-serif";
+        c.fillStyle = "#e2e8f0";
+        c.fillText(w.s, w.x + bw + 10, w.y);
         continue;
       }
       if (w.kind === "progress") {
-        ctx.fillStyle = "rgba(255,255,255,.16)";
-        roundRect(ctx, w.x, w.y, w.w, w.h, w.h / 2); ctx.fill();
-        ctx.fillStyle = w.c;
-        roundRect(ctx, w.x, w.y, Math.max(w.h, w.w * w.f), w.h, w.h / 2); ctx.fill();
+        c.fillStyle = "rgba(255,255,255,.16)";
+        roundRect(ctx, w.x, w.y, w.w, w.h, w.h / 2); c.fill();
+        c.fillStyle = w.c;
+        roundRect(ctx, w.x, w.y, Math.max(w.h, w.w * w.f), w.h, w.h / 2); c.fill();
         continue;
       }
     }
-    ctx.globalAlpha = 1;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
+    c.globalAlpha = 1;
+    c.textAlign = "left";
+    c.textBaseline = "alphabetic";
   }
 
   function inRect(w) {

@@ -24,11 +24,16 @@ function usaveGames(list) {
     return false;
   }
 }
-/* Название из первой строки комментария или из fn-имени. */
+/* Название из первой строки-комментария или из fn-имени.
+   Комментарии в BloomScript — // и /* *\/, решётка не является комментарием
+   (на этом Studio однажды выдал код, который не парсился). Старый вариант
+   с # не срабатывал никогда, поэтому // стоит первым, а # оставлен для
+   возможных чужих генераторов. */
 function utitleOf(src, fallback) {
-  const m = String(src).match(/^\s*#\s*(.+)$/m);
+  const s = String(src);
+  const m = s.match(/^\s*\/\/\s*(.+)$/m) || s.match(/^\s*#\s*(.+)$/m);
   if (m) return m[1].trim().slice(0, 40);
-  const f = String(src).match(/^\s*fn\s+(\w+)/m);
+  const f = s.match(/^\s*fn\s+(\w+)/m);
   return f ? f[1] : (fallback || "Моя игра");
 }
 function umakeCard(id, src) {

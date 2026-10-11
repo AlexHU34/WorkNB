@@ -1,0 +1,20 @@
+{
+  "name": "nebula-bloom",
+  "version": "1.0.0",
+  "private": true,
+  "sideEffects": true,
+  "description": "NEBULA BLOOM — каталог 3D-игр и среда BloomScript. Оффлайн-сборка одним файлом.",
+  "scripts": {
+    "build": "node tools/esbuild.mjs",
+    "watch": "node tools/esbuild.mjs --watch",
+    "types": "tsc --noEmit",
+    "pack": "python tools/pack.py --zip",
+    "gates": "python tools/all-gates.py",
+    "gates:light": "python tools/all-gates.py --light",
+    "gates:full": "python tools/all-gates.py --full"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

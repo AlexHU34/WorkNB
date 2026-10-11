@@ -414,10 +414,25 @@
     var r5 = both([tri], camFar);
     ok('triangle unchanged by cull', r5[0] === r5[1]);
 
-    /* 6. полигон из 5 точек */
-    var poly5 = E3.poly([[-2, 0, 5], [2, 0, 5], [3, 2, 5], [0, 3, 5], [-3, 2, 5]], '#00f0ff');
-    ok('5-gon has 5 vertices', poly5.length === 1 && poly5[0].v.length === 5, poly5[0] && poly5[0].v.length);
-    ok('5-gon drawn', cover(poly5, camFar) > 200, cover(poly5, camFar));
+/* 6. полигон из 5 точек: раньше draw читал только первые 4 вершины
+        и пятиугольник рисовался частично. Теперь E3.poly делает веер. */
+     var poly5 = E3.poly([[-2, 0, 5], [2, 0, 5], [3, 2, 5], [0, 3, 5], [-3, 2, 5]], '#00f0ff');
+     ok('5-gon becomes a 3-triangle fan', poly5.length === 3, poly5.length);
+     ok('5-gon fan triangles', poly5.every(function (f) { return f.v.length === 3; }),
+        poly5.map(function (f) { return f.v.length; }).join(','));
+     ok('5-gon fully drawn', cover(poly5, camFar) > 200, cover(poly5, camFar));
+
+     /* 6a. Четырёхугольник не должен распадаться на веер */
+     var poly4 = E3.poly([[-2, 0, 5], [2, 0, 5], [2, 2, 5], [-2, 2, 5]], '#00f0ff');
+     ok('quad stays one face', poly4.length === 1 && poly4[0].v.length === 4,
+        poly4.length + '/' + (poly4[0] && poly4[0].v.length));
+
+     /* 6b. Тень обязана быть четырехугольной: с флагом t:1 она
+        рисовалась треугольником и теряла угол */
+     var sh = E3.shadow(0, 0, 3, 2, {});
+     ok('shadow has 4 corners', sh.length === 1 && sh[0].v.length === 4 &&
+        sh[0].v[3] !== sh[0].v[0], sh[0] && sh[0].v.length);
+     ok('shadow is not flagged as triangle', !sh[0].t, sh[0].t);
 
     /* 7. пирамида: 5 граней, нормали единичной длины */
     var py = E3.pyramid(0, 0, 6, 2, 2.4, 2, '#ffffff');

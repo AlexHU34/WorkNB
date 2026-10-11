@@ -14,27 +14,45 @@ from concurrent.futures import ThreadPoolExecutor
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS = os.path.join(ROOT, "tools")
 
+# Без этой строки прогон молча умирал на печати: консоль Windows отдаёт
+# русский текст в cp1251, и первый же отчёт с «секунд» ронял оркестратор
+# UnicodeEncodeError — все гейты успевали отработать, а итог не печатался.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 FAST = [
     ("синтаксис index", "run-tests.py", ["--syntax"]),
     ("движок", "run-tests.py", ["--engine"]),
     ("поведение", "run-tests.py", ["--behaviour"]),
     ("BloomScript", "lang-tests.py", []),
     ("песочница+лимиты", "limit-gate.py", []),
+    ("свой счётчик интерпретатора", "i0-gate.py", []),
+    ("Studio: модель сцены", "studio-gate.py", []),
+    ("Studio: страница", "studio-page-gate.py", []),
     ("хранилище", "store-gate.py", []),
     ("профилировщик", "profile-gate.py", []),
-    ("сетка отсечения", "grid-gate.py", []),
-    ("адаптивная заливка", "fill-gate.py", []),
-    ("шаг и пул", "time-gate.py", []),
+    ("бэкенд WebGL2", "e3gl-gate.py", []),
     ("номера строк", "gutter-gate.py", []),
     ("мост", "bridge-gate.py", []),
     ("круг редактор-приложение", "roundtrip-gate.py", []),
+    # Сборка целостности: сам выполняет build.py --no-verify и проверяет,
+    # что запись атомарна. Пишет только в dist/, исходники не трогает.
+    ("сборка целостность", "build-gate.py", []),
 ]
 FULL = [
     ("100 игр", "run-tests.py", ["--all", "--budget", "120000"]),
 ]
-POST = [
-    ("сборка", "build.py", []),
-    ("офлайн-сборка", "dist-gate.py", []),
+
+# Гейты, которые МЕРЯЮТ ВРЕМЯ. Их нельзя гнать вместе с остальными:
+# они сравнивают «стало ли быстрее», а на соседних гейтах процессор
+# загружен, и проверка падает без всякой причины. Раньше fill-gate
+# выдавал «провалено 1» только когда шёл в общей куче.
+TIMING = [
+    ("сетка отсечения", "grid-gate.py", []),
+    ("адаптивная заливка", "fill-gate.py", []),
+    ("шаг и пул", "time-gate.py", []),
 ]
 
 
@@ -76,6 +94,7 @@ def run(name, script, args):
 
 def main():
     full = "--full" in sys.argv
+    light_only = "--light" in sys.argv
     t0 = time.time()
     bad = []
 
@@ -85,8 +104,8 @@ def main():
     #    независимы, и вместе занимают время самого долгого, а не сумму.
     # 2. Движок и поведение — тоже вместе, но ОТДЕЛЬНО от лёгких: на
     #    прошлом прогоне в общей куче они растянулись с 353/403 с до 778 с.
-    # 3. Сборка — после проверок, и без повторной проверки: build.py сам
-    #    гоняет engine и behaviour, а мы их уже прогнали.
+    # 3. Сборка — build-gate.py уже отработал в фазе лёгких гейтов и
+    #    оставил в dist/ свежие файлы, поэтому повторно строить не нужно.
     # 4. Офлайн-проверка — строго после сборки: она читает dist/, и при
     #    параллельном запуске попадала в файл посреди записи.
     light = [j for j in FAST if "движок" not in j[0] and "поведение" not in j[0]]
@@ -97,14 +116,18 @@ def main():
     print("=== лёгкие гейты (параллельно) ===")
     bad += run_parallel(light)
 
-    print("\n=== движок и поведение ===")
-    bad += run_parallel(heavy)
+    print("\n=== гейты времени (по одному — они меряют скорость) ===")
+    for job in TIMING:
+        bad += run_parallel([job])
 
-    print("\n=== сборка ===")
-    bad += run_parallel([("сборка", "build.py", ["--no-verify"])])
+    if not light_only:
+        print("\n=== движок и поведение ===")
+        bad += run_parallel(heavy)
 
-    print("\n=== офлайн-сборка (после сборки) ===")
-    bad += run_parallel([("офлайн-сборка", "dist-gate.py", [])])
+        print("\n=== офлайн-сборка (после сборки) ===")
+        bad += run_parallel([("офлайн-сборка", "dist-gate.py", [])])
+    else:
+        print("\n(движок и поведение пропущены — флаг --light)")
 
     print("\nвремя всего: %.1f с" % (time.time() - t0))
     if bad:
