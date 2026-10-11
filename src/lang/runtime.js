@@ -444,6 +444,7 @@ function createRuntime(opts) {
   function resetFrameLimits(I) {
     I.depth = 0;
     I.objects = 0;
+    I.overCount = 0;
   }
 
   function frame(now) {

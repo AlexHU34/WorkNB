@@ -155,35 +155,70 @@ PROBE = r"""
   var covGl = coverage(glData, W, H, [0, 0, 0]);
   ok(covGl > 3000, "GL-путь рисует сцену, закрашено " + covGl + " px");
 
-  /* Совпадение масок закраски: насколько пути рисуют одно и то же место. */
+  /* Совпадение. Прежняя метрика была надутой: фон GL прозрачный, фон 2D
+     тёмно-синий, разница меньше допуска — значит ВСЕ фоновые пиксели
+     засчитывались как совпадение, а их 98% площади. Теперь GL сначала
+     сводится на тот же фон, что и у эталона, и сравнение идёт только по
+     пикселям, где эталон 2D что-то нарисовал. */
+  var bgPix = [bgColor[0], bgColor[1], bgColor[2]];
+  var glc = new Uint8Array(W * H * 4);
+  for (var q = 0; q < W * H; q++) {
+    var a = glData[q * 4 + 3] / 255;            /* GL-слой прозрачный */
+    for (var ch = 0; ch < 3; ch++)
+      glc[q * 4 + ch] = Math.round(glData[q * 4 + ch] * a + bgPix[ch] * (1 - a));
+    glc[q * 4 + 3] = 255;
+  }
   var m2 = signedMask(ref2d, W, H, bgColor);
-  var mG = signedMask(glData, W, H, [0, 0, 0]);
-  var inter = 0, union = 0;
-  for (var i = 0; i < m2.length; i++) {
-    if (m2[i] && mG[i]) inter++;
-    if (m2[i] || mG[i]) union++;
+  var mG = signedMask(glc, W, H, bgColor);      /* теперь оба по одному фону */
+  var inter = 0, union = 0, m2n = 0;
+  for (var i = 0, p = 0; i < m2.length; i++, p++) {
+    if (m2[p]) m2n++;
+    if (m2[p] && mG[p]) inter++;
+    if (m2[p] || mG[p]) union++;
   }
   var iou = union ? inter / union : 0;
-  ok(iou > 0.55, "пересечение закраски 2D и GL: " + (iou * 100).toFixed(1) + "%");
+  ok(iou > 0.80, "пересечение закраски 2D и GL: " + (iou * 100).toFixed(1) + "%");
 
-  /* Совпадение по яркости ВСЕЙ картинки, а не только закрашенных пикселей.
-     Сначала сравнивали маски, но маска GL считалась от чёрного, а фон у
-     GL — тёмно-синий градиент: он целиком попадал в «закрашенные», и
-     метрика теряла смысл. Теперь просто мерим, насколько картинки
-     похожи попиксельно. Порог снисходительный: формула освещения на GPU
-     считается без целочисленного усечения, которое делает E3.shade. */
-  var close = 0, sumDiff = 0, n = W * H;
-  for (var i = 0, p = 0; i < n * 4; i += 4, p++) {
-    var l1 = (ref2d[i] + ref2d[i + 1] + ref2d[i + 2]) / 3;
-    var l2v = (glData[i] + glData[i + 1] + glData[i + 2]) / 3;
+  var agree = 0;
+  for (var i3 = 0, p3 = 0; i3 < m2.length; i3++, p3++) {
+    if (m2[p3] && mG[p3]) agree++;
+  }
+  var recall = m2n ? agree / m2n : 0;
+  ok(recall > 0.85, "GL попадает туда же, где 2D: " + (recall * 100).toFixed(1) +
+     "% из " + m2n + " px эталона");
+
+  /* Яркость — по тем же нарисованным пикселям, уже сведённым на фон. */
+  var close = 0, sumDiff = 0, n = m2n || 1;
+  for (var i2 = 0, p2 = 0; i2 < m2.length; i2++, p2++) {
+    if (!m2[p2]) continue;
+    var l1 = (ref2d[i2] + ref2d[i2 + 1] + ref2d[i2 + 2]) / 3;
+    var l2v = (glc[i2] + glc[i2 + 1] + glc[i2 + 2]) / 3;
     var d = Math.abs(l1 - l2v);
     sumDiff += d;
     if (d < 90) close++;
   }
   var sim = close / n;
   var meanDiff = sumDiff / n;
-  ok(sim > 0.5, "яркость совпадает в " + (sim * 100).toFixed(1) +
-     "% пикселей (средняя разница " + meanDiff.toFixed(1) + ")");
+  ok(sim > 0.75, "яркость совпадает на " + (sim * 100).toFixed(1) +
+     "% нарисованных пикселей (средняя разница " + meanDiff.toFixed(1) + ")");
+
+  /* Ошибки GL не должны копиться: раньше getError не вызывался ни разу,
+     и четыре критичных бага были молчаливыми. */
+  var gs = E3GL.stats();
+  ok(gs.glErrors === 0, "GL не накопил ошибок (glErrors=" + gs.glErrors +
+     (gs.firstError ? ", первая: " + gs.firstError + " в " + gs.firstErrorAt : "") + ")");
+
+  /* Тень обязана быть ПРОЗРАЧНОЙ. Раньше альфа терялась в шейдере, тени
+     ложились непрозрачными и закрывали пол — а гейт этого не видел. */
+  var transparent = 0, seen = 0;
+  for (var z = 0; z < W * H; z++) {
+    if (glData[z * 4 + 3] > 8) {
+      seen++;
+      if (glData[z * 4 + 3] < 250) transparent++;
+    }
+  }
+  ok(transparent > 200, "есть полупрозрачные пиксели (тень): " +
+     transparent + " из " + seen + " нарисованных");
 
   /* ---- 3. тень стала четырёхугольной (баг из блока A) ---- */
   var sh = E3.shadow(0, 0, 2, 2, {});

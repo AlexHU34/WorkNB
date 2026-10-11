@@ -684,6 +684,7 @@ class Interp {
     this.modules = {};
     this.depth = 0;
     this.objects = 0;
+    this.overCount = 0;
   }
 
   /* Счётчики обнуляются на верхнем уровне запуска. Иначе между кадрами они
@@ -692,6 +693,7 @@ class Interp {
   resetLimits() {
     this.depth = 0;
     this.objects = 0;
+    this.overCount = 0;
   }
 
   /* Вход в рекурсию. Нативный RangeError на глубокой рекурсии обрушивал
@@ -718,7 +720,31 @@ class Interp {
     }
   }
 
-  budget() { if (++this.steps > this.maxSteps) { this.steps = 0; throw new LangError("превышен лимит шагов — похоже на бесконечный цикл", this.curLine || 0); } }
+  /* Лимит шагов. Раньше перед броском счётчик обнулялся, и программа вида
+
+       while true:
+           try:
+               spin()
+           catch e:
+               continue
+
+   ловила ошибку, продолжала, и лимит срабатывал снова — вечно. Теперь
+   счётчик не обнуляется: после предела каждая следующая проверка тоже
+   бросает, программа обязана развернуться. А если пользователь ловит
+   ошибку по кругу (try/catch вокруг while), через несколько повторов
+   бросается обычный Error — его `catch`, который ловит только LangError,
+   уже не проглотит. */
+  budget() {
+    if (++this.steps > this.maxSteps) {
+      this.overCount++;
+      if (this.overCount > 3) {
+        const e = new Error("выполнение остановлено: лимит шагов превышен повторно");
+        e.fatal = true;
+        throw e;
+      }
+      throw new LangError("превышен лимит шагов — похоже на бесконечный цикл", this.curLine || 0);
+    }
+  }
 
   run(ast, env) {
     const prev = this.curEnv;
@@ -920,6 +946,11 @@ class Interp {
     if (t.t === "index") {
       const obj = this.eval(t.obj, env);
       const idx = this.eval(t.idx, env);
+      /* Запись по индексу тоже идёт мимо песочницы: obj["__proto__"] = x
+         переписывает прототип объекта, а obj["constructor"] = x кладёт
+         в него функцию. Через это ломается всё остальное. */
+      if (typeof idx === "string" && FORBIDDEN_MEMBERS[idx])
+        throw new LangError("запись в «" + idx + "» запрещена", t.line);
       if (Array.isArray(obj)) { obj[idx] = n.op === "=" ? val : this.binop(n.op.slice(0, -1), obj[idx], val, t.line); return null; }
       if (obj && typeof obj === "object") { obj[idx] = n.op === "=" ? val : this.binop(n.op.slice(0, -1), obj[idx], val, t.line); return null; }
       throw new LangError("нельзя присвоить элемент — это не массив и не объект", t.line);
@@ -968,7 +999,18 @@ class Interp {
         return n.op === "-" ? -num(a, n.line) : n.op === "!" ? !truthy(a) : a;
       }
       case "bin": { this.budget(); return this.binop(n.op, this.eval(n.a, env), this.eval(n.b, env), n.line); }
-      case "index": { this.budget(); const o = this.eval(n.obj, env), i = this.eval(n.idx, env); return o === undefined ? undefined : o[i]; }
+      /* Песочница и для квадратных скобок. Раньше фильтр стоял только в
+         readMember, то есть на точке: a.constructor ловился, а
+         a["constructor"] проходил насквозь. Дальше ["constructor"]
+         ["constructor"] даёт Function, а через неё — globalThis,
+         document и всё остальное окружение страницы. */
+      case "index": {
+        this.budget();
+        const o = this.eval(n.obj, env), i = this.eval(n.idx, env);
+        if (typeof i === "string" && FORBIDDEN_MEMBERS[i])
+          throw new LangError("доступ к «" + i + "» запрещён", n.line);
+        return o === undefined ? undefined : o[i];
+      }
       case "member": return this.member(n, env);
       case "call": return this.call(n, env);
       case "fn": return { __fn: n, env: env };
@@ -1193,7 +1235,7 @@ class HostError {
    возвращаем замыкание с уже захваченным объектом. */
 function arrayMethod(o, name) {
   switch (name) {
-    case "push": return v => { o.push(v); return o.length; };
+    case "push": return v => { o.push(v); if (I0) I0.guardSize(o.length); return o.length; };
     case "pop": return () => (o.length ? o.pop() : null);
     case "shift": return () => (o.length ? o.shift() : null);
     case "unshift": return v => { o.unshift(v); return o.length; };
@@ -1226,7 +1268,15 @@ function arrayMethod(o, name) {
     };
     case "forEach": return f => { for (let i = 0; i < o.length; i++) invokeAsValue(f, [o[i], i]); return null; };
     case "slice": return (a, b) => o.slice(a === undefined ? 0 : num(a, 0), b === undefined ? undefined : num(b, 0));
-    case "concat": return other => (Array.isArray(other) ? o.concat(other) : o.concat([other]));
+    /* concat обязан учитывать память. Раньше лимит объёма стоял только на
+     литералах, и `a = a.concat(a)` двадцать шесть раз подряд доходил до
+     134 миллионов элементов, не потратив ни одного «объекта»: счётчик
+     рос на 193 шага из 400 тысяч, и ни один лимит не срабатывал. */
+  case "concat": return other => {
+    const r = (Array.isArray(other) ? o.concat(other) : o.concat([other]));
+    if (I0) I0.guardSize(r.length);
+    return r;
+  };
     case "clear": return () => { o.length = 0; return null; };
     case "removeAt": return i => { o.splice(num(i, 0), 1); return null; };
     default: return undefined;
@@ -1248,7 +1298,13 @@ function stringMethod(s, name) {
     case "charAt": return i => (num(i, 0) >= 0 && num(i, 0) < s.length ? s[num(i, 0)] : "");
     case "at": return i => { const k = num(i, 0); return k >= 0 && k < s.length ? s[k] : ""; };
     case "replace": return (a, b) => s.split(str(a)).join(str(b));
-    case "repeat": return n => s.repeat(Math.max(0, num(n, 0)));
+    /* repeat тоже должен стоить памяти: строка на 400 миллионов символов
+     проходила молча, потому что счётчик объёма на это не смотрел. */
+  case "repeat": return n => {
+    const k = Math.max(0, num(n, 0));
+    if (I0) I0.guardSize(k);
+    return s.repeat(k);
+  };
     case "padStart": return (n, c) => s.padStart(num(n, 0), c === undefined ? " " : str(c));
     case "padEnd": return (n, c) => s.padEnd(num(n, 0), c === undefined ? " " : str(c));
     case "length": return s.length;

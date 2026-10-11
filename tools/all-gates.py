@@ -28,6 +28,7 @@ FAST = [
     ("поведение", "run-tests.py", ["--behaviour"]),
     ("BloomScript", "lang-tests.py", []),
     ("песочница+лимиты", "limit-gate.py", []),
+    ("песочница: скобки", "sandbox-gate.py", []),
     ("свой счётчик интерпретатора", "i0-gate.py", []),
     ("Studio: модель сцены", "studio-gate.py", []),
     ("Studio: страница", "studio-page-gate.py", []),

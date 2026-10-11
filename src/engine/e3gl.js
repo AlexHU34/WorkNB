@@ -72,10 +72,10 @@ in vec3 aNrm;      /* нормаль в видовых координатах */
 in vec4 aCol;      /* цвет + альфа */
 in vec2 aY;        /* верх и низ грани в экранных координатах E3 */
 in float aFlat;    /* 1 = не освещать и не градиентить (грань e:1) */
-out vec3 vN; out vec3 vC; out vec2 vY; out float vF; out float vS;
+out vec3 vN; out vec3 vC; out vec2 vY; out float vF; out float vS; out float vA;
 uniform float uH;
 void main(){
-  vN = aNrm; vC = aCol.rgb; vY = aY; vF = aFlat;
+  vN = aNrm; vC = aCol.rgb; vA = aCol.a; vY = aY; vF = aFlat;
   /* экранная Y в системе E3 (вниз), чтобы градиент совпал с 2D-путём */
   vS = uH - (aPos.y * 0.5 + 0.5) * uH;
   gl_Position = vec4(aPos, 1.0);
@@ -83,7 +83,7 @@ void main(){
 
 const FS = `#version 300 es
 precision mediump float;
-in vec3 vN; in vec3 vC; in vec2 vY; in float vF; in float vS;
+in vec3 vN; in vec3 vC; in vec2 vY; in float vF; in float vS; in float vA;
 uniform vec3 uL;        /* направление ключевого света */
 uniform float uAo, uSky;
 uniform float uL2w; uniform vec3 uL2; uniform float uHasL2;
@@ -91,22 +91,29 @@ uniform float uGrad;    /* минимальная высота грани для
 out vec4 outColor;
 void main(){
   vec3 n = normalize(vN);
-  /* Ровно та же формула, что E3.lit на процессоре. */
-  float b = 0.42 + 0.58 * max(0.0, dot(n, uL));
-  b *= 1.0 - uAo * (0.5 - 0.5 * n.y);
-  b *= 1.0 + uSky * max(0.0, n.y);
-  if (uHasL2 > 0.5) {
-    float d = dot(n, normalize(uL2));
-    if (d > 0.0) b += uL2w * d;
+  /* Ровно та же формула, что E3.lit на процессоре.
+     Грань с флагом e:1 в 2D-пути не освещается вовсе (e3.js:313) —
+     здесь она тоже идёт плоской, иначе тёмная до −58%. */
+  vec3 c = vC;
+  if (vF < 0.5) {
+    float b = 0.42 + 0.58 * max(0.0, dot(n, uL));
+    b *= 1.0 - uAo * (0.5 - 0.5 * n.y);
+    b *= 1.0 + uSky * max(0.0, n.y);
+    if (uHasL2 > 0.5) {
+      float d = dot(n, normalize(uL2));
+      if (d > 0.0) b += uL2w * d;
+    }
+    c *= min(b, 1.0);
+    /* Градиент включается только для крупных граней — как minGrad в E3.
+       При y1<=y0 градиента нет. */
+    if (vY.y - vY.x >= uGrad) {
+      float g = clamp((vS - vY.x) / max(0.001, vY.y - vY.x), 0.0, 1.0);
+      c *= mix(1.18, 0.8, g);
+    }
   }
-  vec3 c = vC * min(b, 1.0);
-  /* Градиент включается только для крупных граней — как minGrad в E3.
-     При y1<=y0 градиента нет, и flat-грани он не полагается. */
-  if (vF < 0.5 && vY.y - vY.x >= uGrad) {
-    float g = clamp((vS - vY.x) / max(0.001, vY.y - vY.x), 0.0, 1.0);
-    c *= mix(1.18, 0.8, g);
-  }
-  outColor = vec4(c, 1.0);
+  /* Альфа из атрибута, а не жёсткая единица. Иначе тени (e:2, a≈0.3)
+     рисуются непрозрачными и закрывают всё, что за ними. */
+  outColor = vec4(c, vA);
 }`;
 
 /* Обводка. В E3 каждая грань кроме теней обводится цветом
@@ -139,6 +146,20 @@ function rgb(hex) {
   }
   _hexCache[hex] = v;
   return v;
+}
+
+/* Потеря контекста обрабатывается явно. Раньше обработчиков не было
+   вовсе: после сбоя GPU S.ok навсегда оставался true, сцена исчезала,
+   и ни ошибки, ни следа. */
+function onLost(ev) {
+  if (ev) ev.preventDefault();
+  S.ok = false;
+  S.lost = true;
+  S.err = "контекст WebGL потерян";
+}
+function onBack() {
+  S.lost = false;
+  S.err = "контекст WebGL восстановлен — нужен повторный attach";
 }
 
 /* ------------------------- подключение к странице --------------------
@@ -195,7 +216,14 @@ function attach(ctx2d) {
                                     Он же нужен для снимков экрана. */
                                  preserveDrawingBuffer: true });
     if (!gl) {
+      /* Убираем ОБА канвы. Раньше HUD-слой вставлялся в документ ДО
+         попытки взять контекст, и при отказе оставался в DOM навсегда —
+         E3.draw звал attach каждый кадр, то есть 60 новых канв в секунду. */
       if (c.parentNode) c.parentNode.removeChild(c);
+      if (S.hudCanvas && S.hudCanvas.parentNode)
+        S.hudCanvas.parentNode.removeChild(S.hudCanvas);
+      S.hudCanvas = null;
+      S.hudCtx = null;
       S.err = "WebGL2 недоступен";
       return false;
     }
@@ -217,6 +245,8 @@ function attach(ctx2d) {
   S.top = top;
   S.ctx2d = ctx2d;
   S.ok = true;
+  S.canvas.addEventListener("webglcontextlost", onLost, false);
+  S.canvas.addEventListener("webglcontextrestored", onBack, false);
   resize(top._lw || top.width, top._lh || top.height);
   return true;
 }
@@ -234,36 +264,77 @@ function resize(w, h) {
   if (!S.ok) return;
   const gl = S.gl;
   S.W = w; S.H = h;
-  if (S.canvas.width !== w || S.canvas.height !== h) {
-    S.canvas.width = w;
-    S.canvas.height = h;
+  /* Устройство пикселей. Игровая канва масштабируется sharp() под DPR,
+     а GL-канва раньше оставалась в логическом размере: на ноутбуке с
+     DPR 2 геометрия выходила вдвое ниже разрешения рядом с чётким HUD. */
+  const dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
+  const pw = Math.max(1, Math.round(w * dpr)), ph = Math.max(1, Math.round(h * dpr));
+  if (S.canvas.width !== pw || S.canvas.height !== ph) {
+    S.canvas.width = pw;
+    S.canvas.height = ph;
   }
   if (S.hudCanvas && (S.hudCanvas.width !== w || S.hudCanvas.height !== h)) {
     S.hudCanvas.width = w;
     S.hudCanvas.height = h;
   }
-  /* Нижний слой обязан лечь ровно под верхним, иначе картинка съедет
-     на полпикселя при изменении размера окна. */
-  const r = S.top.getBoundingClientRect ? S.top.getBoundingClientRect() : null;
-  if (r) {
+  /* Прямоугольник кэшируется: getBoundingClientRect() в цикле кадра
+     вызывает принудительную перерисовку раскладки — самый дорогой
+     вызов в горячем пути. Размер меняется только при resize. */
+  if (S.top && S.top.getBoundingClientRect) {
+    const r = S.top.getBoundingClientRect();
+    S.cssW = r.width; S.cssH = r.height;
     S.canvas.style.width = r.width + "px";
     S.canvas.style.height = r.height + "px";
+    if (S.hudCanvas) {
+      S.hudCanvas.style.width = r.width + "px";
+      S.hudCanvas.style.height = r.height + "px";
+    }
   }
-  gl.viewport(0, 0, w, h);
+  gl.viewport(0, 0, pw, ph);
 }
 
 /* Набор атрибутов и буферов создаётся один раз и переиспользуется:
    каждый кадр новые буферы означали бы сборку мусора в самом горячем
    месте, ради чего всё затевалось. */
+/* Ёмкость считается в ВЕРШИНАХ и в отрезках, а не в байтах.
+   Раньше bufferData получал FLOATS*4*4096 — это 4096 вершин, — тогда как
+   массив JS создавался как Float32Array(FLOATS*4*4096), то есть вчетверо
+   больше. Массив рос сам, буфер — нет, и bufferSubData уходил за пределы:
+   сцена молча обрезалась, а getError никто не смотрел. */
+const V_CAP0 = 4096;        /* начальная ёмкость вершин */
+const L_CAP0 = 1024;        /* начальная ёмкость отрезков */
+const L_STRIDE = 12;        /* флоатов на отрезок: две вершины по (поз2+цвет4) */
+
+function ensureV(n) {
+  if (n <= S.vCap) return;
+  let c = S.vCap || V_CAP0;
+  while (c < n) c *= 2;
+  const gl = S.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, S.vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, c * FLOATS * 4, gl.DYNAMIC_DRAW);
+  S.vCap = c;
+  checkGL("рост буфера вершин");
+}
+function ensureL(n) {
+  if (n <= S.lCap) return;
+  let c = S.lCap || L_CAP0;
+  while (c < n) c *= 2;
+  const gl = S.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, S.lvbo);
+  gl.bufferData(gl.ARRAY_BUFFER, c * L_STRIDE * 4, gl.DYNAMIC_DRAW);
+  S.lCap = c;
+  checkGL("рост буфера обводки");
+}
+
 function buffers() {
   const gl = S.gl;
   if (S.vao) return;
+  S.vCap = 0; S.lCap = 0;
   S.vao = gl.createVertexArray();
   gl.bindVertexArray(S.vao);
 
   S.vbo = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, S.vbo);
-  gl.bufferData(gl.ARRAY_BUFFER, FLOATS * 4 * 4096, gl.DYNAMIC_DRAW);
 
   const st = FLOATS * 4;
   const attr = (loc, size, off) => {
@@ -280,7 +351,6 @@ function buffers() {
   gl.bindVertexArray(S.lvao);
   S.lvbo = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, S.lvbo);
-  gl.bufferData(gl.ARRAY_BUFFER, 6 * 4 * 4096, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(gl.getAttribLocation(S.lineProg, "aPos"));
   gl.vertexAttribPointer(gl.getAttribLocation(S.lineProg, "aPos"), 2, gl.FLOAT, false, 24, 0);
   gl.enableVertexAttribArray(gl.getAttribLocation(S.lineProg, "aCol"));
@@ -291,7 +361,7 @@ function buffers() {
 
 /* ------------------------------ буферы ------------------------------ */
 let _v = new Float32Array(FLOATS * 4 * 4096);
-let _vN = 0, _l = new Float32Array(6 * 4 * 4096), _lN = 0;
+let _vN = 0, _l = new Float32Array(L_STRIDE * L_CAP0), _lN = 0;
 const _items = [];      /* грани после отсева, для сортировки */
 const _sprites = [];    /* спрайты уходят на 2D-слой */
 const _camTmp = { };
@@ -308,17 +378,26 @@ function pushV(x, y, z, nx, ny, nz, r, g, b, a, y0, y1, flat) {
   _v[o + 6] = r; _v[o + 7] = g; _v[o + 8] = b; _v[o + 9] = a;
   _v[o + 10] = y0; _v[o + 11] = y1; _v[o + 12] = flat;
   _vN++;
+  ensureV(_vN);
 }
+
+/* Обводка. Отрезок — это ДВЕ вершины, у каждой позиция (2) и цвет (4),
+   то есть 12 флоатов на отрезок и шаг 24 байта. Раньше писалось
+   8 значений при шаге 6: соседние отрезки наезжали друг на друга, а
+   цвет обводки читался из координат вершины. */
 function pushL(x0, y0, x1, y1, r, g, b, a) {
-  const o = _lN * 6;
-  if (o + 6 > _l.length) {
+  const o = _lN * L_STRIDE;
+  if (o + L_STRIDE > _l.length) {
     const bigger = new Float32Array(_l.length * 2);
     bigger.set(_l);
     _l = bigger;
   }
-  _l[o] = x0; _l[o + 1] = y0; _l[o + 2] = x1; _l[o + 3] = y1;
-  _l[o + 4] = r; _l[o + 5] = g; _l[o + 6] = b; _l[o + 7] = a;
+  _l[o] = x0; _l[o + 1] = y0; _l[o + 2] = r; _l[o + 3] = g;
+  _l[o + 4] = b; _l[o + 5] = a;
+  _l[o + 6] = x1; _l[o + 7] = y1; _l[o + 8] = r; _l[o + 9] = g;
+  _l[o + 10] = b; _l[o + 11] = a;
   _lN++;
+  ensureL(_lN);
 }
 
 /* ------------------------------ кадр ------------------------------- */
@@ -456,7 +535,14 @@ function draw(ctx, faces, cam, fl, L, opts) {
     const pp = [];
     for (let k = 0; k < pv.length; k++) pp.push(E3.proj(pv[k], fl, LW, LH));
 
-    _items.push({ d: dmax, f: f, pp: pp, nv: pv.length });
+    /* Регулятор качества. В 2D-пути E3.maxFaces ограничивает число граней;
+       здесь тот же предел, иначе на тяжёлых сценах кадр просто выпадает. */
+    if (E3.maxFaces && _items.length >= E3.maxFaces) {
+      if (typeof E3 !== "undefined" && E3.stats) E3.stats.dropped++;
+      continue;
+    }
+
+    _items.push({ d: dmax, f: f, pp: pp, nv: pv.length, pv: pv });
   }
 
   /* ---- 2. сортировка от дальнего к ближнему ---- */
@@ -472,8 +558,37 @@ function draw(ctx, faces, cam, fl, L, opts) {
        экранных координатах — без перспективы, то есть неверно. */
 
     const flat = (f.e === 1 || typeof f.c !== "string") ? 1 : 0;
-    const c = typeof f.c === "string" ? rgb(f.c) : [1, 1, 1];
+    let c = typeof f.c === "string" ? rgb(f.c) : [1, 1, 1];
     const alpha = (f.e === 2) ? (f.a === undefined ? 0.3 : f.a) : 1;
+
+    /* Туман и блик считаем на процессоре, как в 2D-пути, и запекаем в
+       цвет вершины. В шейдере их считать было бы быстрее, но тогда
+       пришлось бы передавать глубину и направление взгляда, а ради
+       совпадения картинки важнее одно число. Шесть игр ставят E3.fog. */
+    if (!flat && f.c && f.c.charAt(0) === "#") {
+      const V = it.pv;
+      if (E3.fog) {
+        const fk = Math.max(0, Math.min(1,
+          (it.d - E3.fog[3]) / ((E3.fog[4] - E3.fog[3]) || 1)));
+        if (fk > 0) {
+          const k = fk;
+          const fr = E3.fog[0] / 255, fg = E3.fog[1] / 255, fb = E3.fog[2] / 255;
+          c = [c[0] * (1 - k) + fr * k, c[1] * (1 - k) + fg * k, c[2] * (1 - k) + fb * k];
+        }
+      }
+      if (opt.spec) {
+        const rv = E3.rotN(f.n, cam);
+        const lv = E3.rotN(L, cam);
+        let vx = 0, vy = 0, vz = 0;
+        for (let k = 0; k < V.length; k++) { vx -= V[k][0]; vy -= V[k][1]; vz -= V[k][2]; }
+        const vl = Math.hypot(vx, vy, vz) || 1;
+        const sp = E3.spec(rv, lv, [vx / vl, vy / vl, vz / vl], opt.spec, opt.shin);
+        if (sp > 0) {
+          const s = Math.min(.9, sp);
+          c = [c[0] * (1 - s) + 1 * s, c[1] * (1 - s) + 1 * s, c[2] * (1 - s) + 1 * s];
+        }
+      }
+    }
 
     /* нормаль в видовых координатах */
     let nx = 0, ny = 1, nz = 0;
@@ -550,76 +665,78 @@ function draw(ctx, faces, cam, fl, L, opts) {
   if (_vN) {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, _v, 0, _vN * FLOATS);
     gl.drawArrays(gl.TRIANGLES, 0, _vN);
+    checkGL("геометрия");
   }
 
   if (_lN) {
     gl.useProgram(S.lineProg);
     gl.bindVertexArray(S.lvao);
     gl.bindBuffer(gl.ARRAY_BUFFER, S.lvbo);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, _l, 0, _lN * 6);
-    gl.drawArrays(gl.LINES, 0, _lN);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, _l, 0, _lN * L_STRIDE);
+    gl.drawArrays(gl.LINES, 0, _lN * 2);
+    checkGL("обводка");
   }
 
-  /* ---- 5. спрайты на 2D-слой: глифы шрифтом на GPU не повторить ---- */
-  if (_sprites.length && S.ctx2d) {
-    const c2 = S.ctx2d;
-    c2.save();
-    for (const sp of _sprites) {
-      const sz = Math.max(2, sp.s);
-      if (sp.g) {
-        c2.globalAlpha = 0.25 + 0.2 * Math.sin(performance.now() / 250);
+  /* ---- 5. спрайты на слой ПОВЕРХ геометрии ----
+     Глифы шрифтом на GPU не воспроизвести один в один, поэтому спрайты
+     рисуются на 2D-канве. Раньше это была игровая канва ПОД слоем GL,
+     и геометрия накрывала их; теперь — HUD-слой сверху. */
+  if (_sprites.length) {
+    const c2 = S.hudCtx || S.ctx2d;
+    if (c2) {
+      c2.save();
+      for (const sp of _sprites) {
+        const sz = Math.max(2, sp.s);
+        if (sp.g) {
+          c2.globalAlpha = 0.25 + 0.2 * Math.sin(performance.now() / 250);
+          c2.fillStyle = sp.c;
+          c2.beginPath();
+          c2.arc(sp.x, sp.y, sz * 0.5, 0, 7);
+          c2.fill();
+          c2.globalAlpha = 1;
+        }
+        c2.font = Math.round(sz) + "px serif";
+        c2.textAlign = "center";
+        c2.textBaseline = "middle";
         c2.fillStyle = sp.c;
-        c2.beginPath();
-        c2.arc(sp.x, sp.y, sz * 0.5, 0, 7);
-        c2.fill();
-        c2.globalAlpha = 1;
+        c2.fillText(sp.t, sp.x, sp.y);
       }
-      c2.font = Math.round(sz) + "px serif";
-      c2.textAlign = "center";
-      c2.textBaseline = "middle";
-      c2.fillStyle = sp.c;
-      c2.fillText(sp.t, sp.x, sp.y);
+      c2.restore();
     }
-    c2.restore();
   }
-}
-
-/* Фон рисуем в GL, потому что 2D-слой лежит поверх и иначе закрыл бы
-   геометрию собственной заливкой градиента. */
-function bg(c0, c1) {
-  if (!S.ok) return;
-  const gl = S.gl;
-  gl.useProgram(S.bgProg);
-  gl.bindVertexArray(S.bvao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, S.bvbo);
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array([-1, -1, 3, -1, -1, 3]));
-  gl.uniform3f(gl.getUniformLocation(S.bgProg, "uA"),
-               parseInt(c0.slice(1, 3), 16) / 255,
-               parseInt(c0.slice(3, 5), 16) / 255,
-               parseInt(c0.slice(5, 7), 16) / 255);
-  gl.uniform3f(gl.getUniformLocation(S.bgProg, "uB"),
-               parseInt(c1.slice(1, 3), 16) / 255,
-               parseInt(c1.slice(3, 5), 16) / 255,
-               parseInt(c1.slice(5, 7), 16) / 255);
-  gl.disable(gl.BLEND);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
-  gl.enable(gl.BLEND);
-}
-
-function beginFrame(c0, c1) {
-  if (!S.ok) return false;
-  bg(c0 || "#111a2b", c1 || "#1d2b45");
-  return true;
 }
 
 function stats() {
   return { ok: S.ok, active: S.active, verts: _vN, lines: _lN,
-           sprites: _sprites.length, w: S.W, h: S.H, err: S.err || "" };
+           sprites: _sprites.length, w: S.W, h: S.H, err: S.err || "",
+           glErrors: S.glErrors || 0,
+           firstError: S.firstError || "", firstErrorAt: S.firstErrorAt || "" };
 }
 
-/* Фон рисует игра сама на 2D-канве под нами, сквозь прозрачный слой.
-   Отдельной программы для него больше нет. */
-function bg() {}
+/* Фон рисует игра сама на 2D-канве под нами, сквозь прозрачный слой,
+   поэтому отдельной программы для него в файле нет. Раньше здесь стояли
+   ещё bg() и beginFrame(c0,c1) — вторые объявления перекрывали первые, и
+   настоящая очистка кадра становилась недостижимой: прошлый кадр
+   наслаивался сам на себя, сцена темнела, цифры счёта дублировались. */
+
+/* Проверка ошибок GL. Без неё критичные баги были молчаливыми:
+   bufferSubData отбрасывал данные, рисовалось меньше геометрии — и это
+   выглядело всего лишь как «просто медленнее». */
+function checkGL(where) {
+  if (!S.gl) return 0;
+  const e = S.gl.getError();
+  if (e !== 0) {
+    S.glErrors = (S.glErrors || 0) + 1;
+    if (!S.firstError) {
+      const names = { 1280: "INVALID_ENUM", 1281: "INVALID_VALUE",
+                      1282: "INVALID_OPERATION", 1285: "OUT_OF_MEMORY",
+                      1286: "INVALID_FRAMEBUFFER_OPERATION" };
+      S.firstError = names[e] || ("код " + e);
+      S.firstErrorAt = where;
+    }
+  }
+  return e;
+}
 
 const E3GL = {
   get ok() { return S.ok; },
@@ -633,7 +750,7 @@ const E3GL = {
         /[?&]gl=1(&|$)/.test(location.search || "");
     } catch (e) { return false; }
   },
-  attach, draw, beginFrame, resize, stats, bg, hud,
+  attach, draw, beginFrame, resize, stats, hud,
   enable() { if (S.ok) S.active = true; return S.active; },
   disable() { S.active = false; return false; },
   state: S,
