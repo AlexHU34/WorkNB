@@ -53,6 +53,7 @@ body{
   border-radius:7px;cursor:pointer;border:1px solid transparent;
 }
 .hrow:hover{background:#1a2436}
+.hrow.hov{background:#182234}
 .hrow.sel{background:#22314d;border-color:#3a5a8f}
 .hdot{width:12px;height:12px;border-radius:3px;flex:none;box-shadow:0 0 0 1px #0006 inset}
 .hname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -71,6 +72,15 @@ body{
 #viewport{flex:1;position:relative;overflow:hidden}
 #scene{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 #scene:active{cursor:grabbing}
+/* Шпаргалка по управлению. Раньше всё это было негде узнать: интерфейс
+   молчал, и новичок думал, что редактор сломан. */
+#legend{
+  position:absolute;left:10px;bottom:10px;pointer-events:none;
+  background:#0d1420cc;border:1px solid #22304a;border-radius:9px;
+  padding:7px 10px;font-size:11px;color:#7f93ad;line-height:1.7;
+  max-width:60%;backdrop-filter:blur(2px);
+}
+#legend b{color:#9fb3c8;font-weight:600}
 #logWrap{height:118px;border-top:1px solid #1e2b42;background:#0d1420;display:flex;flex-direction:column}
 #logBox{flex:1;overflow:auto;padding:8px 12px;font:12px/1.6 ui-monospace,Consolas,monospace}
 .logLine{color:#9fb3c8}
@@ -88,6 +98,32 @@ body{
   font:12px/1.55 ui-monospace,Consolas,monospace;color:#b9cbe0;white-space:pre;
 }
 #codeWrap .phead{border-bottom:1px solid #1e2b42}
+/* ---- окно кода ---- */
+#codeBar{display:flex;gap:6px;align-items:center;padding:7px 10px;border-bottom:1px solid #1e2b42;flex-wrap:wrap}
+#codeBar .btn{font-size:12.5px;padding:5px 10px}
+#codeMsg{font-size:11.5px;color:#7f93ad;font-weight:600;margin-left:auto}
+#codeAreaWrap{position:relative;flex:1;min-height:0;display:flex}
+#codeIn{
+  flex:1;min-width:0;resize:none;border:0;outline:none;padding:10px 12px;
+  background:#0d1420;color:#b9cbe0;
+  font:12.5px/1.6 ui-monospace,Consolas,monospace;white-space:pre;tab-size:2;
+}
+#acStudio{
+  position:absolute;z-index:30;min-width:260px;max-width:420px;
+  background:#111a29;border:1px solid #2c3d5e;border-radius:11px;
+  box-shadow:0 14px 34px #0009;overflow:hidden;
+}
+#acStudio .acHead{padding:6px 10px;font-size:11px;color:#7f93ad;background:#0d1420;border-bottom:1px solid #1e2b42}
+#acStudio button{
+  display:flex;gap:9px;align-items:center;width:100%;border:0;background:none;
+  padding:7px 11px;color:#e6eef7;font:inherit;font-size:13px;cursor:pointer;text-align:left;
+}
+#acStudio button.on{background:#22314d}
+#acStudio .acName{font-weight:700;font-family:ui-monospace,Consolas,monospace}
+#acStudio .acKind{font-size:10.5px;padding:2px 6px;border-radius:5px;background:#243250;color:#9fb3c8;flex:none}
+#acStudio .acKind.kw{background:#3a2a5c;color:#c9a8ff}
+#acStudio .acKind.own{background:#1f4636;color:#8fe0b4}
+#acStudio .acHint{color:#7f93ad;font-size:11.5px;margin-left:auto;text-align:right}
 </style>
 </head>
 <body>
@@ -100,6 +136,9 @@ body{
   <button class="btn" id="btnPyr">+ Пирамида</button>
   <button class="btn" id="btnSprite">+ Метка</button>
   <button class="btn danger" id="btnClear" style="width:auto;margin:0">Очистить</button>
+  <div class="sep"></div>
+  <button class="btn" id="btnUndo" title="Отменить (Ctrl+Z)">↶ Отменить</button>
+  <button class="btn" id="btnRedo" title="Вернуть (Ctrl+Shift+Z)">↷ Вернуть</button>
   <div class="sep"></div>
   <button class="btn primary" id="btnPlay">▶ Играть</button>
   <button class="btn" id="btnSave">Сохранить</button>
@@ -115,10 +154,27 @@ body{
   </div>
 
   <div id="center">
-    <div id="viewport"><canvas id="scene"></canvas></div>
+    <div id="viewport">
+    <canvas id="scene"></canvas>
+    <div id="legend">
+      <b>ЛКМ</b> выбрать и тянуть · <b>Shift+тянуть</b> высота · <b>Alt+тянуть</b> размер<br>
+      <b>Пробел</b> играть · <b>Del</b> удалить · <b>Ctrl+Z</b> отменить · <b>G</b> сетка<br>
+      <b>Колесо</b> приблизить · <b>стрелки</b> сдвинуть объект (+Shift — камера)
+    </div>
+  </div>
     <div id="codeWrap" hidden>
-      <div class="phead">Сгенерированный код BloomScript — его же увидит каталог</div>
-      <pre id="codeBox"></pre>
+      <div class="phead">Код BloomScript — его можно править прямо здесь и запускать</div>
+      <div id="codeBar">
+        <button class="btn" id="btnCodeFromScene">⟳ Взять из сцены</button>
+        <button class="btn" id="btnCodeRun">▶ Запустить</button>
+        <button class="btn" id="btnCodeEditor">✎ Открыть в редакторе</button>
+        <span id="codeMsg"></span>
+      </div>
+      <div id="codeAreaWrap">
+        <textarea id="codeIn" spellcheck="false" autocomplete="off"
+                  placeholder="// Пиши код здесь. Подсказки появляются сами."></textarea>
+        <div id="acStudio" hidden></div>
+      </div>
     </div>
     <div id="logWrap"><div id="logBox"></div></div>
   </div>
@@ -130,10 +186,14 @@ body{
 </div>
 
 <!-- Движок и модель сцены. Интерфейс подключается последним: он
-     рассчитывает на то, что E3 и Studio уже объявлены. -->
+     рассчитывает на то, что E3 и Studio уже объявлены.
+     WebGL2 сюда не подключается намеренно: редактор рисует только через
+     Canvas 2D (ctx = canvas.getContext("2d")), а бэкенд весил ~40 КБ в
+     каждой копии Studio. В приложении и редакторе BloomScript GL остаётся
+     и включается там, где он реально нужен. -->
 <script src="src/engine/e3.js"></script>
-<script src="src/engine/e3gl.js"></script>
 <script src="src/studio/scene.js"></script>
 <script src="src/studio/editor.js"></script>
+<script src="src/studio/codewin.js"></script>
 </body>
 </html>

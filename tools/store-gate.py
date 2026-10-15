@@ -10,7 +10,9 @@ import sys
 import tempfile
 
 sys.stdout.reconfigure(encoding='utf-8')
-ROOT = r'C:\MPresent'
+# Путь считается от этого файла, а не зашит: проект переехал в Work AI,
+# и гейт с жёстким C:\MPresent тихо проверял бы несуществующий каталог.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IDX = os.path.join(ROOT, 'index.html')
 
 PROBE = r'''
@@ -42,7 +44,11 @@ PROBE = r'''
   /* 2. запись и чтение */
   BB.set("coins", 777);
   ok(BB.get("coins") === 777, "запись монет: " + BB.get("coins"));
+  /* Запись склеивается (debounce), поэтому для проверки на диске нужен flush. */
+  BB.flush();
   ok(localStorage.getItem("bb2.v3.data") !== null, "данные лежат под версионным ключом");
+  var reread = JSON.parse(localStorage.getItem("bb2.v3.data"));
+  ok(reread.coins === 777, "flush довёл монеты до диска: " + reread.coins);
 
   /* 3. импорт старых плоских ключей (игрок до версионирования) */
   clearAll();
@@ -66,6 +72,7 @@ PROBE = r'''
   /* 5. экспорт и импорт */
   BB.set("xp", 500);
   BB.set("works", [{ id: 1, parts: ["a"] }]);
+  BB.flush();
   var text = BB.exportText();
   ok(text.indexOf("\"xp\": 500") >= 0, "экспорт содержит xp");
   BB.reset();
@@ -85,6 +92,7 @@ PROBE = r'''
   /* 7. старый store-обёртка работает поверх нового слоя */
   var before = BB.get("coins");
   store.set("bb2_coins", 55);
+  BB.flush();
   ok(store.get("bb2_coins", 0) === 55, "store.set/get через старый API");
   ok(BB.get("coins") === 55, "store пишет в версионированное хранилище");
 

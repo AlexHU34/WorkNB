@@ -24,8 +24,75 @@ const st = {
   ang: 0,
   last: 0,
   dirty: false,
+  hover: null,          /* объект под курсором — подсветка в иерархии и рамке */
+  snap: true,           /* привязка к сетке при перетаскивании */
+  undo: [],             /* стек снимков назад */
+  redo: [],             /* стек снимков вперёд */
 };
 let cv, ctx;
+
+/* Привязка к сетке: шаг 0.25, чтобы мышью попадать ровно. Числа округляются
+   до сотых — иначе объект уезжает на 0.03 за один пиксель и сетка врёт. */
+const SNAP = 0.25;
+function snap(v) { return st.snap ? Math.round(v / SNAP) * SNAP : Math.round(v * 100) / 100; }
+
+/* Снимок сцены для отката. Глубокая копия нужна, потому что undo хранит
+   состояние «до» правки: ссылки на те же объекты откат бы не отменил. */
+function snapshot() {
+  return JSON.stringify({
+    objects: st.scene.objects,
+    sel: st.sel,
+    title: st.scene.title,
+    ground: st.scene.ground,
+    camera: st.scene.camera,
+    bg: st.scene.bg,
+    animated: st.scene.animated,
+  });
+}
+function restore(json) {
+  const d = JSON.parse(json);
+  st.scene.objects = d.objects;
+  st.scene.title = d.title;
+  st.scene.ground = d.ground;
+  st.scene.camera = d.camera;
+  st.scene.bg = d.bg;
+  st.scene.animated = d.animated;
+  st.sel = d.sel;
+}
+
+/* Кладём снимок «до» изменения в стек. Красный стек чистится: после нового
+   шага вернуться в «прошлое» уже нельзя. */
+function pushUndo() {
+  st.undo.push(snapshot());
+  if (st.undo.length > 60) st.undo.shift();
+  st.redo.length = 0;
+  syncUndoButtons();
+}
+function undo() {
+  if (st.playing) return;
+  if (!st.undo.length) { log("отменять нечего", "warn"); return; }
+  st.redo.push(snapshot());
+  restore(st.undo.pop());
+  $("titleIn").value = st.scene.title;
+  refreshHierarchy(); refreshInspector(); markDirty();
+  log("отменено");
+  syncUndoButtons();
+}
+function redo() {
+  if (st.playing) return;
+  if (!st.redo.length) { log("нечего возвращать", "warn"); return; }
+  st.undo.push(snapshot());
+  restore(st.redo.pop());
+  $("titleIn").value = st.scene.title;
+  refreshHierarchy(); refreshInspector(); markDirty();
+  log("возвращено");
+  syncUndoButtons();
+}
+function syncUndoButtons() {
+  const u = $("btnUndo"), r = $("btnRedo");
+  if (u) u.disabled = !st.undo.length;
+  if (r) r.disabled = !st.redo.length;
+}
 
 function log(msg, kind) {
   const box = $("logBox");
@@ -69,11 +136,12 @@ function camObj() {
   };
 }
 
-/* Рамка выделения. В Unity это gizmo; здесь — честный каркас из рёбер,
+/* Рамка объекта. В Unity это gizmo; здесь — честный каркас из рёбер,
    потому что поднимать настоящий манипулятор рано: он тянет за собой
-   систему привязок и оси, а польза сомнительна. */
-function selectionFaces() {
-  const o = Studio.findObject(st.scene, st.sel);
+   систему привязок и оси, а польза сомнительна. Функция принимает id,
+   а не смотрит в состояние: ею обводят и выделение, и объект под курсором. */
+function outlineFaces(id) {
+  const o = Studio.findObject(st.scene, id);
   if (!o || st.playing) return [];
   const w = o.kind === "sprite" ? o.size : o.w;
   const h = o.kind === "sprite" ? o.size : o.h;
@@ -90,13 +158,17 @@ function selectionFaces() {
   e.push(...edge(P(x0, y1, z0), P(x1, y1, z0)), ...edge(P(x1, y1, z0), P(x1, y1, z1)));
   e.push(...edge(P(x1, y1, z1), P(x0, y1, z1)), ...edge(P(x0, y1, z1), P(x0, y1, z0)));
   e.push(...edge(P(x0, y0, z0), P(x0, y1, z0)), ...edge(P(x1, y0, z0), P(x1, y1, z0)));
-  e.push(...edge(P(x1, y0, z1), P(x1, y1, z1)), ...edge(P(x0, y0, z1), P(x0, y1, z1)));
+  e.push(...edge(P(x0, y0, z1), P(x0, y1, z1)), ...edge(P(x1, y0, z1), P(x1, y1, z1)));
   return e;
 }
 
 function render() {
   const W = cv._lw, H = cv._lh;
   const s = st.scene;
+  const dpr = cv._dpr || 1;
+  /* Всё дальше рисуем в логических координатах: на бэксто�� они просто
+     помножаются на плотность пикселей. */
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, s.bg[0]);
   g.addColorStop(1, s.bg[1]);
@@ -106,7 +178,13 @@ function render() {
   const cam = camObj();
   const faces = facesFor(st.playing ? st.ang : null);
   E3.draw(ctx, faces, cam, 430, LIGHT3);
-  const sel = selectionFaces();
+  /* Под курсором — блёклая рамка, выделенное — яркая. Раньше объект под
+     мышью не подсвечивался: выбрать его можно было только вслепую. */
+  if (st.hover && st.hover !== st.sel) {
+    const hov = outlineFaces(st.hover);
+    if (hov.length) E3.draw(ctx, hov, cam, 430, [0.35, 0.4, 0.5]);
+  }
+  const sel = outlineFaces(st.sel);
   if (sel.length) E3.draw(ctx, sel, cam, 430, [1, 1, 1]);
 
   if (!st.scene.objects.length) {
@@ -136,7 +214,7 @@ function refreshHierarchy() {
   }
   for (const o of st.scene.objects) {
     const row = document.createElement("div");
-    row.className = "hrow" + (o.id === st.sel ? " sel" : "");
+    row.className = "hrow" + (o.id === st.sel ? " sel" : "") + (o.id === st.hover ? " hov" : "");
     const dot = document.createElement("span");
     dot.className = "hdot";
     dot.style.background = o.color;
@@ -145,6 +223,8 @@ function refreshHierarchy() {
     nm.textContent = o.name;
     row.appendChild(dot);
     row.appendChild(nm);
+    row.onmouseenter = () => { st.hover = o.id; };
+    row.onmouseleave = () => { if (st.hover === o.id) st.hover = null; };
     row.onclick = () => { st.sel = o.id; refreshHierarchy(); refreshInspector(); };
     box.appendChild(row);
   }
@@ -209,28 +289,36 @@ function refreshInspector() {
   const del = document.createElement("button");
   del.className = "btn danger";
   del.textContent = "Удалить объект";
-  del.disabled = st.playing;
-  del.onclick = () => {
-    if (Studio.removeObject(st.scene, o.id)) {
-      st.sel = null;
-      refreshHierarchy(); refreshInspector(); markDirty();
-      log("удалён объект " + o.name);
-    }
-  };
+del.disabled = st.playing;
+    del.onclick = () => {
+      /* Снимок берём ДО удаления: иначе откат вернул бы уже пустую сцену. */
+      pushUndo();
+      if (Studio.removeObject(st.scene, o.id)) {
+        st.sel = null;
+        refreshHierarchy(); refreshInspector(); markDirty();
+        log("удалён объект " + o.name);
+      } else {
+        st.undo.pop(); syncUndoButtons();
+      }
+    };
   box.appendChild(del);
 }
 
 /* =============================== ВВОД ==================================== */
 function bindPointer() {
-  let mode = null, px = 0, py = 0, dragObj = null;
+  let mode = null, px = 0, py = 0, dragObj = null, moved = false;
 
   cv.addEventListener("pointerdown", (e) => {
     cv.setPointerCapture(e.pointerId);
     px = e.clientX; py = e.clientY;
+    moved = false;
     const hit = pick(e);
     if (hit && !st.playing) {
       dragObj = hit;
       st.sel = hit.id;
+      /* Снимок «до» — один на всё перетаскивание, иначе откат шагал бы
+         вместе с каждым кадром мыши и undo был бы бесполезен. */
+      pushUndo();
       mode = "move";
       refreshHierarchy(); refreshInspector();
     } else {
@@ -244,28 +332,62 @@ function bindPointer() {
     if (mode === "orbit") {
       st.orbit -= dx * 0.008;
       st.pitch = Math.max(-0.2, Math.min(1.3, st.pitch + dy * 0.006));
-    } else if (mode === "move" && dragObj) {
-      dragObj.x += dx * 0.055;
-      dragObj.z -= dy * 0.055;
-      dragObj.x = Math.round(dragObj.x * 100) / 100;
-      dragObj.z = Math.round(dragObj.z * 100) / 100;
-      refreshInspector();
-      markDirty();
+      return;
     }
+    if (!dragObj) {
+      /* Нет перетаскивания — просто подсветка объекта под курсором. */
+      const h = pick(e);
+      const id = h ? h.id : null;
+      if (id !== st.hover) { st.hover = id; refreshHierarchy(); }
+      return;
+    }
+    if (dx || dy) moved = true;
+    const lift = e.shiftKey;
+    if (lift) {
+      /* Shift тянет по высоте: вверх по экрану — выше по Y. */
+      dragObj.y = Math.max(0, snap(dragObj.y - dy * 0.05));
+    } else {
+      dragObj.x = snap(dragObj.x + dx * 0.055);
+      dragObj.z = snap(dragObj.z - dy * 0.055);
+    }
+    if (e.altKey) scaleObject(dragObj, dy * 0.01);
+    refreshInspector();
+    markDirty();
   });
 
   const stop = (e) => {
-    if (mode === "move") log("объект перемещён");
+    if (mode === "move") {
+      if (moved) log("объект перемещён");
+      else st.undo.pop();   /* клик без перетаскивания — не правка */
+      syncUndoButtons();
+    }
     mode = null; dragObj = null;
     try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
   };
   cv.addEventListener("pointerup", stop);
   cv.addEventListener("pointercancel", stop);
 
+  cv.addEventListener("pointerleave", () => {
+    if (st.hover) { st.hover = null; refreshHierarchy(); }
+  });
+
   cv.addEventListener("wheel", (e) => {
     e.preventDefault();
     st.dist = Math.max(4, Math.min(28, st.dist + (e.deltaY > 0 ? 0.7 : -0.7)));
   }, { passive: false });
+}
+
+/* Масштаб объекта под курсором. Alt вверх — крупнее. Метка растёт
+   размером, куб и пирамида — по трём габаритам сразу, иначе объект
+   вытягивался бы в одну сторону и переставал быть похожим на себя. */
+function scaleObject(o, k) {
+  if (o.kind === "sprite") {
+    o.size = Math.max(0.2, snap(o.size + k));
+    return;
+  }
+  o.w = Math.max(0.2, snap(o.w + k));
+  o.h = Math.max(0.2, snap(o.h + k));
+  o.d = Math.max(0.2, snap(o.d + k));
 }
 
 /* Выбор объекта: проецируем центры на экран и берём ближайший. Точный
@@ -307,6 +429,7 @@ function setPlaying(on) {
 
 function addObject(kind) {
   if (st.playing) return;
+  pushUndo();
   const o = Studio.addObject(st.scene, kind);
   st.sel = o.id;
   refreshHierarchy(); refreshInspector(); markDirty();
@@ -320,7 +443,12 @@ function publish() {
   Studio.save(st.scene);
   st.dirty = false;
   $("status").textContent = "опубликовано " + new Date().toLocaleTimeString();
-  $("codeBox").textContent = r.src;
+  /* Окно кода теперь правится руками, поэтому публикация не должна
+     затирать написанное — только подсказать, что код изменился. */
+  if (window.StudioCode && StudioCode.setValue) {
+    StudioCode.setValue(r.src);
+    if (!$("codeWrap").hidden) StudioCode.open();
+  }
 }
 
 function save() {
@@ -342,12 +470,96 @@ function frame(now) {
 }
 
 /* ================================ СТАРТ ================================== */
+/* Резкость на HiDPI. Раньше холст ставился в размер прямоугольника в
+   CSS-пикселях: на Retina и в Windows 125% линии и подписи мылись.
+   Теперь бэксто�� рисуется в devicePixelRatio раз крупнее, а _lw/_lh
+   остаются логическими координатами, поэтому вся геометрия движка
+   продолжает считаться в привычных единицах. Потолок нужен: на 4K при
+   dpr=2 холст стал бы 8K, и браузер перестал бы его ускорять. */
+const MAX_DPR = 2;
 function fit() {
   const r = $("viewport").getBoundingClientRect();
-  cv.width = Math.max(320, Math.round(r.width));
-  cv.height = Math.max(240, Math.round(r.height));
-  cv._lw = cv.width;
-  cv._lh = cv.height;
+  const dpr = Math.min(MAX_DPR, (typeof devicePixelRatio !== "number" ? 1 : devicePixelRatio) || 1);
+  cv._lw = Math.max(320, Math.round(r.width));
+  cv._lh = Math.max(240, Math.round(r.height));
+  cv.width = Math.round(cv._lw * dpr);
+  cv.height = Math.round(cv._lh * dpr);
+  cv._dpr = dpr;
+}
+
+/* Полное управление с клавиатуры. Раньше обработчика клавиш не было
+   вовсе: выбрать объект, удалить, отменить и сохранить можно было только
+   мышью, а колесом и стрелками управлять камерой — нельзя было никак. */
+function bindKeyboard() {
+  document.addEventListener("keydown", (e) => {
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    const k = e.key.toLowerCase();
+    const mod = e.ctrlKey || e.metaKey;
+
+    if (mod && k === "z") {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+      return;
+    }
+    if (mod && k === "y") { e.preventDefault(); redo(); return; }
+    if (mod && k === "s") { e.preventDefault(); save(); return; }
+
+    switch (k) {
+      case "delete":
+      case "backspace": {
+        e.preventDefault();
+        const o = Studio.findObject(st.scene, st.sel);
+        if (o && !st.playing) {
+          pushUndo();
+          Studio.removeObject(st.scene, o.id);
+          st.sel = null;
+          refreshHierarchy(); refreshInspector(); markDirty();
+          log("удалён объект " + o.name);
+        }
+        return;
+      }
+      case "escape":
+        if (st.playing) setPlaying(false);
+        return;
+      case " ":
+        e.preventDefault();
+        setPlaying(!st.playing);
+        return;
+      case "g":
+        st.snap = !st.snap;
+        log(st.snap ? "сетка включена" : "сетка выключена");
+        return;
+      case "arrowup": case "arrowdown": case "arrowleft": case "arrowright": {
+        e.preventDefault();
+        if (e.shiftKey) {
+          st.pitch = Math.max(-0.2, Math.min(1.3, st.pitch + (k === "arrowup" ? 0.06 : k === "arrowdown" ? -0.06 : 0)));
+          st.orbit += (k === "arrowleft" ? 0.08 : k === "arrowright" ? -0.08 : 0);
+        } else {
+          const o = Studio.findObject(st.scene, st.sel);
+          if (o && !st.playing) {
+            if (!st._kbMoved) { pushUndo(); st._kbMoved = true; }
+            if (k === "arrowup") o.z = snap(o.z - 0.25);
+            if (k === "arrowdown") o.z = snap(o.z + 0.25);
+            if (k === "arrowleft") o.x = snap(o.x - 0.25);
+            if (k === "arrowright") o.x = snap(o.x + 0.25);
+            refreshInspector(); markDirty();
+          }
+        }
+        return;
+      }
+      case "+": case "=":
+        st.dist = Math.max(4, st.dist - 0.7); e.preventDefault(); return;
+      case "-": case "_":
+        st.dist = Math.min(28, st.dist + 0.7); e.preventDefault(); return;
+    }
+  });
+  /* Снимок для серии нажатий стрел ставим один раз: он сбрасывается
+     при смене выделения, чтобы откат не съедал всю серию шагом. */
+  document.addEventListener("keyup", (e) => {
+    const k = e.key.toLowerCase();
+    if (k === "arrowup" || k === "arrowdown" || k === "arrowleft" || k === "arrowright") st._kbMoved = false;
+  });
 }
 
 function start() {
@@ -366,11 +578,11 @@ function start() {
   $("btnPlay").onclick = () => setPlaying(!st.playing);
   $("btnSave").onclick = save;
   $("btnPublish").onclick = publish;
-  $("btnCode").onclick = () => {
-    const box = $("codeWrap");
-    box.hidden = !box.hidden;
-    if (!box.hidden) $("codeBox").textContent = Studio.toBloomScript(st.scene);
-  };
+  $("btnUndo").onclick = () => undo();
+  $("btnRedo").onclick = () => redo();
+  syncUndoButtons();
+  /* Кнопку «Код» обслуживает src/studio/codewin.js: там же окно кода,
+     подсказки и переход в редактор. Здесь только отдаём ему сцену. */
   setupClear();
   /* Подтверждение без confirm(). Модальное окно здесь вредно по двум
    причинам: оно блокирует поток (в автоматической проверке страница
@@ -399,6 +611,7 @@ function setupClear() {
 }
 
   bindPointer();
+  bindKeyboard();
   refreshHierarchy();
   refreshInspector();
   $("status").textContent = "готово";
@@ -408,5 +621,12 @@ function setupClear() {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
 else start();
+
+/* Модулю окна кода нужна живая сцена, а не копия из хранилища: человек
+   может править сцену и не нажимать «Сохранить». Отдаём ссылку на неё. */
+window.StudioEditor = {
+  get scene() { return st.scene; },
+  toCode: function () { return Studio.toBloomScript(st.scene); }
+};
 
 })();

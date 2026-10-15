@@ -8,7 +8,9 @@
 """
 import hashlib, importlib.util, os, re, subprocess, sys, tempfile, shutil
 
-spec = importlib.util.spec_from_file_location("rt", r"C:\MPresent\tools\run-tests.py")
+HERE = os.path.dirname(os.path.abspath(__file__))
+# Путь к run-tests считаем от этого файла: проект переехал в Work AI.
+spec = importlib.util.spec_from_file_location("rt", os.path.join(HERE, "run-tests.py"))
 R = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(R)
 

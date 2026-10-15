@@ -138,11 +138,25 @@ PROBE = r"""
       ok(src.indexOf("fn draw():") >= 0, "в каталог ушёл код с хуком draw");
       ok(src.indexOf("box(") >= 0, "в коде есть наш куб");
 
-      // --- просмотр кода ---
+      // --- окно кода ---
       $("btnCode").click();
-      await wait(100);
-      ok($("codeWrap").hidden === false && $("codeBox").textContent.length > 40,
-         "панель сгенерированного кода открывается");
+      await wait(150);
+      const codeVal = $("codeIn") ? $("codeIn").value : "";
+      ok($("codeWrap").hidden === false && codeVal.length > 40,
+         "окно кода открывается и наполнено из сцены: " + codeVal.length + " символов");
+
+      // --- подсказки в окне кода: появляются сами, без нажатий ---
+      if ($("codeIn")) {
+        $("codeIn").value = "fn draw():\\n    bo";
+        $("codeIn").dispatchEvent(new Event("input"));
+        await wait(120);
+        const ac = $("acStudio");
+        const shown = ac && !ac.hidden && ac.querySelectorAll("button").length;
+        ok(!!shown, "подсказки появились сами при наборе: " + (shown || 0) + " вариантов");
+        const first = ac ? ac.querySelector("button .acName") : null;
+        ok(!!first && first.textContent === "box",
+           "первым предложено подходящее слово: " + (first ? first.textContent : "—"));
+      }
 
       // --- очистка в два нажатия ---
       $("btnClear").click();

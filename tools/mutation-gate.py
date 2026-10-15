@@ -65,6 +65,28 @@ MUTATIONS = [
     ("лимит памяти на concat снят", CORE,
      "if (I0) I0.guardSize(r.length);", "/*снято*/",
      "sandbox-gate.py"),
+
+    # Мутации на защиты, добавленные после: они обязаны тоже ловиться,
+    # иначе «проверено» значит «никто не проверял».
+    ("push считает длину вместо одного элемента", CORE,
+     "case \"push\": return v => { o.push(v); if (I0) I0.guardSize(1); return o.length; };",
+     "case \"push\": return v => { o.push(v); if (I0) I0.guardSize(o.length); return o.length; };",
+     "sandbox-gate.py"),
+
+    ("лимит памяти на split снят", CORE,
+     "      const r = s.split(sep === undefined ? \"\" : str(sep));\n      if (I0) I0.guardSize(r.length);",
+     "      const r = s.split(sep === undefined ? \"\" : str(sep));",
+     "sandbox-gate.py"),
+
+    ("лимит памяти на replace снят", CORE,
+     "      const r = s.split(str(a)).join(str(b));\n      if (I0) I0.guardSize(r.length);",
+     "      const r = s.split(str(a)).join(str(b));",
+     "sandbox-gate.py"),
+
+    ("часы кадра выключены", CORE,
+     "if (this.deadline !== 0 && (this.steps & 1023) === 0 && nowMs() > this.deadline) {",
+     "if (false) {",
+     "sandbox-gate.py"),
 ]
 
 

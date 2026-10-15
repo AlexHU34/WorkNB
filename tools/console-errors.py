@@ -31,10 +31,13 @@ def main():
     if not chrome:
         sys.exit("Chrome не найден")
     profile = tempfile.mkdtemp(prefix="conerr")
+    # Путь к редактору считаем от этого файла: проект переехал в Work AI.
+    lang = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "lang.html")
     cmd = [chrome, "--headless=new", "--disable-gpu", "--no-sandbox",
            "--enable-logging=stderr", "--virtual-time-budget=6000",
            "--user-data-dir=" + profile, "--dump-dom",
-           "file:///C:/MPresent/lang.html" + query]
+           "file:///" + lang.replace("\\", "/") + query]
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     shutil.rmtree(profile, ignore_errors=True)
     found = False

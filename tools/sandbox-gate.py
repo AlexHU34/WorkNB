@@ -26,6 +26,9 @@ function ok(c, m) { console.log((c ? "OK   " : "FAIL ") + m); if (!c) fail++; }
 
 function run(src) {
   const env = new Env(I.globals);
+  /* Счётчики обнуляем перед каждой программой: иначе тесты делят один
+     бюджет, и лимит памяти приходит от предыдущего теста, а не от своего. */
+  I.resetLimits();
   I.steps = 0;
   let r = null, e = null;
   try { r = I.run(parse(src), env); } catch (x) { e = x; }
@@ -99,6 +102,70 @@ stops("вечный цикл с catch",
   ["let i = 0", "while true:", "    try:", "        i = i + 1",
    "    catch e:", "        continue"].join("\n"));
 stops("обычный вечный цикл", "let i = 0\nwhile true:\n    i = i + 1");
+
+/* --- рост массива через push ---
+   push докладывал в счётчик ВСЮ длину массива вместо одного элемента:
+   счётчик копился как 1+2+...+n и лимит памяти упирался где-то на
+   полутора тысячах элементов — цикл, который честно кладет в массив
+   пять тысяч чисел, падал с враньём «превышен объём». Проверяем ровно
+   это: с маленьким лимитом честный рост проходит, а рост за лимит —
+   останавливается. */
+(function () {
+  const saveMax = I.maxObjects;
+  I.resetLimits(); I.steps = 0; I.maxObjects = 1000000;
+  let e1 = null;
+  try {
+    I.run(parse("let a = []\nlet i = 0\nwhile i < 5000:\n    a.push(i)\n    i = i + 1"), new Env(I.globals));
+  } catch (x) { e1 = x; }
+  ok(!e1, "честный рост массива на 5000 проходит" + (e1 ? " — " + e1.message : ""));
+
+  I.resetLimits(); I.steps = 0; I.maxObjects = 1000;
+  let e2 = null;
+  try {
+    I.run(parse("let a = []\nlet i = 0\nwhile true:\n    a.push(i)\n    i = i + 1"), new Env(I.globals));
+  } catch (x) { e2 = x; }
+  ok(!!e2 && String(e2.message).indexOf("объём данных") >= 0,
+     "рост через push упирается в память" + (e2 ? ": " + String(e2.message).slice(0, 40) : " — ОШИБКИ НЕ БЫЛО"));
+  I.maxObjects = saveMax;
+})();
+
+/* --- split и replace --- Раньше обходили счётчик памяти: результат
+   мог вырасти в разы, а лимит об этом не знал. Тот же приём: маленький
+   лимит и результат, который в него не влезает. */
+(function () {
+  const saveMax = I.maxObjects;
+  I.resetLimits(); I.steps = 0; I.maxObjects = 1000;
+  let e1 = null;
+  try {
+    I.run(parse("let s = \"\"\nlet i = 0\nwhile i < 200:\n    s = s + \"abcdefghij\"\n    i = i + 1\nreturn s.split(\"\").length"), new Env(I.globals));
+  } catch (x) { e1 = x; }
+  ok(!!e1 && String(e1.message).indexOf("объём данных") >= 0,
+     "split упирается в память" + (e1 ? ": " + String(e1.message).slice(0, 40) : " — ОШИБКИ НЕ БЫЛО"));
+
+  I.resetLimits(); I.steps = 0; I.maxObjects = 1000;
+  let e2 = null;
+  /* x -> xx каждый проход удваивает строку: за 20 шагов это больше мегабайта. */
+  try {
+    I.run(parse("let s = \"x\"\nlet i = 0\nwhile i < 20:\n    s = s.replace(\"x\", \"xx\")\n    i = i + 1\nreturn s.length"), new Env(I.globals));
+  } catch (x) { e2 = x; }
+  ok(!!e2 && String(e2.message).indexOf("объём данных") >= 0,
+     "replace упирается в память" + (e2 ? ": " + String(e2.message).slice(0, 40) : " — ОШИБКИ НЕ БЫЛО"));
+  I.maxObjects = saveMax;
+})();
+
+/* --- часы кадра --- Лимит шагов ловит бесконечный цикл, но не ловит
+   программу, где шагов мало, а каждый дорогой. Часы закрывают именно её. */
+(function () {
+  I.resetLimits(); I.steps = 0;
+  I.startClock(1);   /* одна миллисекунда на весь запуск */
+  let e = null;
+  try {
+    I.run(parse("let i = 0\nwhile true:\n    i = i + 1"), new Env(I.globals));
+  } catch (x) { e = x; }
+  I.deadline = 0;
+  ok(!!e && String(e.message).indexOf("время кадра") >= 0,
+     "тяжёлый кадр останавливается по часам" + (e ? ": " + String(e.message).slice(0, 40) : " — ОШИБКИ НЕ БЫЛО"));
+})();
 
 console.log("ИТОГ: FAIL " + fail);
 process.exitCode = fail ? 1 : 0;

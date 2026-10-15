@@ -2661,6 +2661,9 @@ function selfTest() {
   t("find",            "return [1,5,9].find(fn(x): return x > 4)", 5);
   t("some",            "return [1,2].some(fn(x): return x > 1)", true);
   t("every",           "return [2,4].every(fn(x): return x % 2 == 0)", true);
+  t("count с условием", "return [1,2,3,4].count(fn(x): return x % 2 == 0)", 2);
+  t("count без условия", "return [1,2,3].count()", 3);
+  t("count пустого",   "let a = []\nreturn a.count(fn(x): return true)", 0);
   t("join",            "return [1,2].join(\"-\")", "1-2");
   t("reverse",         "let a = [1,2,3]\na.reverse()\nreturn a[0]", 3);
   t("sort по функции", "let a = [3,1,2]\na.sort(fn(x,y): return x - y)\nreturn a[0]", 1);
@@ -3284,7 +3287,11 @@ if (QS.has("modulesview")) {
   out("BLOOMSCRIPT готов. Выбери образец и нажми «▶ Запустить».", "ok");
   out("Справка по языку — справа внизу. «Самопроверка» прогоняет тесты интерпретатора.", "info");
   /* игра могла прийти на правку из приложения */
-  setTimeout(() => { ugAdoptFromApp(); start(); }, 60);
+  setTimeout(() => {
+  if (ugAdoptStudioRun()) return;                 /* предпросмотр из Studio */
+  if (!ugAdoptFromStudio()) ugAdoptFromApp();      /* сцена на правку */
+  start();
+}, 60);
 }
 
 /* ============================ ПУБЛИКАЦИЯ: редактор -> приложение ============
@@ -3293,6 +3300,15 @@ if (QS.has("modulesview")) {
  * Общего origin достаточно — сеть не нужна. */
 const UGAME_KEY = "bb2_ugames.v1";
 const UGAME_EDIT_KEY = "bb2_ugame_to_edit";
+/* Код из Studio. Студия пишет сюда сгенерированный BloomScript и открывает
+   редактор; редактор подхватывает и кладёт его в поле. Связь односторонняя:
+   из редактора в студию ничего не возвращается — иначе два редактора
+   начали бы затирать правки друг друга. */
+const STUDIO_HANDOFF_KEY = "bb2_studio_to_editor";
+/* Код из окна Studio с кнопкой «Запустить». Отдельный ключ от того, что
+   идёт на правку: предпросмотр не должен молча затирать то, что человек
+   уже набрал в редакторе. */
+const STUDIO_RUN_KEY = "bb2_studio_run";
 
 function ugLoad() {
   try {
@@ -3364,7 +3380,62 @@ function ugCurrentId() {
   return 1;
 }
 
-/* Приём игры, которую игрок отправил на правку из приложения. */
+/* Приём кода из NEBULA Studio: та же схема, что с приложением, но payload
+   приходит целиком, а не по номеру в списке игр. */
+function ugAdoptFromStudio() {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(STUDIO_HANDOFF_KEY);
+    if (raw) localStorage.removeItem(STUDIO_HANDOFF_KEY);
+  } catch (e) {
+    return false;
+  }
+  if (!raw) return false;
+  let payload = null;
+  try { payload = JSON.parse(raw); } catch (e) { payload = null; }
+  const src = payload && typeof payload.src === "string" ? payload.src : null;
+  if (!src) return false;
+  /* Сломанный код сюда попасть не должен: студия генерирует его сама,
+     но проверка стоит копейки, а пустой редактор с непонятной ошибкой
+     отнимает больше времени, чем этот try. */
+  try { parse(src); } catch (e) {
+    printToConsole("Студия прислала код, который не читается: строка " +
+      (e.line || 0) + ": " + e.message, "err");
+    return false;
+  }
+  ed.value = src;
+  const title = (payload && payload.title) || ugTitle(src, "Сцена из Studio");
+  edTitle.textContent = ugFileName(src, title);
+  refresh();
+  setView("explorer");
+  printToConsole("Сцена из NEBULA Studio загружена: «" + title + "»", "ok");
+  return true;
+}
+/* Предпросмотр кода из Studio. Отдельной вкладки у редактора нет, поэтому
+   код кладётся в поле и запускается. Сообщение обязательно: без него
+   выглядит так, будто редактор сам по себе потерял написанное. */
+function ugAdoptStudioRun() {
+  let src = null;
+  try {
+    src = localStorage.getItem(STUDIO_RUN_KEY);
+    if (src) localStorage.removeItem(STUDIO_RUN_KEY);
+  } catch (e) {
+    return false;
+  }
+  if (!src) return false;
+  ed.value = src;
+  edTitle.textContent = "предпросмотр-studio.bs";
+  refresh();
+  setView("explorer");
+  setTimeout(() => {
+    if (start()) {
+      printToConsole("Предпросмотр Studio запущен. Правишь здесь, публикуешь как обычно", "ok");
+    } else {
+      printToConsole("Код из Studio не запустился — смотри ошибку выше", "err");
+    }
+  }, 120);
+  return true;
+}
 function ugAdoptFromApp() {
   let id = 0;
   try {

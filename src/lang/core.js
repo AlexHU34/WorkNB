@@ -671,10 +671,18 @@ const FORBIDDEN_MEMBERS = {
      рос. Теперь это тот, кто исполняется прямо сейчас. */
 let I0 = null;
 
+/* Монотонные часы. performance.now() точнее и не прыгает при переводе
+   системного времени; Date.now() оставлен запасным для сред без performance. */
+const nowMs = (typeof performance !== "undefined" && typeof performance.now === "function")
+  ? function () { return performance.now(); }
+  : function () { return Date.now(); };
+
 class Interp {
   constructor(host) {
     this.maxDepth = 200;        /* предел вложенных вызовов функций */
     this.maxObjects = 1000000;   /* предел объектов и данных на один запуск */
+    this.maxMs = 12;             /* предел времени на кадр, мс */
+    this.deadline = 0;           /* момент, когда кадр обязан завершиться; 0 = выключено */
     this.host = host;        /* интерфейс к движку/UI */
     this.globals = new Env(null);
     this.steps = 0;
@@ -689,11 +697,21 @@ class Interp {
 
   /* Счётчики обнуляются на верхнем уровне запуска. Иначе между кадрами они
      копятся и любая игра падает на «превышен объём данных», хотя каждый кадр
-     создавал немного. */
+     создавал немного. Часы здесь не запускаются: их ставит startClock перед
+     кадром, чтобы программа, вызванная вне игрового цикла, не падала по
+     устаревшему дедлайну. */
   resetLimits() {
     this.depth = 0;
     this.objects = 0;
     this.overCount = 0;
+    this.deadline = 0;
+  }
+
+  /* Старт отсчёта кадра. Лимит шагов не ловит программу, где шагов мало,
+     но каждый дорогой (сборка огромной строки одним выражением). Часы
+     закрывают именно эту дыру. */
+  startClock(ms) {
+    this.deadline = nowMs() + (typeof ms === "number" ? ms : this.maxMs);
   }
 
   /* Вход в рекурсию. Нативный RangeError на глубокой рекурсии обрушивал
@@ -743,6 +761,19 @@ class Interp {
         throw e;
       }
       throw new LangError("превышен лимит шагов — похоже на бесконечный цикл", this.curLine || 0);
+    }
+    /* Часы проверяем не каждый шаг — performance.now() на каждом шаге съел бы
+       сам бюджет, — а раз в 1024 шага. Этого достаточно: 1024 шага не могут
+       занять больше миллисекунд, а дорогой шаг всё равно упрётся в проверку
+       рядом. */
+    if (this.deadline !== 0 && (this.steps & 1023) === 0 && nowMs() > this.deadline) {
+      this.overCount++;
+      if (this.overCount > 3) {
+        const e = new Error("выполнение остановлено: кадр слишком тяжёлый");
+        e.fatal = true;
+        throw e;
+      }
+      throw new LangError("превышено время кадра — программа слишком тяжёлая", this.curLine || 0);
     }
   }
 
@@ -1235,7 +1266,12 @@ class HostError {
    возвращаем замыкание с уже захваченным объектом. */
 function arrayMethod(o, name) {
   switch (name) {
-    case "push": return v => { o.push(v); if (I0) I0.guardSize(o.length); return o.length; };
+    /* push добавляет ровно один элемент, поэтому в счётчик идёт 1, а не
+       o.length. С o.length счётчик копился бы как 1+2+...+n и лимит
+       памяти упирался бы где-то на полутора тысячах элементов — цикл,
+       который честно кладёт в массив сто тысяч чисел, падал бы с враньём
+       «превышен объём». */
+    case "push": return v => { o.push(v); if (I0) I0.guardSize(1); return o.length; };
     case "pop": return () => (o.length ? o.pop() : null);
     case "shift": return () => (o.length ? o.shift() : null);
     case "unshift": return v => { o.unshift(v); return o.length; };
@@ -1257,6 +1293,15 @@ function arrayMethod(o, name) {
     case "map": return f => { const r = []; for (let i = 0; i < o.length; i++) r.push(invokeAsValue(f, [o[i], i])); return r; };
     case "filter": return f => { const r = []; for (let i = 0; i < o.length; i++) if (truthy(invokeAsValue(f, [o[i], i]))) r.push(o[i]); return r; };
     case "find": return f => { for (let i = 0; i < o.length; i++) if (truthy(invokeAsValue(f, [o[i], i]))) return o[i]; return null; };
+    /* count — сколько элементов подходит под условие. Без него в коде
+       приходилось писать reduce со счётчиком, а новичкам это неочевидно.
+       Без аргумента считает все: a.count() — размер массива. */
+    case "count": return f => {
+      if (f === undefined || f === null) return o.length;
+      let n = 0;
+      for (let i = 0; i < o.length; i++) if (truthy(invokeAsValue(f, [o[i], i]))) n++;
+      return n;
+    };
     case "findIndex": return f => { for (let i = 0; i < o.length; i++) if (truthy(invokeAsValue(f, [o[i], i]))) return i; return -1; };
     case "some": return f => { for (let i = 0; i < o.length; i++) if (truthy(invokeAsValue(f, [o[i], i]))) return true; return false; };
     case "every": return f => { for (let i = 0; i < o.length; i++) if (!truthy(invokeAsValue(f, [o[i], i]))) return false; return true; };
@@ -1288,7 +1333,15 @@ function stringMethod(s, name) {
     case "upper": return () => s.toUpperCase();
     case "lower": return () => s.toLowerCase();
     case "trim": return () => s.trim();
-    case "split": return sep => s.split(sep === undefined ? "" : str(sep));
+    /* split и replace тоже создают новые объекты, а раньше обходили счётчик.
+       "a".split("") на длинной строке и replace с ростом результата
+       раздували память без учёта — теперь объём результата идёт в тот же
+       счётчик, что и concat. */
+    case "split": return sep => {
+      const r = s.split(sep === undefined ? "" : str(sep));
+      if (I0) I0.guardSize(r.length);
+      return r;
+    };
     case "indexOf": return v => s.indexOf(str(v));
     case "lastIndexOf": return v => s.lastIndexOf(str(v));
     case "includes": return v => s.includes(str(v));
@@ -1297,7 +1350,11 @@ function stringMethod(s, name) {
     case "slice": return (a, b) => s.slice(a === undefined ? 0 : num(a, 0), b === undefined ? undefined : num(b, 0));
     case "charAt": return i => (num(i, 0) >= 0 && num(i, 0) < s.length ? s[num(i, 0)] : "");
     case "at": return i => { const k = num(i, 0); return k >= 0 && k < s.length ? s[k] : ""; };
-    case "replace": return (a, b) => s.split(str(a)).join(str(b));
+    case "replace": return (a, b) => {
+      const r = s.split(str(a)).join(str(b));
+      if (I0) I0.guardSize(r.length);
+      return r;
+    };
     /* repeat тоже должен стоить памяти: строка на 400 миллионов символов
      проходила молча, потому что счётчик объёма на это не смотрел. */
   case "repeat": return n => {

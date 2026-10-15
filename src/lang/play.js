@@ -80,6 +80,7 @@ function uopenGame(id) {
     scale: 1,
     logicalWidth: 640,
     logicalHeight: 380,
+    gameId: id,
     log: (msg, cls) => {
       if (cls === "err") console.error("[игра] " + msg);
     },

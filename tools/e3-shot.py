@@ -4,7 +4,10 @@
 в гейты не входит.
 """
 import importlib.util, os, re, sys, tempfile
-spec = importlib.util.spec_from_file_location("rt", r"C:\MPresent\tools\run-tests.py")
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+# Путь к run-tests считаем от этого файла: проект переехал в Work AI.
+spec = importlib.util.spec_from_file_location("rt", os.path.join(HERE, "run-tests.py"))
 R = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(R)
 
@@ -96,7 +99,7 @@ try{ requestAnimationFrame(function () {
 tmp = tempfile.mkdtemp(prefix="e3shot_")
 profile = tempfile.mkdtemp(prefix="nbprof_")
 path, _ = R.make_page(tmp, "", scene)
-out = sys.argv[1] if len(sys.argv) > 1 else r"C:\MPresent\_shots_v2\e3_showcase.png"
+out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "_shots_v2", "e3_showcase.png")
 chrome = R.find_chrome()
 cmd = [chrome, "--headless=new", "--disable-gpu", "--no-sandbox",
        "--user-data-dir=" + profile, "--hide-scrollbars",

@@ -60,7 +60,8 @@ const TARGETS = {
     key: "studio",
     entry: "NebulaStudio.js",
     ref: "NebulaStudio.html",
-    modules: ["src/engine/e3.js", "src/studio/scene.js", "src/studio/editor.js"],
+    modules: ["src/engine/e3.js", "src/studio/scene.js", "src/studio/editor.js",
+      "src/studio/codewin.js"],
   },
   editor: {
     key: "editor",

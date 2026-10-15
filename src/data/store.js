@@ -34,7 +34,11 @@ const BB_DEFAULTS = {
   hist: [], sound: true, earn: 0, spent: 0, ecoDay: "", firsts: {},
   q: {}, theme: "dark", buff: {}, daily: "", played: false,
   memBest: 0, quizBest: -1, scents: [], wheel: 0, seen: false,
-  last: 0, streak: 1, ugames: []
+  last: 0, streak: 1, ugames: [],
+  /* Настройки из окна ⚙️. Значения по умолчанию — то, что страница ставит
+     сама при первом запуске; здесь они нужны, чтобы новые поля не были
+     пустыми у тех, кто обновился со старой версии. */
+  vol: 70, ui: 1, quality: "medium"
 };
 
 /* Старые имена -> новые. Таблица односторонняя: переносим один раз. */
@@ -106,9 +110,24 @@ function bbImportLegacy() {
   return found ? out : null;
 }
 
+/* Задержка склейки записи. Игрок не должен ждать диск на каждое действие:
+   покупка, лайк и переключение темы шли в localStorage по одной записи,
+   и каждая сериализовала весь прогресс целиком. Теперь изменения
+   накапливаются, а запись происходит один раз за паузу. 600 мс выбраны так,
+   чтобы даже активная серия нажатий уложилась в одну запись. */
+const BB_SAVE_DEBOUNCE = 600;
+
 const BB = {
   schema: BB_SCHEMA,
   data: null,
+  /* Отложенная запись: таймер, флаг «есть что писать» и последняя ошибка. */
+  _timer: null,
+  _pending: false,
+  lastError: null,
+  /* Подписчик на ошибку записи. Приложение показывает toast, иначе сбой
+     квоты молча терял бы прогресс — игрок узнавал об этом только после
+     перезапуска. */
+  onError: null,
 
   /* Загрузка с миграциями. Вызывается один раз при старте страницы. */
   load() {
@@ -144,15 +163,40 @@ const BB = {
     return this.data;
   },
 
+  /* Немедленная запись. Возвращает успех; ошибку запоминает и сообщает. */
   save() {
     if (!this.data) return false;
     this.data.version = this.schema;
+    this._pending = false;
+    if (this._timer !== null) { clearTimeout(this._timer); this._timer = null; }
     try {
       localStorage.setItem(bbKey("data"), JSON.stringify(this.data));
+      this.lastError = null;
       return true;
     } catch (e) {
+      /* Переполнение квоты или приватный режим: прогресс уже не сохранить.
+         Это надо показать игроку, а не проглотить. */
+      this.lastError = e;
+      if (typeof this.onError === "function") {
+        try { this.onError(e); } catch (_e) {}
+      }
       return false;
     }
+  },
+
+  /* Отложенная запись: копит изменения и пишет один раз за паузу. */
+  scheduleSave() {
+    this._pending = true;
+    if (this._timer !== null) return;
+    this._timer = setTimeout(() => { this._timer = null; this.save(); }, BB_SAVE_DEBOUNCE);
+  },
+
+  /* Немедленно сбросить накопившееся на диск. Нужно перед закрытием
+     вкладки: без этого последние 600 мс правок пропали бы. */
+  flush() {
+    if (this._timer !== null) { clearTimeout(this._timer); this._timer = null; }
+    if (this._pending) this.save();
+    return true;
   },
 
   get(name, dflt) {
@@ -162,7 +206,7 @@ const BB = {
   set(name, value) {
     const d = this.load();
     d[name] = value;
-    this.save();
+    this.scheduleSave();
     return value;
   },
 
@@ -220,3 +264,12 @@ const BB = {
    хранилища видела «BB is not defined» — именно поэтому. */
 BB_GLOBAL.BB = BB;
 BB.load();
+
+/* Сброс отложенной записи перед уходом со страницы. Без этого последние
+   правки могли не дойти до диска: debounce держит их в памяти. */
+if (typeof addEventListener === "function") {
+  addEventListener("pagehide", function () { BB.flush(); });
+  addEventListener("visibilitychange", function () {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") BB.flush();
+  });
+}

@@ -116,8 +116,9 @@ return [{v:[[x-r*k,gy,z-r*k*sq],[x+r*k,gy,z-r*k*sq],[x+r*k,gy,z+r*k*sq],[x-r*k,g
   return ctx.createPattern(k,"repeat")},
  /* частицы в 3D-пространстве (дождь/снег/пыль/искры). Хранятся в плоском массиве
     и рисуются как depth-sorted спрайты — дешевле геометрии. */
- particles(n,opt){
-  const o=opt||{},p=[];
+particles(n,opt){
+   const o=opt||{},p=[];
+   if(E3.qLimit&&n>E3.qLimit)n=E3.qLimit;   /* уровень графики может урезать снег */
   for(let i=0;i<n;i++)p.push({x:(Math.random()-.5)*(o.w||14),y:Math.random()*(o.h||10),
    z:-2+Math.random()*(o.d||26),vy:-(o.spd||3)*(0.5+Math.random()),vx:(Math.random()-.5)*.4,
    s:(o.s||.5)*(0.5+Math.random()),t:o.txt||"❄",c:o.c||"#ffffff",life:1});
@@ -269,35 +270,57 @@ return [{v:[[x-r*k,gy,z-r*k*sq],[x+r*k,gy,z-r*k*sq],[x+r*k,gy,z+r*k*sq],[x-r*k,g
   const LW=ctx.canvas._lw||ctx.canvas.width,LH=ctx.canvas._lh||ctx.canvas.height;
   const items=[],near=E3.near||.15;
   let culled=0,dropped=0;
+  /* Записи сортировки переиспользуются между кадрами.
+     На каждой грани раньше создавался свой объект {d,e,ea,a,p,c} плюс массивы
+     под вершины и проекцию — около семи мелких объектов на грань. При двух
+     тысячах видимых граней это 14 000 разрывов в секунду, и сборщик мусора
+     регулярно вставал посреди кадра. Теперь объекты живут в пуле и просто
+     перезаписываются полями: меняется только содержимое, не количество. */
+  const _pool=E3._ipool||(E3._ipool=[]);
+  let _n=0;
+  const _take=function(){
+    let o=_pool[_n];
+    if(!o){o={p:[[],[],[],[]],pl:0,pv:[],pp:[]};_pool[_n]=o}
+    _n++;
+    /* Явная очиска: объект приходит из прошлого кадра с прежними полями,
+       и забытый spr/pl сломал бы отрисовку молча. */
+    o.spr=0;o.pl=0;o.e=0;o.ea=0;o.a=0;o.d=0;o.c=null;
+    o.p.length=0;o.pp.length=0;o.pv.length=0;
+    return o};
+  /* Вершины в виде тоже переиспользуются: их массив на кадр один. */
+  const _pv=E3._pv||(E3._pv=[]);
   E3.stats.tiles=E3.maxTiles||9000;
-  /* Сетка отсечения: сначала камера обходит занятые ячейки, потом
-     грани берутся только из них. При E3.grid.use=false остаётся
-     прежний линейный путь — так поведение игр не меняется молча. */
-  /* list — либо сами грани (линейный путь), либо индексы в faces
-     (сетка). idx=true означает, что элемент list[i] это номер грани. */
-  let list=faces,listLen=faces.length,idx=false;
-  if(E3.grid.use&&faces.length>E3.grid.minFaces){
-   const pls=E3.grid.planes(cam,LW,LH,fl,near,E3.grid.sceneFar(cam));
-   const cand=E3.grid.candidates(cam,pls);
-   if(cand&&cand.length){list=cand;listLen=cand.length;idx=true}
-  }
-  for(let li=0;li<listLen;li++){const f=idx?faces[list[li]]:list[li];
-   if(f.k){const vw=E3.view(f.p,cam);
-    if(vw[2]<near)continue;
-    const q=E3.proj(vw,fl,LW,LH);
-    items.push({d:vw[2],spr:1,x:q[0],y:q[1],s:(f.z||1)*q[2],t:f.t2,c:f.c,g:f.g});
-    continue}
-   const nv=(f.t||f.v[3]===f.v[0])?3:4;
-   let pv=[E3.view(f.v[0],cam)];
-   for(let k=1;k<nv;k++)pv.push(E3.view(f.v[k],cam));
+/* Сетка отсечения удалена. Замер показал, что в браузере она МЕДЛЕННЕЕ
+     линейного прохода в 2,6 раза (15,1 мс против 39,4 мс на тысяче граней):
+     кадр упирается в заливку, а не в отбор граней, и сетка добавляла к
+     нему только свои расходы. В пути WebGL2 отсечение делает GPU
+     бесплатно. Код не вызывался ни из одной игры — это был мёртвый груз
+     в каждой сборке. */
+  const list=faces,listLen=faces.length;
+  for(let li=0;li<listLen;li++){const f=list[li];
+if(f.k){const vw=E3.view(f.p,cam);
+     if(vw[2]<near)continue;
+     const q=E3.proj(vw,fl,LW,LH);
+     const it=_take();
+     it.d=vw[2];it.spr=1;it.x=q[0];it.y=q[1];it.s=(f.z||1)*q[2];it.t=f.t2;it.c=f.c;it.g=f.g;
+     items.push(it);
+     continue}
+const nv=(f.t||f.v[3]===f.v[0])?3:4;
+    /* let, а не const: ниже отсечение по ближней плоскости может заменить pv
+       на обрезанный массив. С const такая подмена падала бы. */
+    let pv=_pv;pv.length=0;
+    for(let k=0;k<nv;k++)pv.push(E3.view(f.v[k],cam));
    let inside=0,dmax=0;
    for(let k=0;k<pv.length;k++){if(pv[k][2]>=near)inside++;if(pv[k][2]>dmax)dmax=pv[k][2]}
    if(!inside)continue;
    if(inside<pv.length)pv=E3.clipNear(pv,near);
    /* плоскость-инстанс: одна грань вместо N боксов, при желании делится на сетку */
-   if(f.pl){
-    items.push({d:dmax,pl:1,pp:pv.map(q=>E3.proj(q,fl,LW,LH)),c:f.c,f:f,cam:cam,fl:fl});
-    continue}
+if(f.pl){
+     const it=_take();
+     it.d=dmax;it.pl=1;it.f=f;it.cam=cam;it.fl=fl;it.c=f.c;
+     for(let k=0;k<pv.length;k++){const q=E3.proj(pv[k],fl,LW,LH);it.pp.push(q)}
+     items.push(it);
+     continue}
    /* отсечение обратных граней: только для замкнутых объёмов (f.s) и только
       если грань целиком перед камерой — иначе оставляем на всякий случай */
    if(f.s&&E3.cull!==false&&dmax>near+.05){
@@ -322,9 +345,11 @@ return [{v:[[x-r*k,gy,z-r*k*sq],[x+r*k,gy,z-r*k*sq],[x+r*k,gy,z+r*k*sq],[x-r*k,g
    }
    const fdep=dmax;
    if(E3.fog&&!flat){const fk=Math.max(0,Math.min(1,(fdep-E3.fog[3])/(E3.fog[4]-E3.fog[3])));if(fk>0)fcol=E3.mix(fcol,E3.fog[0],E3.fog[1],E3.fog[2],fk)}
-   const pp=[];for(let k=0;k<pv.length;k++)pp.push(E3.proj(pv[k],fl,LW,LH));
-   if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
-   items.push({d:fdep,e:f.e?1:0,ea:f.e===2?2:0,a:f.a,p:pp,c:fcol})}
+if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
+    const it=_take();
+    it.d=fdep;it.e=f.e?1:0;it.ea=f.e===2?2:0;it.a=f.a;it.c=fcol;
+    for(let k=0;k<pv.length;k++)it.p.push(E3.proj(pv[k],fl,LW,LH));
+    items.push(it)}
   E3.stats.faces=items.length;E3.stats.culled=culled;E3.stats.dropped=dropped;E3.stats.total=faces.length;E3.stats.tested=listLen;
  E3.stats.ms=E3.auto?E3.auto.ms:0;
   const _p1=_pf?performance.now():0;
@@ -389,6 +414,50 @@ E3.maxFaces=0;E3.maxTiles=9000;
    порог оставлен нулевым, выигрыш берём только без потери качества. */
 E3.minGrad=7;E3.minStroke=0;
 E3.near=.15;
+
+/* ===== УРОВНИ ГРАФИКИ (low / medium / high) =====
+   Раньше настройки графики не было вовсе: движок сам угадывал скорость
+   (E3.auto ниже), но игрок не мог сказать «у меня слабый ноутбук, облегчи».
+   Уровень влияет на скорость, а не на содержание: игры те же, правила те же.
+
+   На что влияет, по убыванию реальной экономии:
+     * E3.minGrad — порог градиента. Замер (fill-bench, 1700 граней) дал:
+       плоская заливка 0,75 мс, с градиентом 6,29 мс; создание
+       CanvasGradient — 88% стоимости кадра. Это самый дорогой рычаг.
+     * E3.maxTiles — сколько плиток пола вообще рисуем.
+     * E3.qLimit — предел частиц: на низком уровне дождь и снег реже.
+     * E3.auto.on — сторож FPS. На низком уровне он включается сразу,
+       на высоком — почти не вмешивается.
+
+   Обводку не трогаем ни на одном уровне: замер показал, что она стоит
+   +5,17 мс, но её отсутствие меняет картинку на 7,6% пикселей. Тёмный
+   контур — часть стиля, а не украшение. */
+E3.qLimit=0;
+const E3_QUALITY={
+  low:   {minGrad:0,  maxTiles:2500, qLimit:40, auto:true,  autoMin:180, ms:20},
+  medium:{minGrad:7,  maxTiles:9000, qLimit:0,  auto:true,  autoMin:240, ms:16.7},
+  high:  {minGrad:3,  maxTiles:16000,qLimit:0,  auto:false, autoMin:240, ms:16.7}
+};
+E3.quality="medium";
+/* Применить уровень. Вызывается из окна настроек и при старте страницы. */
+E3.setQuality=function(level){
+  const q=E3_QUALITY[level]||E3_QUALITY.medium;
+  E3.quality=E3_QUALITY[level]?level:"medium";
+  E3.minGrad=q.minGrad;
+  E3.maxTiles=q.maxTiles;
+  E3.qLimit=q.qLimit;
+  /* Бюджет граней сбрасываем: иначе новый уровень унаследовал бы просадку,
+     измеренную на предыдущем, и первый кадр после переключения рванул. */
+  E3.maxFaces=0;
+  E3.auto.on=q.auto;
+  E3.auto.min=q.autoMin;
+  E3.auto.ms=q.ms;
+  E3.auto.frames.length=0;
+  return E3.quality;
+};
+/* Лимит частиц выставляет уровень графики: на низком снег и дождь идут
+   реже. Сама механика игры не меняется, меняется только число снежинок. */
+E3.qLimit=0;
 /* ===== Адаптивное качество =====
    E3.maxFaces умеет резать число граней, но его никто не включал: на слабом
    железе игра начинала подтормаживать. Этот сторож живёт сам, поверх любой игры:
@@ -499,222 +568,3 @@ E3.profile = {
  onBudgetChange(){ E3.profile.frames.length = 0; }
 };
 
-
-/* ============ СЕТКА ОТСЕЧЕНИЯ (Фаза 1.2) ============
- * Разложение граней по ячейкам мирового пространства. Кадр обходит только
- * те ячейки, которые попали в поле зрения, и рисует грани оттуда.
- *
- * Что это даёт. На равномерной сцене (а это большинство игр: кубики на
- * земле, плитки, деревья) камера видит малую долю ячеек, поэтому число
- * преобразований view() падает на порядок. На разреженной сцене выигрыша
- * почти нет — честно: это не универсальное ускорение.
- *
- * Сетка, а не BVH: дерево на кадр обходится дороже, чем его построение
- * для наших объёмов, и хуже чинится при динамических объектах.
- *
- * Включается явно: E3.grid.use = true. По умолчанию выключено, потому что
- * построение сетки само по себе стоит денег на маленьких сценах.
- *
- * УСТАРЕЛО, НОВОГО КОДА НЕ ПИШЕМ. Замер показал: в браузере сетка
- * медленнее линейного прохода в 2,6 раза (15,1 мс против 39,4 мс на 1000
- * граней), потому что кадр упирается в заливку, а не в отбор граней.
- * В пути WebGL2 отсечение делает GPU бесплатно, и сетка там просто не
- * читается. Код оставлен, потому что на нём стоит tools/grid-gate.py;
- * удалять его имеет смысл вместе с отказом от пути 2D. */
-E3.grid = {
- /* minFaces — ниже этого сетка не строим: на маленьких сценах
-    построение дороже самой отрисовки. far — половина стороны,
-    до которой камера «смотрит» в сетку: должна покрывать
-    максимальный обзор, иначе дальние объекты исчезнут. */
- minFaces: 400, maxFar: 0,
- /* ВЫКЛЮЧЕНА ПО УМОВАНИЮ, А НЕ ПО ЗАБЫВЧИВОСТИ.
-    Замер (tools/bench-gate.py, 1000 граней, камера внутри сцены):
-      линейный путь — 15.1 мс/кадр, сетка — 39.4 мс/кадр.
-    Сетка проигрывает в 2.6 раза: обход всех ячеек с проверкой плоскостей
-    стоит дороже, чем сэкономленные преобразования. Профилировщик показывает,
-    что кадр на 74% уходит в ЗАЛИВКУ, а не в отбор граней — отсекать
-    нечего, узкое место — заливка холста.
-    Включать имеет смысл только там, где сцена огромна, а в кадре
-    попадает малая доля (проверять на своей сцене, а не на глаз). */
- use: false, cell: 8, minX: 0, minY: 0, minZ: 0, nx: 1, ny: 1, nz: 1,
- cells: null, buckets: null, faceIndex: null, built: 0,
-
- /* Разложить грани по ячейкам. cell — сторона ячейки в мировых единицах.
-    Пустые ячейки не хранятся: память пропорциональна занятым ячейкам. */
- build(faces, cell){
-  const P = E3.grid;
-  P.cell = cell || P.cell;
-  const c = P.cell;
-  let minX = Infinity, minY = Infinity, minZ = Infinity,
-      maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  /* Первым проходом считаем общий объём сцены и AABB каждой грани.
-     Без этого сетку не на что натянуть. */
-  const aabb = [], sprites = [];
-  for(let i = 0; i < faces.length; i++){
-   const f = faces[i];
-   /* Спрайт — точка, а не объём: в ячейку его класть нельзя.
-      Держим отдельно и добавляем к кандидатам всегда. */
-   if(!f) continue;
-   if(f.k){ sprites.push(i); continue; }
-   const v = f.v;
-   if(!v || v.length < 3) continue;
-   let ax = v[0][0], ay = v[0][1], az = v[0][2],
-       bx = ax, by = ay, bz = az;
-   for(let k = 1; k < v.length; k++){
-    const p = v[k];
-    if(p[0] < ax) ax = p[0]; if(p[0] > bx) bx = p[0];
-    if(p[1] < ay) ay = p[1]; if(p[1] > by) by = p[1];
-    if(p[2] < az) az = p[2]; if(p[2] > bz) bz = p[2];
-   }
-   aabb[i] = [ax, ay, az, bx, by, bz];
-   if(ax < minX) minX = ax; if(ax > maxX) maxX = ax;
-   if(ay < minY) minY = ay; if(ay > maxY) maxY = ay;
-   if(az < minZ) minZ = az; if(az > maxZ) maxZ = az;
-  }
-  if(!isFinite(minX)){ P.cells = null; P._aabb = null; return 0; }
-
-  P.minX = minX; P.minY = minY; P.minZ = minZ;
-  P.maxX = maxX; P.maxY = maxY; P.maxZ = maxZ;
-  P.nx = Math.max(1, Math.ceil((maxX - minX) / c));
-  P.ny = Math.max(1, Math.ceil((maxY - minY) / c));
-  P.nz = Math.max(1, Math.ceil((maxZ - minZ) / c));
-
-  /* Защита от взрыва памяти: если сетка выходит разумного размера,
-     не строим её вовсе и остаёмся на линейном пути. 1e6 ячеек — это
-     уже сцена, где сетка вряд ли окупит себя. */
-  const total = P.nx * P.ny * P.nz;
-  if(total > 1e6){ P.use = false; P.cells = null; return 0; }
-
-  const map = new Map();
-  for(let i = 0; i < faces.length; i++){
-   const b = aabb[i];
-   if(!b){ continue; }
-   const i0 = Math.max(0, Math.min(P.nx - 1, ((b[0] - P.minX) / c) | 0)),
-         j0 = Math.max(0, Math.min(P.ny - 1, ((b[1] - P.minY) / c) | 0)),
-         k0 = Math.max(0, Math.min(P.nz - 1, ((b[2] - P.minZ) / c) | 0)),
-         i1 = Math.max(0, Math.min(P.nx - 1, ((b[3] - P.minX) / c) | 0)),
-         j1 = Math.max(0, Math.min(P.ny - 1, ((b[4] - P.minY) / c) | 0)),
-         k1 = Math.max(0, Math.min(P.nz - 1, ((b[5] - P.minZ) / c) | 0));
-   /* Большая грань (земля, стена) попадает во много ячеек — это верно,
-      иначе при движении камеры она «пропадала» бы на границах. */
-   for(let kk = k0; kk <= k1; kk++)
-    for(let jj = j0; jj <= j1; jj++)
-     for(let ii = i0; ii <= i1; ii++){
-      const key = (kk * P.ny + jj) * P.nx + ii;
-      let arr = map.get(key);
-      if(!arr){ arr = []; map.set(key, arr); }
-      arr.push(i);
-     }
-  }
-  P.cells = map;
-  P._aabb = aabb;
-  P.sprites = sprites;
-  P.buckets = map.size;
-  P.built++;
-  return map.size;
- },
-
- /* Грани, потенциально видимые из камеры.
-    Радиус берём по дальней плоскости и по «толстой» грани: если камера
-    внутри ячейки, берём ячейку целиком — иначе объект мог бы исчезнуть. */
- /* Дальность взгляда: до самой дальней вершины AABB сцены.
-    Фиксированное число здесь не годится — сцена то на 30, то на 600 единиц,
-    и лишний отсечённый объём просто исчезает с экрана. */
- sceneFar(cam){
-  const P = E3.grid;
-  if(!P.cells || P.maxX === undefined) return P.maxFar || 260;
-  const x0=P.minX, x1=P.maxX, y0=P.minY, y1=P.maxY, z0=P.minZ, z1=P.maxZ;
-  let d = 0;
-  for(let i = 0; i < 8; i++){
-   const dx = ((i&1)?x1:x0) - cam.x,
-         dy = ((i&2)?y1:y0) - cam.y,
-         dz = ((i&4)?z1:z0) - cam.z;
-   const q = dx*dx + dy*dy + dz*dz;
-   if(q > d) d = q;
-  }
-  const far = Math.sqrt(d);
-  return P.maxFar > 0 ? Math.min(far, P.maxFar) : far;
- },
-
- /* Плоскости пирамиды видимости в мировых координатах.
-    Каждая задана как nx*x + ny*y + nz*z + d >= 0 — «внутри».
-    Нормали берутся из проекции: s = fl/z, значит на глубине z полуэкран
-    по X = LW*z/(2*fl), по Y = LH*z/(2*fl). Отсюда плоскости
-      x + hW*z >= 0,  -x + hW*z >= 0,  y + hH*z >= 0,  -y + hH*z >= 0,
-      z >= near,  farD - z >= 0.
-    Перенос в мир: n_world = R^T·n (R — поворот из view()). */
- planes(cam, LW, LH, fl, near, farD){
-  const cy=Math.cos(-cam.yaw),sy=Math.sin(-cam.yaw);
-  const cx=Math.cos(-cam.pitch),sx=Math.sin(-cam.pitch);
-  /* строки R^-1 = R^T — мировые координаты осей камеры */
-  const axX=cy,     axY=-sx*sy,  axZ=cx*sy;     /* вправо */
-  const ayX=0,      ayY=cx,      ayZ=sx;        /* вверх */
-  const azX=-sy,    azY=-sx*cy,  azZ=cx*cy;     /* вперёд */
-  const hW=LW/(2*fl), hH=LH/(2*fl);
-  const P=E3.grid._planes || (E3.grid._planes = []);
-  let n = 0;
-  /* n_cam -> n_world = n_cam.x*right + n_cam.y*up + n_cam.z*fwd */
-  function push(nx, ny, nz, d){
-   const wx = nx*axX + ny*ayX + nz*azX,
-         wy = nx*axY + ny*ayY + nz*azY,
-         wz = nx*axZ + ny*ayZ + nz*azZ;
-   P[n] = { x:wx, y:wy, z:wz, d:d - (wx*cam.x + wy*cam.y + wz*cam.z) };
-   n++;
-  }
-  push( 1, 0, hW, 0);          /* левая  */
-  push(-1, 0, hW, 0);          /* правая */
-  push( 0, 1, hH, 0);          /* нижняя */
-  push( 0,-1, hH, 0);          /* верхняя */
-  push( 0, 0, 1, -near);       /* ближняя */
-  push( 0, 0,-1, farD);         /* дальняя */
-  P.length = n;
-  return P;
- },
- /* Ячейка целиком вне пирамиды? Берём вершину AABB со знаком нормали:
-    если даже она снаружи — ячейка не пересекает кадр ни в одной точке. */
- cellOutside(pl, x0, y0, z0, x1, y1, z1){
-  for(let i = 0; i < pl.length; i++){
-   const p = pl[i];
-   const vx = p.x >= 0 ? x1 : x0,
-         vy = p.y >= 0 ? y1 : y0,
-         vz = p.z >= 0 ? z1 : z0;
-   if(p.x*vx + p.y*vy + p.z*vz + p.d < 0) return true;
-  }
-  return false;
- },
- /* Индексы граней из ячеек, пересекающих пирамиду видимости. */
- candidates(cam, planes){
-  const P = E3.grid;
-  const out = P._out || (P._out = []);
-  out.length = 0;
-  if(!P.cells || !planes) return null;
-  const c = P.cell;
-  /* Обходим все занятые ячейки, а не прямоугольник по сцене: при сильно
-     вытянутой сцене прямоугольник был бы заметно больше нужного. */
-  let seen = null;
-  P.cells.forEach((arr, key) => {
-   const ix = key % P.nx,
-         iy = ((key - ix) / P.nx) % P.ny,
-         iz = (key - ix - iy*P.nx) / (P.ny*P.nx);
-   const x0 = P.minX + ix*c, y0 = P.minY + iy*c, z0 = P.minZ + iz*c;
-   if(P.cellOutside(planes, x0, y0, z0, x0+c, y0+c, z0+c)) return;
-   if(!seen) seen = new Set();
-   for(let n = 0; n < arr.length; n++){
-    const i = arr[n];
-    if(seen.has(i)) continue;
-    seen.add(i);
-    out.push(i);
-   }
-  });
-  /* Спрайты: у них нет объёма, они не в ячейках и проверяются всегда. */
-  const sp = P.sprites;
-  if(sp) for(let i = 0; i < sp.length; i++) out.push(sp[i]);
-  return out;
- },
-
- /* Сброс: сетка описывает прошлую сцену, для новой она бессмысленна. */
- clear(){
-  E3.grid.cells = null; E3.grid._aabb = null;
-  E3.grid.buckets = 0; E3.grid.maxX = undefined; E3.grid.sprites = null;
- }
-};

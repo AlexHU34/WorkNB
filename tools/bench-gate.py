@@ -8,8 +8,12 @@
 Что меряем:
   * интерпретатор: пустой цикл, арифметика, вызовы функций, строки,
     массивы — в миллионах операций в секунду;
-  * движок: кадр на разном числе граней (100 / 1000 / 5000);
-  * сетку отсечения: тот же кадр с ней и без.
+  * движок: кадр на разном числе граней (100 / 1000 / 5000).
+
+Раньше здесь ещё мерилась сетка отсечения (E3.grid) — отдельно и против
+линейного прохода. Сетка удалена как мёртвый код: она была медленнее
+линейного прохода и ею никто не пользовался, поэтому сравнивать больше
+нечего.
 """
 import html
 import io
@@ -48,9 +52,13 @@ PROBE = r'''
     var ast = parse(src);
     var env = new Env(I.globals);
     /* прогрев: первый запуск трогает ленивые ветки */
-    I.steps = 0; I.maxSteps = 1e9; I.run(ast, env);
+    I.steps = 0; I.maxSteps = 1e9; I.resetLimits(); I.run(ast, env);
+    /* Счётчики памяти общие на весь запуск, поэтому каждый замер начинается
+       с чистого листа: иначе бенчмарк «строки» платил бы за объёмы,
+       созданные бенчмарком «вызовы функции». */
+    I.steps = 0; I.resetLimits();
     var t0 = performance.now();
-    I.steps = 0; I.run(ast, env);
+    I.run(ast, env);
     var ms = performance.now() - t0;
     out.push("ИНТЕРП " + name + ": " + ms.toFixed(2) + " мс  (" +
              iters + " итераций, " + Math.round(ms > 0 ? iters / ms * 1000 : 0) +
@@ -79,29 +87,20 @@ PROBE = r'''
     }
     return f;
   }
-  function drawBench(name, faces, useGrid) {
-    E3.grid.clear();
-    E3.grid.use = false;
+  function drawBench(name, faces) {
     E3.draw(x, faces, cam, 430, L);
-    if (useGrid) { E3.grid.build(faces, 16); E3.grid.use = true; }
     var t0 = performance.now();
     var FR = 12;
     for (var i = 0; i < FR; i++) E3.draw(x, faces, cam, 430, L);
     var ms = (performance.now() - t0) / FR;
-    out.push("ДВИЖ " + name + (useGrid ? " (сетка)" : " (линейно)") +
-             ": " + ms.toFixed(2) + " мс/кадр, нарисовано " + E3.stats.faces);
-    E3.grid.use = false;
-    E3.grid.clear();
+    out.push("ДВИЖ " + name + ": " + ms.toFixed(2) + " мс/кадр, нарисовано " +
+             E3.stats.faces);
     return ms;
   }
-  var s100 = scene(100), s1000 = scene(1000), s5000 = scene(5000);
-  var a = drawBench("100 граней", s100, false);
-  var b = drawBench("1000 граней", s1000, false);
-  var c = drawBench("5000 граней", s5000, false);
-  var b2 = drawBench("1000 граней", s1000, true);
-  out.push("СЕТКА дала выигрыш: " +
-           (b2 < b ? "да, " + Math.round((1 - b2 / b) * 100) + "% быстрее"
-                    : "нет (медленнее на " + Math.round((b2 / b - 1) * 100) + "%)"));
+  var s1000 = scene(1000);
+  drawBench("100 граней", scene(100));
+  drawBench("1000 граней", s1000);
+  drawBench("5000 граней", scene(5000));
 
   /* профилировщик: где именно уходит кадр */
   E3.profile.start();

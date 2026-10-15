@@ -40,6 +40,13 @@ function createRuntime(opts) {
   };
   if (useGL) window.addEventListener("resize", onResizeGL);
 
+  /* Фиксированный шаг. Модуль был написан, подключён к страницам — и не
+     использовался нигде, то есть висел в сборке мёртвым грузом. Теперь он
+     включается по opts.fixedStep; по умолчанию поведение прежнее, чтобы
+     привычные игры не поменяли ощущение от кадра. */
+  const fixedStep = !!(opts.fixedStep) && typeof E3Step !== "undefined";
+  if (fixedStep) { E3Step.setup(opts.fixedStep === true ? 60 : opts.fixedStep); E3Step.start(); }
+
   /* Вывод наружу. Редактор пишет в консоль, приложение — в свой лог.
      Без подписчика строки просто не показываются, но кадр от этого не падает. */
   function out(msg, cls) { if (opts.log) opts.log(msg, cls || "info"); }
@@ -101,10 +108,27 @@ function createRuntime(opts) {
   };
   const SAVE_KEY = "bloomscript.save.v1";
 
+  /* Ключ сохранения — свой у каждой игры. Раньше все игры пользователя
+     писали в одну ячейку bloomscript.save.v1, поэтому прогресс второй
+     игры молча затирал рекорды первой: играли в A, потом в B, возвращались
+     в A — а рекорд уже чужой. Идентификатор приходит из среды (приложение
+     знает id карточки, редактор — имя программы); без идентификатора
+     остаётся прежняя общая ячейка, чтобы ничего не потерять. */
+  let saveKeyCache = null;
+  function gameIdOf() {
+    const id = opts.gameId;
+    if (id === undefined || id === null || id === "") return "default";
+    return String(id);
+  }
+  function saveKey() {
+    if (!saveKeyCache) saveKeyCache = SAVE_KEY + "." + gameIdOf();
+    return saveKeyCache;
+  }
+
   /* --- сохранения --- */
   function saveGame() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(G.state));
+      localStorage.setItem(saveKey(), JSON.stringify(G.state));
       return true;
     } catch (e) {
       return false;
@@ -112,7 +136,7 @@ function createRuntime(opts) {
   }
   function loadGame() {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = localStorage.getItem(saveKey());
       if (!raw) return false;
       const obj = JSON.parse(raw);
       if (obj && typeof obj === "object") { G.state = obj; return true; }
@@ -439,24 +463,36 @@ function createRuntime(opts) {
   }
 
   /* Счётчики защиты живут один кадр. Сбрасываем здесь: игровой цикл зовёт
-     update/draw через invoke(), и автоматический сброс по «верхнему уровню»
-     не срабатывал — счётчик копился и обычная игра падала на лимите. */
-  function resetFrameLimits(I) {
-    I.depth = 0;
-    I.objects = 0;
-    I.overCount = 0;
-  }
+       update/draw через invoke(), и автоматический сброс по «верхнему уровню»
+       не срабатывал — счётчик копился и обычная игра падала на лимите.
+       Сброс живёт в самом интерпретаторе, а не здесь: раньше был дубликат,
+       и правка одного места не трогала второй. */
+  function resetFrameLimits(I) { I.resetLimits(); I.startClock(); }
 
+  /* Фиксированный шаг включается явно (opts.fixedStep). По умолчанию шаг
+     плавает вместе с частотой монитора — как было, и как ожидают
+     привычные игры. При включении логика всегда получает один и тот же
+     dt, а «догоняющие» шаги ограничены: после паузы кадр не должен
+     догонять полсекунды. */
   function frame(now) {
     if (!running) return;
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(.05, (now - lastT) / 1000);
+    const real = Math.min(.05, (now - lastT) / 1000);
     lastT = now;
-    tAcc += dt;
-    S.t = tAcc;
-    interp.steps = 0;
+
+    let dt = real, steps = 1;
+    if (fixedStep) {
+      steps = E3Step.advance(real * 1000);
+      if (!steps) { /* шаг не наступил: кадр пропускаем */ return; }
+      dt = E3Step.renderDt();
+    }
+
+    for (let step = 0; step < steps; step++) {
+      tAcc += dt;
+      S.t = tAcc;
+      interp.steps = 0;
       resetFrameLimits(interp);
-    const env = interp.runEnv;
+      const env = interp.runEnv;
 
     try {
       /* --- таймеры --- */
@@ -509,9 +545,9 @@ function createRuntime(opts) {
       }
       /* виджеты: label/panel/button/slider/toggle/progress */
       if (useGL) drawWidgets(E3GL.hud()); else drawWidgets();
-  if (statEl) statEl.textContent = "граней " + S.faces.length + " · нарисовано " + n +
-        " · t=" + tAcc.toFixed(1) + "с · FPS-кадр " + (dt * 1000).toFixed(0) + "мс · экран " + G.screen;
-      if (opts.status) opts.status(G.screen, dt * 1000, n);
+      if (statEl) statEl.textContent = "граней " + S.faces.length + " · нарисовано " + n +
+        " · t=" + tAcc.toFixed(1) + "с · FPS-кадр " + (real * 1000).toFixed(0) + "мс · экран " + G.screen;
+      if (opts.status) opts.status(G.screen, real * 1000, n);
       if (G.ended && G.screen === "win") { out("Победа! Звёзд: " + G.stars + " · счёт " + S.score, "ok"); sound("win"); stopLoop(); }
       if (G.ended && G.screen === "over") { out("Поражение. Счёт: " + S.score, "warn"); sound("lose"); stopLoop(); }
     } catch (e) {
@@ -522,6 +558,8 @@ function createRuntime(opts) {
         out("внутренняя ошибка: " + e.message, "err");
       }
       stopLoop();
+      break;
+    }
     }
     keysHit.clear();
     mouse.clicked = false;
@@ -662,6 +700,11 @@ function createRuntime(opts) {
   }
     const env = new Env(interp.globals);
     interp.runEnv = env;
+    /* Первый запуск получает щедрый бюджет: инициализация игры один раз
+       считает то, что потом пересчитывает каждый кадр, и 12 мс на неё
+       несправедливы. Дальше каждый кадр считается на 12 мс. */
+    interp.resetLimits();
+    interp.startClock(1000);
     try {
       interp.run(ast, env);
 } catch (e) {

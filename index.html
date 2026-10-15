@@ -153,6 +153,17 @@ html[data-theme="dark"] .tab.active{background:#fff;color:#111;border-color:#fff
 @media(min-width:700px){.overlay{align-items:center;padding:18px}.modal{border-radius:24px}}
 @keyframes sheet{from{transform:translateY(60px);opacity:0}}
 @keyframes up{from{transform:translateY(24px);opacity:0}}
+/* ---- строки окна настроек ---- */
+.set-row{display:flex;align-items:center;gap:12px;justify-content:space-between;
+  padding:13px 0;border-bottom:1px solid var(--line)}
+.set-row:last-child{border-bottom:0}
+.set-label{font-weight:800;font-size:14.5px}
+.set-hint{font-weight:600;font-size:11.5px;color:var(--muted);margin-top:2px}
+.set-seg{display:flex;gap:4px;background:var(--bg2);border-radius:11px;padding:3px;flex:none}
+.set-seg button{border:0;background:none;color:var(--txt);font:inherit;font-weight:700;
+  font-size:12.5px;padding:7px 11px;border-radius:9px;cursor:pointer}
+.set-seg button.on{background:var(--card);box-shadow:0 1px 4px #0003}
+.set-row input[type=range]{flex:1;max-width:190px;accent-color:#00d4ff}
 .modal-thumb{height:220px;display:flex;align-items:center;justify-content:center;font-size:112px;position:relative;overflow:hidden}
 .modal-thumb .big{filter:drop-shadow(0 12px 24px rgba(0,0,0,.4));animation:bob 3s infinite}
 .modal-thumb button{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:17px;cursor:pointer;z-index:2}
@@ -344,15 +355,19 @@ body{min-width:1060px}
 
 <header class="topbar">
   <div class="logo" onclick="goHome()"><div class="logo-mark"></div><span>NEBULA<b>BLOOM</b> <small style="font-size:10px;background:linear-gradient(135deg,#00ffab,#00d4ff);border-radius:6px;padding:2px 6px;color:#111;vertical-align:middle">NOVA</small></span></div>
-  <nav class="nav-links"><button class="active">Discover</button><button onclick="toast('Каталог деталей — внутри каждой игры 🧩')">Каталог</button><button onclick="openShop()">🛍 Магазин</button></nav>
+  <!-- Навигация: только то, что реально работает. Раньше здесь стояли
+       «Discover» без действия и «Каталог», который лишь показывал
+       подсказку-всплывашку — нажимаешь, и ничего не происходит. -->
+  <nav class="nav-links"><button class="active" onclick="goHome()">🏠 Главная</button><button onclick="setFilter('fav');goHome()">❤️ Избранное</button><button onclick="openShop()">🛍 Магазин</button></nav>
   <div class="search"><input id="search" placeholder="Поиск игр..." autocomplete="off"><div class="suggest" id="suggest"></div></div>
   <div class="top-right">
     <div class="pill coins" id="coins" onclick="dailyBonus()" title="Нажми — ежедневный бонус">🪙 0</div>
     <div class="pill" id="lvlPill" title="Уровень">⭐ 1</div>
     <button class="iconbtn" id="soundBtn" onclick="toggleSound()">🔊</button>
     <button class="iconbtn" onclick="toggleTheme()">🌓</button>
-    <button class="iconbtn" onclick="toast('Уведомления: Лера оценила твой букет ❤️')">🔔<i>3</i></button>
-    <div class="avatar" onclick="toast('Привет, Цветочный строитель! 🌸')"><span>🌷</span></div>
+    <button class="iconbtn" onclick="openSettings()" title="Настройки">⚙️</button>
+    <!-- Кнопок-обманок больше нет. Раньше здесь стояли «уведомления» с
+         выдуманным сообщением и аватар, который только здоровался. -->
   </div>
 </header>
 
@@ -361,7 +376,6 @@ body{min-width:1060px}
     <div class="side-profile"><div class="avatar"><span>🌷</span></div><div style="flex:1"><b>Гость_Цветок</b><small id="lvlTxt">Уровень 1 • 0 XP</small><div class="lvlbar"><div id="lvlBar" style="width:5%"></div></div></div></div>
     <button class="side-btn" onclick="contGame()"> <span class="ic">▶</span> Продолжить</button>
     <button class="side-btn active" onclick="goHome()"> <span class="ic">🏠</span> Главная</button>
-    <button class="side-btn" onclick="goHome()"> <span class="ic">🧭</span> Discover</button>
     <button class="side-btn" onclick="setFilter('fav');goHome()"> <span class="ic">❤️</span> Избранное <span id="favCount"></span></button>
     <button class="side-btn" onclick="showWorks()"> <span class="ic">🎨</span> Мои работы</button>
     <button class="side-btn" onclick="openShop()"> <span class="ic">🛍</span> Магазин</button>
@@ -471,6 +485,58 @@ body{min-width:1060px}
   <div style="display:flex;justify-content:space-between;align-items:center"><h2>🛍 Магазин деталей</h2><button class="mini" onclick="closeShop()">✕</button></div>
   <p style="color:var(--muted);font-size:13.5px;margin:6px 0">Баланс: <b id="shopCoins" style="color:#e79b00"></b> • Премиум-детали остаются навсегда<br><small>Сегодня: <span id="shopEco"></span> • с 5 уровня −10%</small></p>
   <div class="shop-grid" id="shopGrid"></div>
+</div></div></div>
+
+<!-- Настройки. Раньше звук и тема были двумя кнопками в шапке, а размера
+     интерфейса и громкости не было вовсе. Всё собрано в одно окно. -->
+<div class="overlay" id="setOverlay"><div class="modal"><div class="modal-body">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h2>⚙️ Настройки</h2><button class="mini" onclick="closeSettings()">✕</button>
+  </div>
+
+  <div class="set-row">
+    <div class="set-label">🔊 Звук<div class="set-hint">Кнопка в шапке переключает звук мгновенно</div></div>
+    <div class="set-seg" id="segSound">
+      <button data-v="1" onclick="setSoundUI(true)">Вкл</button>
+      <button data-v="0" onclick="setSoundUI(false)">Выкл</button>
+    </div>
+  </div>
+
+  <div class="set-row">
+    <div class="set-label">🔉 Громкость<div class="set-hint"><span id="volVal">70</span>%</div></div>
+    <input type="range" id="volSlider" min="0" max="100" value="70" oninput="setVolume(this.value)">
+  </div>
+
+  <div class="set-row">
+    <div class="set-label">🔠 Размер интерфейса<div class="set-hint">Увеличивает кнопки, текст и поля</div></div>
+    <div class="set-seg" id="segScale">
+      <button data-v="0.9" onclick="setScale(this.dataset.v)">90%</button>
+      <button data-v="1" onclick="setScale(this.dataset.v)">100%</button>
+      <button data-v="1.1" onclick="setScale(this.dataset.v)">110%</button>
+    </div>
+  </div>
+
+  <div class="set-row">
+    <div class="set-label">🌓 Тема</div>
+    <div class="set-seg" id="segTheme">
+      <button data-v="light" onclick="setTheme(this.dataset.v)">☀️ Светлая</button>
+      <button data-v="dark" onclick="setTheme(this.dataset.v)">🌙 Тёмная</button>
+    </div>
+  </div>
+
+  <div class="set-row">
+    <div class="set-label">🎮 Графика<div class="set-hint">Слабее телефон — меньше нагрузка. Игры не меняются.</div></div>
+    <div class="set-seg" id="segQuality">
+      <button data-v="low" onclick="setQuality(this.dataset.v)">Низкая</button>
+      <button data-v="medium" onclick="setQuality(this.dataset.v)">Средняя</button>
+      <button data-v="high" onclick="setQuality(this.dataset.v)">Высокая</button>
+    </div>
+  </div>
+
+  <div class="set-row">
+    <div class="set-label">🗑 Сброс прогресса<div class="set-hint">Удалит всё: монеты, работы, игры. Отменить нельзя.</div></div>
+    <button class="btn" style="border-color:#7a2b2b;color:#ff9b9b" onclick="resetProgress()">Сбросить</button>
+  </div>
 </div></div></div>
 
 <div id="coach"><div class="coach-card"><div class="big">🌸</div><h2>Добро пожаловать в BloomBlox!</h2><p style="color:var(--muted);margin:10px 0 18px;line-height:1.6">Выбирай игру → тапай детали → перетаскивай на поле.<br>За красоту получишь <b>звёзды, XP и флорины</b> 🌟</p><button class="btn btn-green" style="width:100%" onclick="closeCoach()">Понятно, играть! ▶</button></div></div>
@@ -643,6 +709,10 @@ const HERO=[
 /* store — тонкая обёртка над версионированным хранилищем (Фаза 0.5).
    Имена ключей исторически bb2_*; перевод на новые делается миграцией
    внутри store.js, поэтому здесь перечисление один раз. */
+/* Если браузер не даёт записать (память кончилась, приватный режим),
+   хранилище сообщает об этом сюда. Раньше ошибка глоталась: монеты и
+   работы выглядели сохранёнными и пропадали после перезагрузки. */
+BB.onError=()=>toast("⚠️ Не удалось сохранить: память браузера переполнена. Часть прогресса может пропасть.");
 const STORE_MAP={
  "bb2_favs":"favs","bb2_coins":"coins","bb2_xp":"xp",
  "bb2_works":"works","bb2_owned":"owned","bb2_own":"own","bb2_ach":"ach",
@@ -650,7 +720,11 @@ const STORE_MAP={
  "bb2_eco_day":"ecoDay","bb2_firsts":"firsts","bb2_q":"q","bb2_theme":"theme",
  "bb2_buff":"buff","bb2_daily":"daily","bb2_played":"played","bb2_seen":"seen",
  "bb2_mem_best":"memBest","bb2_quiz_best":"quizBest","bb2_scents":"scents",
- "bb2_wheel":"wheel","bb2_last":"last","bb2_streak":"streak"
+ "bb2_wheel":"wheel","bb2_last":"last","bb2_streak":"streak",
+ /* Настройки из окна ⚙️. Без этих строк store.set("bb2_vol") молча
+    ничего не делал: ключ не был известен, значение уходило в никуда,
+    и после перезагрузки настройка возвращалась к исходной. */
+ "bb2_vol":"vol","bb2_ui":"ui","bb2_quality":"quality"
 };
 const store={
  get:(k,d)=>{const n=STORE_MAP[k];return n===undefined?d:BB.get(n,d)},
@@ -690,12 +764,66 @@ function renderQuests(){const el=$("questList");if(!el)return;ecoRoll();const t=
 const fmt=n=>n>=1000?(n/1000).toFixed(1)+"K":n;
 /* ============ AUDIO ============ */
 let AC=null;
-function beep(f,d,type,g){if(!soundOn)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),gn=AC.createGain();o.type=type||"sine";o.frequency.value=f;gn.gain.value=g||.12;o.connect(gn);gn.connect(AC.destination);o.start();gn.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.stop(AC.currentTime+d)}catch(e){}}
+function beep(f,d,type,g){if(!soundOn)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),gn=AC.createGain();o.type=type||"sine";o.frequency.value=f;gn.gain.value=(g==null?.12:g)*vol;o.connect(gn);gn.connect(AC.destination);o.start();gn.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.stop(AC.currentTime+d)}catch(e){}}
 const sfx={click:()=>beep(600,.08,"square",.05),pop:()=>{beep(500,.09,"sine");setTimeout(()=>beep(760,.12,"sine"),70)},del:()=>beep(220,.15,"sawtooth",.06),coin:()=>{beep(880,.1,"sine");setTimeout(()=>beep(1320,.16,"sine"),90)},win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.22,"triangle",.1),i*130))},star:i=>beep(700+i*180,.18,"triangle",.1)};
 function toggleSound(){soundOn=!soundOn;store.set("bb2_sound",soundOn);$("soundBtn").textContent=soundOn?"🔊":"🔇";toast(soundOn?"Звук включён 🔊":"Звук выключен 🔇")}
 /* ============ THEME/PARTICLES/CONFETTI ============ */
 function toggleTheme(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==="light"?"dark":"light";store.set("bb2_theme",h.dataset.theme);sfx.click()}
 document.documentElement.dataset.theme=store.get("bb2_theme","light");
+
+/* ============ НАСТРОЙКИ ============ */
+/* Звук, громкость, размер интерфейса, тема и графика живут в одном окне.
+   Каждая настройка сохраняется сразу и применяется без перезагрузки:
+   подкрутил ползунок — слышно разницу в тот же момент. */
+let vol=Math.min(1,Math.max(0,(store.get("bb2_vol",70)||0)/100));
+let uiScale=store.get("bb2_ui",1)*1||1;
+let quality=store.get("bb2_quality","medium")||"medium";
+
+function openSettings(){
+  $("setOverlay").classList.add("show");
+  syncSettings();
+}
+function closeSettings(){$("setOverlay").classList.remove("show")}
+$("setOverlay").addEventListener("click",e=>{if(e.target.id==="setOverlay")closeSettings()});
+
+function seg(id,val){
+  const box=$(id); if(!box)return;
+  for(const b of box.children) b.classList.toggle("on",String(b.dataset.v)===String(val));
+}
+function syncSettings(){
+  seg("segSound",soundOn?1:0);
+  seg("segScale",uiScale);
+  seg("segTheme",document.documentElement.dataset.theme);
+  seg("segQuality",quality);
+  $("volSlider").value=Math.round(vol*100);
+  $("volVal").textContent=Math.round(vol*100);
+}
+function setSoundUI(on){soundOn=!!on;store.set("bb2_sound",soundOn);$("soundBtn").textContent=soundOn?"🔊":"🔇";seg("segSound",soundOn?1:0)}
+function setVolume(v){vol=Math.min(1,Math.max(0,v/100));store.set("bb2_vol",v);$("volSlider").value=v;$("volVal").textContent=v}
+/* Размер всего интерфейса. В проекте 111 размеров шрифта в пикселях,
+   поэтому обычный трюк с rem не сработал бы: увеличение корневого шрифта
+   на них не влияет. zoom, в отличие от transform, честно пересчитывает
+   вёрстку, поэтому полосы прокрутки и позиционирование остаются верными. */
+function setScale(v){
+  uiScale=parseFloat(v)||1;
+  store.set("bb2_ui",uiScale);
+  document.documentElement.style.zoom=uiScale===1?"":uiScale;
+  seg("segScale",uiScale);
+}
+function setTheme(t){document.documentElement.dataset.theme=t;store.set("bb2_theme",t);seg("segTheme",t);sfx.click()}
+/* Графика: три уровня нагрузки. Что именно они делают — в applyQuality. */
+function setQuality(q){quality=q;store.set("bb2_quality",q);applyQuality();seg("segQuality",q)}
+function applyQuality(){ if(typeof E3!=="undefined"&&E3.setQuality) E3.setQuality(quality) }
+function resetProgress(){
+  if(!confirm("Точно сбросить весь прогресс? Это нельзя отменить."))return;
+  try{
+    const kill=[];
+    for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
+      if(k&&(k.indexOf("bb2")===0||k.indexOf("bloomscript")===0||k.indexOf("nb_")===0))kill.push(k)}
+    kill.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  location.reload();
+}
 (function petals(){const c=$("petals"),x=c.getContext("2d");let W,H,ps=[];function rs(){W=c.width=innerWidth;H=c.height=innerHeight}rs();addEventListener("resize",rs);
  const EM=["🌸","🌷","💮","🏵","🌼"];for(let i=0;i<22;i++)ps.push({e:EM[i%5],x:Math.random()*innerWidth,y:Math.random()*innerHeight,s:10+Math.random()*16,v:.3+Math.random()*.7,ph:Math.random()*6,sw:.5+Math.random()});
  (function loop(t){x.clearRect(0,0,W,H);x.globalAlpha=.5;ps.forEach(p=>{p.y+=p.v;p.ph+=.01;p.x+=Math.sin(p.ph)*p.sw*.4;if(p.y>H+30){p.y=-30;p.x=Math.random()*W}x.font=p.s+"px serif";x.fillText(p.e,p.x,p.y)});x.globalAlpha=1;requestAnimationFrame(loop)})();
@@ -734,19 +862,31 @@ function heroGo(i){heroI=i;heroRender()}
 setInterval(()=>{if(!$("gameView").classList.contains("show")){heroI=(heroI+1)%HERO.length;heroRender()}},5000);
 function cardHTML(g,i){const loved=favs.includes(g.id),locked=g.price&&ownedG.indexOf(g.id)<0;return `<div class="card tilt${locked?" locked":""}${g.price?" vip":""}${g.isNew?" fresh":""}" data-id="${g.id}" onclick="openModal(${g.id})" style="animation:cardIn .45s backwards;animation-delay:${((i||0)%12)*45}ms">${locked?`<div class="badge">🔒 ${g.price} 🪙</div>`:(g.badge?`<div class="badge">${g.badge}</div>`:"")}<button class="fav ${loved?"loved":""}" onclick="event.stopPropagation();toggleFav(${g.id})">${loved?"❤️":"🤍"}</button><div class="thumb" style="background:${g.grad}"><div class="shine"></div><span class="big">${g.emoji}</span><div class="play"><div class="play-btn">▶</div></div></div><div class="card-body"><b>${g.title}</b><div class="meta"><span>👥 ${fmt(g.players)}</span><span>👍 ${g.likes}%</span></div><div class="stars">${"★".repeat(g.stars)}${"☆".repeat(5-g.stars)}</div></div></div>`}
 function skeleton(n){return Array(n).fill('<div class="skel"></div>').join("")}
+/* Статичные части лобби (популярное, недавние, боковой список) не зависят от
+   строки поиска и фильтра — только от history/favs/игр. Раньше каждый ввод в
+   поиск пересобирал их заново через innerHTML. Теперь они кэшируются и
+   перерисовываются, только когда реально изменились данные. */
+const lobbyCache={row1:"",rowRecent:"",side:"",sig:""};
 function renderLobby(skel){
- const grid=$("gridAll");if(skel){grid.innerHTML=skeleton(6);setTimeout(()=>renderLobby(false),450);return}
- const q=($("search").value||"").toLowerCase(),sort=$("sort").value;
- let list=GAMES.filter(g=>g.title.toLowerCase().includes(q));
- if(filter==="pop")list=list.filter(g=>g.players>15000);
- if(filter==="new")list=list.filter(g=>g.isNew);
- if(filter==="fav")list=list.filter(g=>favs.includes(g.id));
- list.sort((a,b)=>sort==="like"?b.likes-a.likes:sort==="az"?a.title.localeCompare(b.title,"ru"):b.players-a.players);
- $("row1").innerHTML=[...GAMES].sort((a,b)=>b.players-a.players).map(cardHTML).join("");
- $("rowRecent").innerHTML=history.length?history.map(id=>{const g=GAMES.find(x=>x.id===id);return g?cardHTML(g):""}).join(""):`<div style="color:var(--muted);font-size:13.5px;padding:14px;font-weight:600">Сыграй во что-нибудь — и оно появится здесь 🕘</div>`;
- grid.innerHTML=list.length?list.map(cardHTML).join(""):`<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px">Ничего не найдено 😢</div>`;
- $("sideGames").innerHTML=GAMES.map(g=>`<button class="side-btn" onclick="openGame(${g.id})"><span class="ic">${g.emoji}</span> ${g.title}</button>`).join("");
- umountMyGames();bindTilt();updateHUD();
+  const grid=$("gridAll");if(skel){grid.innerHTML=skeleton(6);setTimeout(()=>renderLobby(false),450);return}
+  const q=($("search").value||"").toLowerCase(),sort=$("sort").value;
+  let list=GAMES.filter(g=>g.title.toLowerCase().includes(q));
+  if(filter==="pop")list=list.filter(g=>g.players>15000);
+  if(filter==="new")list=list.filter(g=>g.isNew);
+  if(filter==="fav")list=list.filter(g=>favs.includes(g.id));
+  list.sort((a,b)=>sort==="like"?b.likes-a.likes:sort==="az"?a.title.localeCompare(b.title,"ru"):b.players-a.players);
+  const sig=history.join(",")+"|"+favs.join(",");
+  if(sig!==lobbyCache.sig){
+    lobbyCache.row1=[...GAMES].sort((a,b)=>b.players-a.players).map(cardHTML).join("");
+    lobbyCache.rowRecent=history.length?history.map(id=>{const g=GAMES.find(x=>x.id===id);return g?cardHTML(g):""}).join(""):`<div style="color:var(--muted);font-size:13.5px;padding:14px;font-weight:600">Сыграй во что-нибудь — и оно появится здесь 🕘</div>`;
+    lobbyCache.side=GAMES.map(g=>`<button class="side-btn" onclick="openGame(${g.id})"><span class="ic">${g.emoji}</span> ${g.title}</button>`).join("");
+    lobbyCache.sig=sig;
+  }
+  if($("row1").innerHTML!==lobbyCache.row1)$("row1").innerHTML=lobbyCache.row1;
+  if($("rowRecent").innerHTML!==lobbyCache.rowRecent)$("rowRecent").innerHTML=lobbyCache.rowRecent;
+  grid.innerHTML=list.length?list.map(cardHTML).join(""):`<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px">Ничего не найдено 😢</div>`;
+  if($("sideGames").innerHTML!==lobbyCache.side)$("sideGames").innerHTML=lobbyCache.side;
+  umountMyGames();bindTilt();updateHUD();
 }
 function bindTilt(){if(matchMedia("(hover:none)").matches)return;document.querySelectorAll(".tilt").forEach(c=>{c.onmousemove=e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform=`perspective(700px) rotateY(${x*10}deg) rotateX(${-y*10}deg) translateY(-5px)`};c.onmouseleave=()=>c.style.transform=""})}
 function scrollRow(id,dx){$(id).scrollBy({left:dx,behavior:"smooth"})}
@@ -756,7 +896,22 @@ function randomGame(){openModal(GAMES[Math.floor(Math.random()*GAMES.length)].id
 function toggleFav(id){sfx.click();favs=favs.includes(id)?favs.filter(f=>f!==id):[...favs,id];if(!history.includes(id)){}renderLobby();toast(favs.includes(id)?"В избранном ❤️":"Убрано из избранного")}
 function setFilter(f){filter=f;document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.f===f));sfx.click();renderLobby(true)}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>setFilter(b.dataset.f));
-$("search").addEventListener("input",()=>{renderLobby();const q=$("search").value.toLowerCase(),s=$("suggest");if(!q){s.classList.remove("show");return}const m=GAMES.filter(g=>g.title.toLowerCase().includes(q));s.innerHTML=m.map(g=>`<button onclick="openModal(${g.id})">${g.emoji} ${g.title} <span style='margin-left:auto;color:var(--muted);font-size:12px'>👥 ${fmt(g.players)}</span></button>`).join("")||"<button>Ничего не найдено</button>";s.classList.add("show")});
+/* Поиск с задержкой. На каждую букву пересобирались и лобби, и подсказки —
+   при быстром наборе это десятки перерисовок в секунду на 100 карточках.
+   180 мс — достаточно, чтобы подсказка казалась мгновенной, но ввод перестал
+   дёргать страницу. */
+let searchTimer=0;
+$("search").addEventListener("input",()=>{
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{
+    renderLobby();
+    const q=$("search").value.toLowerCase(),s=$("suggest");
+    if(!q){s.classList.remove("show");return}
+    const m=GAMES.filter(g=>g.title.toLowerCase().includes(q));
+    s.innerHTML=m.map(g=>`<button onclick="openModal(${g.id})">${g.emoji} ${g.title} <span style='margin-left:auto;color:var(--muted);font-size:12px'>👥 ${fmt(g.players)}</span></button>`).join("")||"<button>Ничего не найдено</button>";
+    s.classList.add("show");
+  },180);
+});
 document.addEventListener("click",e=>{if(!e.target.closest(".search"))$("suggest").classList.remove("show")});
 function openModal(id){const g=GAMES.find(x=>x.id===id);sfx.click();$("mThumb").style.background=g.grad;$("mThumb").querySelector(".big")?.remove();const b=document.createElement("span");b.className="big";b.textContent=g.emoji;$("mThumb").prepend(b);$("mTitle").textContent=g.title;$("mSub").textContent="BloomBlox • конструктор • без скачивания";$("mPlayers").textContent="👥 "+fmt(g.players);$("mLikes").textContent="👍 "+g.likes+"%";$("mStars").textContent="★".repeat(g.stars);$("mDesc").textContent=g.desc;$("mAch").innerHTML=ACHS.map(a=>`<span class="ach ${ach.includes(a.id)?"got":""}">${a.n}</span>`).join("");$("mFav").textContent=favs.includes(id)?"❤️ В избранном":"🤍 В избранное";$("mFav").onclick=()=>{toggleFav(id);openModal(id)};if(g.price&&ownedG.indexOf(id)<0){$("mPlay").textContent="🔓 Купить за "+g.price+" 🪙";$("mPlay").onclick=()=>{if(!ecoPay(g.price))return;ownedG.push(id);saveAll();sfx.win();boom(100);toast("Куплено: "+g.title+"! Приятной игры 👑");openModal(id)}}else{$("mPlay").textContent="▶ Играть";$("mPlay").onclick=()=>{closeModal();openGame(id)}};$("overlay").classList.add("show")}
 function closeModal(){$("overlay").classList.remove("show")}
@@ -5972,10 +6127,14 @@ function renderAch(){$("sideAch").innerHTML=ACHS.map(a=>`<div style="padding:6px
 function closeCoach(){$("coach").classList.remove("show");store.set("bb2_seen",true);sfx.pop()}
 /* drag from toolbar (desktop nicety) */
 $("canvas").addEventListener("pointerdown",e=>{if(e.target.id==="canvas"||e.target.id==="canvasBase")select(null)});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeShop();select(null)}if((e.key==="Delete"||e.key==="Backspace")&&$("gameView").classList.contains("show"))transformSel("del");if((e.ctrlKey||e.metaKey)&&e.key==="z"&&!e.shiftKey)undo();if((e.ctrlKey||e.metaKey)&&(e.key==="y"||(e.key==="z"&&e.shiftKey)))redo()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeShop();closeSettings();select(null)}if((e.key==="Delete"||e.key==="Backspace")&&$("gameView").classList.contains("show"))transformSel("del");if((e.ctrlKey||e.metaKey)&&e.key==="z"&&!e.shiftKey)undo();if((e.ctrlKey||e.metaKey)&&(e.key==="y"||(e.key==="z"&&e.shiftKey)))redo()});
 setInterval(()=>{GAMES.forEach(g=>{g.players=Math.max(500,g.players+Math.floor(Math.random()*36-12))});$("stOnline").textContent=fmt(120000+Math.floor(Math.random()*9000))},5000);
 /* init */
 $("soundBtn").textContent=soundOn?"🔊":"🔇";
+/* Настройки восстанавливаем при старте: иначе после перезагрузки страницы
+   размер интерфейса и громкость молча сбрасывались бы в исходные. */
+document.documentElement.style.zoom=uiScale===1?"":uiScale;
+applyQuality();
 if($("gcount"))$("gcount").textContent=GAMES.length;
 requestAnimationFrame(t=>E3.auto.tick(t));
 heroRender();renderLobby();renderWorks();renderAch();renderQuests();updateHUD();

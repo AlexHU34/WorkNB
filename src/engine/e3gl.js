@@ -132,10 +132,15 @@ const FLOATS = 13; /* pos3 + nrm3 + col4 + y2 + flat1 */
 
 /* ------------------------------ цвет ------------------------------- */
 const _hexCache = Object.create(null);
+/* Кеш цветов ограничен. Игра, которая берёт новый оттенок каждый кадр
+   (а такие есть: радуги, плавные переходы), без предела раздувала бы
+   кеш на весь сеанс и держала строки в памяти. */
+const HEX_CACHE_MAX = 512;
+let _hexN = 0;
 function rgb(hex) {
   let v = _hexCache[hex];
   if (v) return v;
-  let h = String(hex);
+  const h = String(hex);
   if (h.charAt(0) !== "#") {            /* rgba(...) и прочее: в 2D-пути
                                            такой цвет уходил в чёрный,
                                            здесь честно берём белый */
@@ -144,7 +149,13 @@ function rgb(hex) {
     const n = parseInt(h.slice(1, 7), 16);
     v = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
   }
+  if (_hexN >= HEX_CACHE_MAX) {          /* сбрасываем целиком: дешевле,
+                                          чем следить за счётчиком каждого */
+    for (const k in _hexCache) delete _hexCache[k];
+    _hexN = 0;
+  }
   _hexCache[hex] = v;
+  _hexN++;
   return v;
 }
 
