@@ -25,7 +25,8 @@
 /* ----------------------- включение и откат ----------------------- */
 const S = {
   active: false,      /* включён ли GL-путь (по умолчанию выключен) */
-  ok: false,          /* есть ли WebGL2 в этой машине */
+  ok: false,          /* есть ли WebGL2 и удалось ли завести слой */
+  force: null,        /* null — авто, true — включить, false — не включать */
   gl: null,
   canvas: null,       /* канва GL, лежит ПОД 2D-канвой */
   ctx2d: null,        /* 2D-слой для спрайтов и HUD */
@@ -844,10 +845,19 @@ function checkGL(where) {
 const E3GL = {
   get ok() { return S.ok; },
   get active() { return S.active; },
+  /* Режим: null — решает вызывающая сторона, true — включить, false —
+     не включать. Человеку выбор важнее автоматики: у кого-то WebGL2 на
+     драйвере глючит, и он хочет тихую 2D без сюрпризов. */
+  get force() { return S.force; },
+  request(on) {
+    S.force = on === null ? null : !!on;
+    return S.force;
+  },
   /* Запрошен ли GL-режим. Читается на каждом кадре: включить движок
      можно и до загрузки страницы (?gl=1 в адресе), и позже из консоли. */
   get want() {
     if (S.active) return true;
+    if (S.force === false) return false;
     try {
       return typeof location !== "undefined" &&
         /[?&]gl=1(&|$)/.test(location.search || "");

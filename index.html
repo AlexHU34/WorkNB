@@ -533,6 +533,15 @@ body{min-width:1060px}
     </div>
   </div>
 
+<div class="set-row">
+    <div class="set-label">⚡ Ускорение<div class="set-hint">Ускоряет картинку видеокартой. Не сработает — игра сама вернётся к обычному режиму.</div></div>
+    <div class="set-seg" id="segGl">
+      <button data-v="auto" onclick="setGl('auto')">Авто</button>
+      <button data-v="on" onclick="setGl('on')">Быстро</button>
+      <button data-v="off" onclick="setGl('off')">Обычно</button>
+    </div>
+  </div>
+
   <div class="set-row">
     <div class="set-label">🩺 Диагностика<div class="set-hint">Что пошло не так: журнал ошибок, копируется одним нажатием</div></div>
     <button class="btn" onclick="openDiag()">Открыть</button>
@@ -785,6 +794,7 @@ document.documentElement.dataset.theme=store.get("bb2_theme","light");
 let vol=Math.min(1,Math.max(0,(store.get("bb2_vol",70)||0)/100));
 let uiScale=store.get("bb2_ui",1)*1||1;
 let quality=store.get("bb2_quality","medium")||"medium";
+let glMode=store.get("bb2_gl","auto")||"auto";
 
 function openSettings(){
   $("setOverlay").classList.add("show");
@@ -802,6 +812,7 @@ function syncSettings(){
   seg("segScale",uiScale);
   seg("segTheme",document.documentElement.dataset.theme);
   seg("segQuality",quality);
+  seg("segGl",glMode);
   $("volSlider").value=Math.round(vol*100);
   $("volVal").textContent=Math.round(vol*100);
 }
@@ -821,6 +832,16 @@ function setTheme(t){document.documentElement.dataset.theme=t;store.set("bb2_the
 /* Графика: три уровня нагрузки. Что именно они делают — в applyQuality. */
 function setQuality(q){quality=q;store.set("bb2_quality",q);applyQuality();seg("segQuality",q)}
 function applyQuality(){ if(typeof E3!=="undefined"&&E3.setQuality) E3.setQuality(quality) }
+/* Ускорение видеокартой. "auto" пробует GL и сам откатывается на 2D,
+   если что-то пошло не так. Переключение действует на следующую
+   запущенную игру: путь отрисовки выбирается при старте среды. */
+function setGl(v){
+  glMode=v; store.set("bb2_gl",v); seg("segGl",v);
+  if(typeof E3GL!=="undefined"&&E3GL.request) E3GL.request(v==="on"?true:v==="off"?false:null);
+  toast(v==="on"?"Ускорение включится при следующей игре"
+      :v==="off"?"Ускорение выключено, работаем как раньше"
+      :"Ускорение выбирается автоматически");
+}
 /* Открыть журнал ошибок из окна настроек. Модуль диагностики подключён
    первым, но на всякий случай проверяем: без него кнопка была бы мёртвой. */
 function openDiag(){

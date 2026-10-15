@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
@@ -547,7 +547,11 @@ details.help[open] summary::before{transform:rotate(90deg)}
 /* Игровая среда — фабрика createRuntime, общая с приложением (Фаза 0.3). */
 /* Среда редактора. Фабрика общая с приложением (Фаза 0.3), но полотно
    и вывод здесь свои: у редактора это #game и консоль снизу. */
+/* gl:"off" — редактор рисует превью на 2D намеренно. Слой GL поверх
+   канвы ломал вёрстку страницы, а выигрыш тут нулевой: превью 640x380.
+   Ускорение нужно там, где играют, то есть в приложении. */
 const RT = createRuntime({
+  gl: "off",
   canvas: document.getElementById("game"),
   stat: document.getElementById("stat"),
   log: (msg, cls) => printToConsole(msg, cls),

@@ -81,6 +81,9 @@ function uopenGame(id) {
     logicalWidth: 640,
     logicalHeight: 380,
     gameId: id,
+    /* Режим ускорения из окна настроек: авто / включён / выключен.
+       В режиме "auto" среда сама попробует видеокарту и откатится на 2D. */
+    gl: (typeof glMode !== "undefined" ? glMode : "auto"),
     log: (msg, cls) => {
       if (cls === "err") console.error("[игра] " + msg);
     },

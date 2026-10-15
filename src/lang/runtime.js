@@ -17,23 +17,79 @@ function createRuntime(opts) {
   const ctx = cv.getContext("2d");
   const statEl = opts.stat || null;
 
-  /* Режим отрисовки. По умолчанию — привычный Canvas 2D. GL-слой
-     включается явно (?gl=1 или opts.gl), потому что переключать путь
-     отрисовки у проверенных игр молча нельзя: сначала гейт должен
-     убедиться, что оба пути дают одну картинку. */
+  /* Режим отрисовки. Три варианта:
+     "off"  — привычный Canvas 2D, ничего не трогаем;
+     "on"   — WebGL2 обязательно;
+     "auto" — пробуем WebGL2 и сами решаем (по умолчанию).
+   До этого был только ручной режим через ?gl=1, и потому по умолчанию
+   все играли на медленном пути, хотя умеющий GPU простаивал.
+
+   Авто НЕ доверяет WebGL2 слепо: на живой видеокарте путь не проверялся,
+   а сломанный драйвер отдаёт пустую картинку или крашит вкладку. Поэтому
+   включаем, смотрим первые кадры и при любой ошибке тихо уходим на 2D.
+   Игрок ничего не заметит, кроме того, что играет.
+
+   Редактор кода передаёт gl:"off" намеренно: там GL не нужен, а слой
+   поверх канвы ломал вёрстку страницы (проверено: без этого режим
+   авто ронял редактор). Ускорение требуется там, где играют, — в
+   приложении. */
   let useGL = false;
-  const wantGL = opts.gl === true ||
-    (typeof location !== "undefined" && /[?&]gl=1(&|$)/.test(location.search || ""));
+  let glWatch = null;
+  const log_ = opts.log || function () {};
+  let glMode = opts.gl;
+  if (glMode === undefined || glMode === null) glMode = "auto";
+  if (typeof E3GL !== "undefined" && E3GL.request) {
+    E3GL.request(glMode === "on" ? true : glMode === "off" ? false : null);
+  }
+  /* Адрес вида ?gl=1 остаётся самым сильным указанием: так гейты и
+     отладка включают GL принудительно, независимо от настройки. */
+  const urlGL = typeof location !== "undefined" && /[?&]gl=1(&|$)/.test(location.search || "");
+  const wantGL = glMode === "on" || (glMode === "auto" && !document.body.classList.contains("no-gl")) || urlGL;
+
   if (wantGL && typeof E3GL !== "undefined" && !E3GL.ok) {
-    if (E3GL.attach(ctx)) {
-      useGL = E3GL.enable();
-      const note = (opts.log || function () {})(
-        "WebGL2 включён" + (E3GL.stats().err ? ": " + E3GL.stats().err : ""), "ok");
-      void note;
-    } else {
-      (opts.log || function () {})(
-        "WebGL2 недоступен, работаем на 2D: " + (E3GL.stats().err || ""), "warn");
+    try {
+      if (E3GL.attach(ctx)) {
+        useGL = E3GL.enable();
+        if (useGL) {
+          log_("WebGL2 включён автоматически" +
+               (E3GL.stats().err ? ": " + E3GL.stats().err : ""), "ok");
+          glWatch = { frames: 0, failed: false };
+        } else {
+          E3GL.request(false);
+          log_("WebGL2 не заработал, работаем на 2D", "warn");
+        }
+      } else {
+        E3GL.request(false);
+        log_("WebGL2 недоступен, работаем на 2D: " + (E3GL.stats().err || ""), "warn");
+      }
+    } catch (e) {
+      /* Слой не имеет права ронять страницу. Любая ошибка при подключении
+         означает «GL здесь не работает» — уходим на 2D и запоминаем. */
+      useGL = false;
+      E3GL.request(false);
+      log_("WebGL2 не удалось включить, работаем на 2D: " + (e && e.message), "warn");
     }
+  }
+  /* Сторож первых кадров: если GL-путь начал сыпать ошибками, уходим
+     на 2D и больше не пробуем в этой игре. */
+  function glHealthy() {
+    if (!glWatch || glWatch.failed) return;
+    glWatch.frames++;
+    const err = E3GL.stats().err;
+    /* Ждём три кадра: первый может быть тепловым. */
+    if (err && glWatch.frames > 3) {
+      glWatch.failed = true;
+      log_("WebGL2 начал ошибаться, переключаюсь на 2D: " + err, "warn");
+      glFallback();
+    }
+  }
+  function glFallback() {
+    if (!useGL) return;
+    useGL = false;
+    try {
+      if (typeof E3GL !== "undefined") { E3GL.disable(); E3GL.request(false); }
+    } catch (e) { /* отключение не должно ронять игру */ }
+    glWatch = null;
   }
   const onResizeGL = () => {
     if (useGL) E3GL.resize(cv._lw, cv._lh);
@@ -530,7 +586,7 @@ function createRuntime(opts) {
         g.addColorStop(0, c0); g.addColorStop(1, c1);
         ctx.fillStyle = g; ctx.fillRect(0, 0, cv._lw, cv._lh);
       }
-      if (useGL) E3GL.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit);
+      if (useGL) { E3GL.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit); glHealthy(); }
       else E3.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit);
       const n = E3.stats.faces;
       /* HUD: text() и bar() — слой над сценой. При включённом GL он идёт
