@@ -54,6 +54,7 @@ const TARGETS = {
       "src/lang/core.js",
       "src/lang/runtime.js",
       "src/lang/play.js",
+      "src/app/games.js",
     ],
   },
   studio: {
