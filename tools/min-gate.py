@@ -31,10 +31,11 @@ MIN = os.path.join(ROOT, "dist", "min")
 # рост содержимого: играть надо, а не экономить на вёрстке.
 # Studio поднялась с 55 до 61 КБ не от жира: туда вошли отмена и
 # повтор, окно кода с подсказками, свободная камера и диагностика.
+# Редактор прибавил диагностику, доступность и расширенные подсказки.
 BUDGET_KB = {
-    "NebulaBloom.html": 520,
-    "BloomScript.html": 205,
-    "NebulaStudio.html": 68,
+    "NebulaBloom.html": 540,
+    "BloomScript.html": 215,
+    "NebulaStudio.html": 72,
 }
 
 PROBE = r'''

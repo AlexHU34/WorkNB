@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
 <meta charset="UTF-8">
@@ -363,8 +363,8 @@ body{min-width:1060px}
   <div class="top-right">
     <div class="pill coins" id="coins" onclick="dailyBonus()" title="Нажми — ежедневный бонус">🪙 0</div>
     <div class="pill" id="lvlPill" title="Уровень">⭐ 1</div>
-    <button class="iconbtn" id="soundBtn" onclick="toggleSound()">🔊</button>
-    <button class="iconbtn" onclick="toggleTheme()">🌓</button>
+    <button class="iconbtn" id="soundBtn" title="Звук: включить или выключить" onclick="toggleSound()">🔊</button>
+    <button class="iconbtn" title="Тема: светлая или тёмная" onclick="toggleTheme()">🌓</button>
     <button class="iconbtn" onclick="openSettings()" title="Настройки">⚙️</button>
     <!-- Кнопок-обманок больше нет. Раньше здесь стояли «уведомления» с
          выдуманным сообщением и аватар, который только здоровался. -->
@@ -408,7 +408,7 @@ body{min-width:1060px}
       </div>
     </div>
     <div class="section"><div class="section-head"><h3>🕘 Недавние</h3></div><div class="row-scroll" id="rowRecent"></div></div>
-    <div class="section"><div class="section-head"><h3>🔥 Популярно сейчас</h3><div class="arrows"><button onclick="scrollRow('row1',-230)">‹</button><button onclick="scrollRow('row1',230)">›</button></div></div><div class="row-scroll" id="row1"></div></div>
+    <div class="section"><div class="section-head"><h3>🔥 Популярно сейчас</h3><div class="arrows"><button title="Прокрутить влево" onclick="scrollRow('row1',-230)">‹</button><button title="Прокрутить вправо" onclick="scrollRow('row1',230)">›</button></div></div><div class="row-scroll" id="row1"></div></div>
     <div class="section"><div class="section-head"><h3>🌷 Все конструкторы</h3></div><div class="grid" id="gridAll"></div></div>
   </main>
 
@@ -430,7 +430,7 @@ body{min-width:1060px}
             <button class="mini" onclick="redo()" id="btnRedo">↪ Вперёд</button>
             <button class="mini" onclick="cycleBg()">🌅 Фон</button>
             <button class="mini" onclick="toggleTimer()" id="btnTimer">⏱ Челлендж</button>
-            <button class="mini" onclick="surprise()">🎲</button>
+            <button class="mini" title="Случайная деталь" onclick="surprise()">🎲</button>
             <button class="mini" onclick="mirrorSel()" title="Отразить выбранное">🪞</button>
           </div>
         </div>
@@ -472,17 +472,17 @@ body{min-width:1060px}
 </div>
 
 <div class="overlay" id="overlay"><div class="modal">
-  <div class="modal-thumb" id="mThumb"><button onclick="closeModal()">✕</button></div>
+  <div class="modal-thumb" id="mThumb"><button title="Закрыть окно игры" onclick="closeModal()">✕</button></div>
   <div class="modal-body"><h2 id="mTitle"></h2><div style="color:var(--muted);font-size:13px;margin:4px 0 10px" id="mSub"></div>
     <div style="display:flex;gap:10px;background:var(--bg2);border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:13.5px;font-weight:800"><span id="mPlayers"></span><span id="mLikes"></span><span>🟢 онлайн</span><span id="mStars" style="color:#e79b00"></span></div>
     <p id="mDesc" style="font-size:14.5px;line-height:1.55;color:var(--muted);margin-bottom:12px"></p>
     <div class="ach-row" id="mAch"></div>
-    <div style="display:flex;gap:10px"><button class="btn btn-green" id="mPlay">▶ Играть</button><button class="btn btn-white" id="mFav">🤍</button></div>
+    <div style="display:flex;gap:10px"><button class="btn btn-green" id="mPlay">▶ Играть</button><button class="btn btn-white" id="mFav" title="Добавить в избранное">🤍</button></div>
   </div>
 </div></div>
 
 <div class="overlay" id="shopOverlay"><div class="modal"><div class="modal-body">
-  <div style="display:flex;justify-content:space-between;align-items:center"><h2>🛍 Магазин деталей</h2><button class="mini" onclick="closeShop()">✕</button></div>
+  <div style="display:flex;justify-content:space-between;align-items:center"><h2>🛍 Магазин деталей</h2><button class="mini" title="Закрыть магазин" onclick="closeShop()">✕</button></div>
   <p style="color:var(--muted);font-size:13.5px;margin:6px 0">Баланс: <b id="shopCoins" style="color:#e79b00"></b> • Премиум-детали остаются навсегда<br><small>Сегодня: <span id="shopEco"></span> • с 5 уровня −10%</small></p>
   <div class="shop-grid" id="shopGrid"></div>
 </div></div></div>
@@ -491,7 +491,7 @@ body{min-width:1060px}
      интерфейса и громкости не было вовсе. Всё собрано в одно окно. -->
 <div class="overlay" id="setOverlay"><div class="modal"><div class="modal-body">
   <div style="display:flex;justify-content:space-between;align-items:center">
-    <h2>⚙️ Настройки</h2><button class="mini" onclick="closeSettings()">✕</button>
+    <h2>⚙️ Настройки</h2><button class="mini" title="Закрыть настройки" onclick="closeSettings()">✕</button>
   </div>
 
   <div class="set-row">
@@ -550,6 +550,7 @@ body{min-width:1060px}
 <!-- Движок E3 — общий с редактором языка (Фаза 0.2). -->
 <!-- Хранилище с версией схемы и миграциями (Фаза 0.5). -->
 <script src="src/data/diag.js"></script>
+<script src="src/data/a11y.js"></script>
 <script src="src/data/store.js"></script>
 <script src="src/engine/e3.js"></script>
 <!-- Бэкенд WebGL2: тот же движок, заливка на видеокарте (?gl=1) -->
