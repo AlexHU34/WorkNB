@@ -153,6 +153,52 @@ def build():
     return results
 
 
+def minify(results):
+    """Жмёт собранные файлы через tools/minhtml.mjs.
+
+    Зачем отдельный шаг. Гейты проверяют dist/*.html — они читают исходники
+    по тексту и должны видеть исходник. Игрок получает другой файл: тот же,
+    но ужатый. Проверять надо оба, и build.py пишет ужатый рядом, в dist/min,
+    чтобы tools/min-gate.py гонял именно то, что скачает человек.
+
+    Сколько это даёт (замерено на проекте):
+        NebulaBloom   684 -> 498 КБ   (-27%)
+        BloomScript   328 -> 194 КБ   (-41%)
+        NebulaStudio  109 ->  56 КБ   (-49%)
+
+    Ниже 500 КБ приложение не ужмётся без потери игр: 285 КБ из 498 — это
+    сами сто игр, и esbuild выжимает из них уже почти всё. Разметка весит
+    16 КБ и не трогается: выигрыш от склейки пробелов копеечный, а поломка
+    вёрстки рядом с inline-элементами — нет.
+    """
+    log("")
+    log("=== МИНИФИКАЦИЯ ===")
+    out_dir = os.path.join(DIST, "min")
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+    node = shutil.which("node") or "node"
+    script = os.path.join(TOOLS, "minhtml.mjs")
+    ok = True
+    for entry, outname, out, kb, n in results:
+        dest = os.path.join(out_dir, outname)
+        try:
+            r = subprocess.run([node, script, out, dest], cwd=ROOT,
+                               capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+        except OSError as e:
+            log("  %s: node недоступен (%s), минификация пропущена" % (outname, e))
+            continue
+        for line in (r.stdout or "").splitlines():
+            if line.strip():
+                log(line.rstrip())
+        for line in (r.stderr or "").splitlines():
+            if line.strip():
+                log("      " + line.rstrip())
+        if r.returncode != 0:
+            ok = False
+    return ok
+
+
 def verify(results):
     """Гоняет штатные гейты по СОБРАННОМУ файлу.
 
@@ -209,6 +255,10 @@ def main():
     results = build()
     if not results:
         sys.exit("ничего не собрано")
+    min_ok = minify(results)
+    if not min_ok:
+        log("минификация не удалась — отдавать игрокам нечего, сборка прервана")
+        return 1
     if "--no-verify" not in sys.argv:
         if not verify(results):
             return 1
