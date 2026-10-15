@@ -534,6 +534,11 @@ body{min-width:1060px}
   </div>
 
   <div class="set-row">
+    <div class="set-label">🩺 Диагностика<div class="set-hint">Что пошло не так: журнал ошибок, копируется одним нажатием</div></div>
+    <button class="btn" onclick="openDiag()">Открыть</button>
+  </div>
+
+  <div class="set-row">
     <div class="set-label">🗑 Сброс прогресса<div class="set-hint">Удалит всё: монеты, работы, игры. Отменить нельзя.</div></div>
     <button class="btn" style="border-color:#7a2b2b;color:#ff9b9b" onclick="resetProgress()">Сбросить</button>
   </div>
@@ -544,6 +549,7 @@ body{min-width:1060px}
 
 <!-- Движок E3 — общий с редактором языка (Фаза 0.2). -->
 <!-- Хранилище с версией схемы и миграциями (Фаза 0.5). -->
+<script src="src/data/diag.js"></script>
 <script src="src/data/store.js"></script>
 <script src="src/engine/e3.js"></script>
 <!-- Бэкенд WebGL2: тот же движок, заливка на видеокарте (?gl=1) -->
@@ -814,6 +820,15 @@ function setTheme(t){document.documentElement.dataset.theme=t;store.set("bb2_the
 /* Графика: три уровня нагрузки. Что именно они делают — в applyQuality. */
 function setQuality(q){quality=q;store.set("bb2_quality",q);applyQuality();seg("segQuality",q)}
 function applyQuality(){ if(typeof E3!=="undefined"&&E3.setQuality) E3.setQuality(quality) }
+/* Открыть журнал ошибок из окна настроек. Модуль диагностики подключён
+   первым, но на всякий случай проверяем: без него кнопка была бы мёртвой. */
+function openDiag(){
+  if (typeof NebulaDiag === "undefined") {
+    toast("Диагностика не загрузилась — проверь, что файл src/data/diag.js на месте");
+    return;
+  }
+  NebulaDiag.open();
+}
 function resetProgress(){
   if(!confirm("Точно сбросить весь прогресс? Это нельзя отменить."))return;
   try{
