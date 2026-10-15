@@ -254,6 +254,14 @@ function say(text, isErr) {
   msg.style.color = isErr ? "#ff8a80" : "#7f93ad";
 }
 
+/* Окно кода занимает весь экран: править код в полоске внизу невозможно —
+   там помещалось пять строк. Кнопка «✕ Закрыть» возвращает вьюпорт. */
+function closeWindow() {
+  const w = document.getElementById("codeWrap");
+  if (w) w.hidden = true;
+  hide();
+}
+
 function init() {
   ta = document.getElementById("codeIn");
   box = document.getElementById("acStudio");
@@ -263,19 +271,25 @@ function init() {
   document.getElementById("btnCodeFromScene").onclick = pullFromScene;
   document.getElementById("btnCodeRun").onclick = run;
   document.getElementById("btnCodeEditor").onclick = toEditor;
+  const close = document.getElementById("btnCodeClose");
+  if (close) close.onclick = closeWindow;
 
   /* Открытие окна сразу показывает код сцены — иначе человек увидит
      пустое поле и решит, что сломалось. */
   document.getElementById("btnCode").onclick = () => {
     const wrap = document.getElementById("codeWrap");
-    wrap.hidden = !wrap.hidden;
-    if (!wrap.hidden && !ta.value.trim()) pullFromScene();
-    if (!wrap.hidden) refreshItems();
+    const open = wrap.hidden;
+    wrap.hidden = !open;
+    if (open && !ta.value.trim()) pullFromScene();
+    if (open) { ta.focus(); refreshItems(); }
   };
 
   ta.addEventListener("input", refreshItems);
   ta.addEventListener("click", refreshItems);
-  ta.addEventListener("keydown", e => { if (!keydown(e)) insertIndent(e); });
+  ta.addEventListener("keydown", e => {
+    if (e.key === "Escape" && box.hidden) { closeWindow(); return; }
+    if (!keydown(e)) insertIndent(e);
+  });
   ta.addEventListener("blur", () => setTimeout(hide, 150));
   ta.addEventListener("scroll", place);
 }

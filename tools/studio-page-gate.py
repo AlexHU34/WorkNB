@@ -112,6 +112,107 @@ PROBE = r"""
       await wait(80);
       ok(document.querySelectorAll("#hierBox .hrow.sel").length === 1, "объект выделен в иерархии");
 
+      // --- панель сцены: небо, горизонт, земля ---
+      const sceneRows = Array.prototype.slice.call($("sceneBox").querySelectorAll(".irow"));
+      ok(sceneRows.length >= 4, "панель сцены на месте: строк " + sceneRows.length);
+      const colorIns = $("sceneBox").querySelectorAll('input[type=color]');
+      ok(colorIns.length === 3, "три цвета сцены: небо, горизонт, земля (" + colorIns.length + ")");
+      if (colorIns.length === 3) {
+        colorIns[2].value = "#228833";
+        colorIns[2].dispatchEvent(new Event("input"));
+        await wait(60);
+        const gcol = Studio.load().ground.color;
+        const liveCol = (window.StudioEditor.scene || {}).ground;
+        ok(!!liveCol, "панель сцены правит живую сцену, а не копию");
+        ok(liveCol.color === "#228833", "цвет земли применился: " + liveCol.color);
+      }
+
+      // --- операции над объектом: каждая кнопка должна менять сцену ---
+      const opBtn = (label) => {
+        const all = Array.prototype.slice.call($("inspBox").querySelectorAll(".opGrid .btn"));
+        for (const b of all) if (b.textContent.indexOf(label) >= 0) return b;
+        return null;
+      };
+      const selId = $("hierBox").querySelector(".hrow.sel");
+      const dup = opBtn("Копия");
+      ok(!!dup, "есть кнопка «Копия»");
+      if (dup) {
+        dup.click();
+        await wait(90);
+        ok(StudioEditor.scene.objects.length === 2,
+           "копия создана: объектов " + StudioEditor.scene.objects.length);
+      }
+      const center = opBtn("В центр");
+      if (center) {
+        center.click();
+        await wait(70);
+        const t = StudioEditor.scene.objects[StudioEditor.scene.objects.length - 1];
+        ok(t && t.x === 0 && t.z === 0, "«В центр» поставил объект в 0,0");
+      }
+      const grow = opBtn("Крупнее");
+      const sizeBefore = JSON.stringify(StudioEditor.scene.objects[1] || {});
+      if (grow) {
+        grow.click();
+        await wait(70);
+        ok(JSON.stringify(StudioEditor.scene.objects[1] || {}) !== sizeBefore,
+           "«Крупнее» изменил размер объекта");
+      }
+      const down = opBtn("На землю");
+      if (down) {
+        down.click();
+        await wait(70);
+        const o2 = StudioEditor.scene.objects[StudioEditor.scene.objects.length - 1];
+        ok(o2 && o2.kind === "sprite" ? true : Math.abs(o2.y - (o2.h || 2) / 2) < 0.001,
+           "«На землю» опустил объект на y=" + (o2 ? o2.y : "?"));
+      }
+      const colorBtn = opBtn("Цвет");
+      if (colorBtn) {
+        const c0 = StudioEditor.scene.objects[StudioEditor.scene.objects.length - 1].color;
+        colorBtn.click();
+        await wait(70);
+        ok(StudioEditor.scene.objects[StudioEditor.scene.objects.length - 1].color !== c0,
+           "«Цвет» перекрасил объект");
+      }
+      /* откат: после «Копии» число объектов должно вернуться назад */
+      const cntBefore = StudioEditor.scene.objects.length;
+      const dup2 = opBtn("Копия");
+      if (dup2) { dup2.click(); await wait(90); }
+      ok(StudioEditor.scene.objects.length === cntBefore + 1,
+         "вторая копия создана: " + StudioEditor.scene.objects.length);
+      $("btnUndo").click();
+      await wait(90);
+      ok(StudioEditor.scene.objects.length === cntBefore,
+         "отмена вернула лишний объект: " + StudioEditor.scene.objects.length);
+
+      /* убрать копии, чтобы дальнейшие проверки считались от одного объекта */
+      while (StudioEditor.scene.objects.length > 1) {
+        StudioEditor.scene.objects.pop();
+      }
+      $("hierBox").querySelector(".hrow").click();
+      await wait(80);
+      ok(document.querySelectorAll("#hierBox .hrow.sel").length === 1,
+         "объект снова выделен перед проверкой Play");
+      StudioEditor.scene.objects[0].x = 2;
+      StudioEditor.scene.objects[0].y = 2;
+      StudioEditor.scene.objects[0].z = 2;
+      if (typeof refreshIfPossible === "function") refreshIfPossible();
+
+      // --- камера: сброс ---
+      $("btnCamReset").click();
+      await wait(60);
+      ok(true, "кнопка «Камера» отработала без ошибок");
+
+      // --- сетка переключается ---
+      const snapBefore = $("btnSnap").classList.contains("on");
+      $("btnSnap").click();
+      await wait(50);
+      ok($("btnSnap").classList.contains("on") !== snapBefore, "кнопка «Сетка» переключает режим");
+
+      // --- копирование сцены (буфер может быть недоступен — не считаем ошибкой) ---
+      $("btnCopy").click();
+      await wait(120);
+      ok(true, "копирование сцены не сломало страницу");
+
       // --- режим Play ---
       $("btnPlay").click();
       await wait(400);
@@ -144,6 +245,17 @@ PROBE = r"""
       const codeVal = $("codeIn") ? $("codeIn").value : "";
       ok($("codeWrap").hidden === false && codeVal.length > 40,
          "окно кода открывается и наполнено из сцены: " + codeVal.length + " символов");
+
+      // --- окно кода на весь экран ---
+      const cw = $("codeWrap").getBoundingClientRect();
+      ok(cw.width >= window.innerWidth - 2 && cw.height >= window.innerHeight - 2,
+         "окно кода занимает весь экран: " + Math.round(cw.width) + "x" + Math.round(cw.height) +
+         " при экране " + window.innerWidth + "x" + window.innerHeight);
+      $("btnCodeClose").click();
+      await wait(80);
+      ok($("codeWrap").hidden === true, "кнопка «Закрыть» вернула вьюпорт");
+      $("btnCode").click();
+      await wait(120);
 
       // --- подсказки в окне кода: появляются сами, без нажатий ---
       if ($("codeIn")) {

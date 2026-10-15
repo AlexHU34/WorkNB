@@ -89,7 +89,7 @@ body{
 .logLine.err{color:#ff8a80}
 
 #codeWrap{
-  height:190px;border-top:1px solid #1e2b42;background:#0d1420;
+  position:fixed;inset:0;z-index:120;background:#0d1420;
   display:flex;flex-direction:column;
 }
 #codeWrap[hidden]{display:none}
@@ -124,6 +124,16 @@ body{
 #acStudio .acKind.kw{background:#3a2a5c;color:#c9a8ff}
 #acStudio .acKind.own{background:#1f4636;color:#8fe0b4}
 #acStudio .acHint{color:#7f93ad;font-size:11.5px;margin-left:auto;text-align:right}
+/* сетка действий под выбранным объектом */
+.opGrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px}
+.opGrid .btn{font-size:11.5px;padding:6px 4px}
+/* подсказка про полёт поверх вьюпорта */
+#flyHint{
+  position:absolute;right:12px;top:12px;pointer-events:none;
+  background:#0d1420cc;border:1px solid #22304a;border-radius:9px;
+  padding:6px 10px;font-size:11px;color:#7f93ad;line-height:1.6;
+}
+#flyHint b{color:#9fb3c8}
 </style>
 </head>
 <body>
@@ -135,10 +145,16 @@ body{
   <button class="btn" id="btnBox">+ Куб</button>
   <button class="btn" id="btnPyr">+ Пирамида</button>
   <button class="btn" id="btnSprite">+ Метка</button>
-  <button class="btn danger" id="btnClear" style="width:auto;margin:0">Очистить</button>
+  <button class="btn" id="btnClear" style="width:auto;margin:0">Очистить</button>
+  <div class="sep"></div>
+  <button class="btn" id="btnCopy" title="Скопировать сцену в буфер обмена">📋 Копировать</button>
+  <button class="btn" id="btnPaste" title="Вставить сцену из буфера обмена">📥 Вставить</button>
   <div class="sep"></div>
   <button class="btn" id="btnUndo" title="Отменить (Ctrl+Z)">↶ Отменить</button>
   <button class="btn" id="btnRedo" title="Вернуть (Ctrl+Shift+Z)">↷ Вернуть</button>
+  <button class="btn" id="btnSnap" title="Привязка к сетке (G)">🧲 Сетка</button>
+  <div class="sep"></div>
+  <button class="btn" id="btnCamReset" title="Вернуть камеру в начало">🎯 Камера</button>
   <div class="sep"></div>
   <button class="btn primary" id="btnPlay">▶ Играть</button>
   <button class="btn" id="btnSave">Сохранить</button>
@@ -158,12 +174,17 @@ body{
     <canvas id="scene"></canvas>
     <div id="legend">
       <b>ЛКМ</b> выбрать и тянуть · <b>Shift+тянуть</b> высота · <b>Alt+тянуть</b> размер<br>
-      <b>Пробел</b> играть · <b>Del</b> удалить · <b>Ctrl+Z</b> отменить · <b>G</b> сетка<br>
-      <b>Колесо</b> приблизить · <b>стрелки</b> сдвинуть объект (+Shift — камера)
+      <b>ПКМ + мышь</b> осмотреть · <b>WASD</b> лететь · <b>Q/E</b> вниз/вверх<br>
+      <b>Колесо</b> приблизить · <b>Del</b> удалить · <b>Ctrl+Z</b> отменить · <b>G</b> сетка
+    </div>
+    <div id="flyHint">
+      <b>WASD</b> лететь · <b>Q</b>/<b>E</b> вниз/вверх · <b>Shift</b> быстрее<br>
+      <b>ПКМ</b> осмотреть · <b>колесо</b> приблизить
     </div>
   </div>
     <div id="codeWrap" hidden>
-      <div class="phead">Код BloomScript — его можно править прямо здесь и запускать</div>
+      <div class="phead">Код BloomScript — его можно править прямо здесь и запускать
+        <button class="btn" id="btnCodeClose" style="float:right;padding:2px 9px">✕ Закрыть</button></div>
       <div id="codeBar">
         <button class="btn" id="btnCodeFromScene">⟳ Взять из сцены</button>
         <button class="btn" id="btnCodeRun">▶ Запустить</button>
@@ -180,6 +201,8 @@ body{
   </div>
 
   <div class="panel" id="right">
+    <div class="phead">Сцена</div>
+    <div class="pbody"><div id="sceneBox"></div></div>
     <div class="phead">Инспектор</div>
     <div class="pbody"><div id="inspBox"></div></div>
   </div>

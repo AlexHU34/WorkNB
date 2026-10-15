@@ -14,10 +14,15 @@
 (function () {
 
 const $ = (id) => document.getElementById(id);
+/* Камера: точка, вокруг которой вращаемся (pivot), плюс углы и расстояние.
+   Раньше камера всегда смотрела из начала координат, поэтому улететь от
+   сцены было нельзя, а большая сцена не помещалась в экран. Теперь точку
+   вращения можно двигать клавишами — это и есть полёт. */
 const st = {
   scene: null,
   sel: null,
-  orbit: 0.6,
+  pivot: { x: 0, y: 1.5, z: 0 },   /* куда смотрим; двигается клавишами */
+  yaw: 0.6,
   pitch: 0.45,
   dist: 11,
   playing: false,
@@ -28,6 +33,8 @@ const st = {
   snap: true,           /* привязка к сетке при перетаскивании */
   undo: [],             /* стек снимков назад */
   redo: [],             /* стек снимков вперёд */
+  keys: Object.create(null),   /* какие клавиши сейчас нажаты (полёт) */
+  looking: false,               /* зажата ли правая кнопка мыши */
 };
 let cv, ctx;
 
@@ -107,6 +114,63 @@ function markDirty() {
   st.dirty = true;
   $("status").textContent = "есть несохранённые изменения";
 }
+function round2(v) { return Math.round(v * 100) / 100; }
+
+/* Копирование сцены в буфер обмена. Раньше сцена жила только в браузере:
+   нажал «Очистить» — и всё, что собирал, пропало без возможности вернуть.
+   Обычный Ctrl+C/Ctrl+V работает с любой программой, где сцену вставили. */
+function copyScene() {
+  const text = JSON.stringify(st.scene);
+  try {
+    /* Запасной путь: буфер может быть недоступен без разрешения. Пишем
+       в скрытое поле, а не в alert()/prompt() — модальное окно блокирует
+       поток и в автоматической проверке страница зависает навсегда. */
+    const helper = document.createElement("textarea");
+    helper.value = text;
+    helper.setAttribute("readonly", "");
+    helper.style.position = "fixed";
+    helper.style.left = "-9999px";
+    document.body.appendChild(helper);
+    helper.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(helper);
+    log(ok ? "📋 сцена скопирована — вставь кнопкой «Вставить»"
+            : "буфер обмена недоступен в этом браузере", ok ? "ok" : "warn");
+  } catch (e) {
+    log("не удалось скопировать: " + e.message, "err");
+  }
+}
+async function pasteScene() {
+  let text = "";
+  try { text = await navigator.clipboard.readText(); } catch (e) { text = ""; }
+  if (!text) {
+    log("буфер обмена пуст — скопируй сцену кнопкой «Копировать»", "warn");
+    return;
+  }
+  let data = null;
+  try { data = JSON.parse(text); } catch (e) { data = null; }
+  if (!data || !Array.isArray(data.objects)) {
+    log("это не сцена NEBULA Studio", "err");
+    return;
+  }
+  pushUndo();
+  const fresh = Studio.normalize(data);
+  st.scene.objects = fresh.objects;
+  st.scene.ground = fresh.ground;
+  st.scene.bg = fresh.bg;
+  st.scene.animated = fresh.animated;
+  st.sel = null;
+  refreshHierarchy(); refreshInspector(); scenePanel(); markDirty();
+  log("📥 сцена вставлена: объектов " + fresh.objects.length, "ok");
+}
+
+/* Вернуть камеру в исходное положение — после долгого полёта иначе
+   пришлось бы гадать, где начало. */
+function resetCamera() {
+  st.pivot.x = 0; st.pivot.y = 1.5; st.pivot.z = 0;
+  st.yaw = 0.6; st.pitch = 0.45; st.dist = 11;
+  log("камера возвращена в начало");
+}
 
 /* ============================ ПОСТРОЕНИЕ СЦЕНЫ ============================ */
 /* Сцена превращается в грани движка ровно так же, как это делает
@@ -126,14 +190,46 @@ function facesFor(animAng) {
   return faces;
 }
 
+/* Положение камеры в мире: сидром от точки вращения плюс углы.
+   Взгляд всегда направлен в pivot, поэтому «подлететь к объекту» и
+   «отлететь от сцены» — одно и то же действие. */
 function camObj() {
+  const cp = Math.cos(st.pitch), sp = Math.sin(st.pitch);
+  const d = st.dist;
   return {
-    x: Math.sin(st.orbit) * st.dist,
-    y: 4.5,
-    z: -Math.cos(st.orbit) * st.dist,
-    yaw: st.orbit,
+    x: st.pivot.x + Math.sin(st.yaw) * cp * d,
+    y: st.pivot.y + sp * d,
+    z: st.pivot.z - Math.cos(st.yaw) * cp * d,
+    yaw: st.yaw,
     pitch: st.pitch,
   };
+}
+
+/* Полёт: сдвигаем точку вращения вдоль взгляда и вбок. Скорость
+   зависит от Shift — медленно для точной подстройки, быстро для
+   перелёта через всю сцену. Шаг в кадре, чтобы движение не зависело
+   от частоты экрана. */
+const FLY_BASE = 7;
+function flyStep(dt) {
+  const k = st.keys;
+  let fx = 0, fy = 0, fz = 0;
+  if (k["KeyW"]) fx += 1;
+  if (k["KeyS"]) fx -= 1;
+  if (k["KeyA"]) fz += 1;
+  if (k["KeyD"]) fz -= 1;
+  if (k["KeyE"]) fy += 1;
+  if (k["KeyQ"]) fy -= 1;
+  if (!fx && !fy && !fz) return false;
+  const speed = (k["ShiftLeft"] || k["ShiftRight"] ? FLY_BASE * 3 : FLY_BASE) * dt;
+  const cp = Math.cos(st.pitch), sp = Math.sin(st.pitch);
+  /* Вперёд по взгляду: горизонтальная часть плюс вертикаль от наклона. */
+  const fwd = [Math.sin(st.yaw) * cp, sp, -Math.cos(st.yaw) * cp];
+  /* Вбок: поворот направления взгляда на 90° вокруг вертикали. */
+  const right = [Math.cos(st.yaw), 0, Math.sin(st.yaw)];
+  st.pivot.x += (fwd[0] * fx + right[0] * fz) * speed;
+  st.pivot.y += (fwd[1] * fx + fy) * speed;
+  st.pivot.z += (fwd[2] * fx + right[2] * fz) * speed;
+  return true;
 }
 
 /* Рамка объекта. В Unity это gizmo; здесь — честный каркас из рёбер,
@@ -302,6 +398,175 @@ del.disabled = st.playing;
       }
     };
   box.appendChild(del);
+  box.appendChild(objectOps(o));
+}
+
+/* ======================== ДЕЙСТВИЯ НАД ОБЪЕКТОМ =========================
+   Всё, что человек ждёт от редактора: копия, поставить в центр, опустить на
+   землю, развернуть, поднять над нижним, выровнять по краю, случайный
+   цвет. Раньше в инспекторе была только кнопка удаления — все остальные
+   операции приходилось делать вручную по три поля, и большинство людей
+   просто не знало, что это возможно. */
+const RANDOM_COLORS = ["#ff7043", "#4fc3f7", "#81c784", "#ba68c8", "#ffd54f",
+                       "#ff8a80", "#a1887f", "#90a4ae", "#f06292", "#64b5f6"];
+
+function objectOps(o) {
+  const wrap = document.createElement("div");
+  wrap.className = "opGrid";
+  const act = (label, title, fn) => {
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.textContent = label;
+    b.title = title;
+    b.disabled = st.playing;
+    b.onclick = () => {
+      pushUndo();
+      if (fn(o) !== false) {
+        refreshHierarchy(); refreshInspector(); markDirty();
+      } else {
+        st.undo.pop(); syncUndoButtons();
+      }
+    };
+    wrap.appendChild(b);
+  };
+
+  act("⧉ Копия", "Дублировать объект рядом", (t) => {
+    const copy = JSON.parse(JSON.stringify(t));
+    copy.id = "o" + Date.now().toString(36);
+    copy.name = t.name + " копия";
+    copy.x = t.x + 1;
+    st.scene.objects.splice(st.scene.objects.indexOf(t) + 1, 0, copy);
+    st.sel = copy.id;
+    log("создана копия: " + copy.name);
+  });
+
+  act("⊙ В центр", "Поставить в центр сцены", (t) => {
+    t.x = 0; t.z = 0;
+    log(t.name + " в центре");
+  });
+
+  act("⇩ На землю", "Опустить на землю", (t) => {
+    if (t.kind !== "sprite") t.y = (t.h || 2) / 2;
+    else t.y = 0.5;
+    log(t.name + " на земле");
+  });
+
+  act("⇧ Поднять", "Поднять на единицу", (t) => {
+    t.y = Math.max(0.5, t.y + 1);
+    log(t.name + " выше");
+  });
+
+  act("⇩ Опустить", "Опустить на единицу", (t) => {
+    t.y = Math.max(0.5, t.y - 1);
+    log(t.name + " ниже");
+  });
+
+  act("↻ Развернуть", "Повернуть на 90 градусов", (t) => {
+    const w = t.w || 1, d = t.d || 1;
+    t.w = d; t.d = w;
+    log(t.name + " развёрнут");
+  });
+
+  act("✕× Крупнее", "Увеличить на четверть", (t) => {
+    if (t.kind === "sprite") t.size = Math.min(30, t.size * 1.25);
+    else { t.w = Math.min(30, t.w * 1.25); t.h = Math.min(30, t.h * 1.25); t.d = Math.min(30, t.d * 1.25); }
+    log(t.name + " крупнее");
+  });
+
+  act("✕÷ Мельче", "Уменьшить на четверть", (t) => {
+    if (t.kind === "sprite") t.size = Math.max(.2, t.size / 1.25);
+    else { t.w = Math.max(.2, t.w / 1.25); t.h = Math.max(.2, t.h / 1.25); t.d = Math.max(.2, t.d / 1.25); }
+    log(t.name + " мельче");
+  });
+
+  act("🎲 Цвет", "Случайный цвет", (t) => {
+    t.color = RANDOM_COLORS[Math.floor(Math.random() * RANDOM_COLORS.length)];
+    log(t.name + " перекрашен");
+  });
+
+  act("⬆ Вперёд", "Переместить вперёд в списке", (t) => {
+    const i = st.scene.objects.indexOf(t);
+    if (i >= st.scene.objects.length - 1) return false;
+    const arr = st.scene.objects;
+    arr.splice(i, 1); arr.splice(i + 1, 0, t);
+    log(t.name + " поднят в списке");
+  });
+
+  act("⬇ Назад", "Переместить назад в списке", (t) => {
+    const i = st.scene.objects.indexOf(t);
+    if (i <= 0) return false;
+    const arr = st.scene.objects;
+    arr.splice(i, 1); arr.splice(i - 1, 0, t);
+    log(t.name + " опущен в списке");
+  });
+
+  return wrap;
+}
+
+/* ========================= ПАРАМЕТРЫ СЦЕНЫ ================================
+   Земля, фон и анимация были в модели сцены с самого начала, но панели для
+   них не существовало: настроить их было негде. Значит половина модели
+   была недоступна человеку. Теперь всё это редактируется. */
+function scenePanel() {
+  const s = st.scene;
+  const box = $("sceneBox");
+  if (!box) return;
+  box.textContent = "";
+
+  const numRow = (label, val, onchange, min, max) => {
+    const row = document.createElement("label");
+    row.className = "irow";
+    const nm = document.createElement("span");
+    nm.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.value = String(val);
+    inp.disabled = st.playing;
+    inp.oninput = () => {
+      const n = parseFloat(inp.value);
+      if (!Number.isFinite(n)) return;
+      pushUndo();
+      onchange(Math.max(min === undefined ? -1e6 : min, Math.min(max === undefined ? 1e6 : max, n)));
+      markDirty();
+    };
+    row.appendChild(nm); row.appendChild(inp);
+    box.appendChild(row);
+  };
+  const colorRow = (label, val, onchange) => {
+    const row = document.createElement("label");
+    row.className = "irow";
+    const nm = document.createElement("span");
+    nm.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "color";
+    inp.value = val;
+    inp.disabled = st.playing;
+    inp.oninput = () => { pushUndo(); onchange(inp.value); markDirty(); };
+    row.appendChild(nm); row.appendChild(inp);
+    box.appendChild(row);
+  };
+
+  colorRow("Небо", s.bg[0], (v) => { s.bg[0] = v; });
+  colorRow("Горизонт", s.bg[1], (v) => { s.bg[1] = v; });
+  colorRow("Земля", s.ground.color, (v) => { s.ground.color = v; });
+  numRow("Размер земли", s.ground.w, (v) => { s.ground.w = v; s.ground.d = v; }, 4, 80);
+
+  const chk = document.createElement("label");
+  chk.className = "irow";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = !!s.animated;
+  cb.disabled = st.playing;
+  cb.onchange = () => { pushUndo(); s.animated = cb.checked; markDirty(); };
+  const cl = document.createElement("span");
+  cl.textContent = "Движение объектов";
+  chk.appendChild(cb); chk.appendChild(cl);
+  box.appendChild(chk);
+
+  const cam = document.createElement("div");
+  cam.className = "hint";
+  cam.textContent = "Камера вьюпорта станет камерой игры при сохранении.";
+  box.appendChild(cam);
 }
 
 /* =============================== ВВОД ==================================== */
@@ -309,9 +574,18 @@ function bindPointer() {
   let mode = null, px = 0, py = 0, dragObj = null, moved = false;
 
   cv.addEventListener("pointerdown", (e) => {
+    /* Правая кнопка — осмотр. Так же, как в Unity: она никогда не
+       передвигает объект, только поворачивает камеру. Без этого
+       большую сцену не обойти — объекты сзади не выбрать. */
+    if (e.button === 2) {
+      st.looking = true;
+      cv.style.cursor = "move";
+      e.preventDefault();
+    }
     cv.setPointerCapture(e.pointerId);
     px = e.clientX; py = e.clientY;
     moved = false;
+    if (st.looking) { mode = "look"; return; }
     const hit = pick(e);
     if (hit && !st.playing) {
       dragObj = hit;
@@ -329,9 +603,9 @@ function bindPointer() {
   cv.addEventListener("pointermove", (e) => {
     const dx = e.clientX - px, dy = e.clientY - py;
     px = e.clientX; py = e.clientY;
-    if (mode === "orbit") {
-      st.orbit -= dx * 0.008;
-      st.pitch = Math.max(-0.2, Math.min(1.3, st.pitch + dy * 0.006));
+    if (mode === "orbit" || mode === "look") {
+      st.yaw -= dx * 0.008;
+      st.pitch = Math.max(-1.45, Math.min(1.45, st.pitch + dy * 0.006));
       return;
     }
     if (!dragObj) {
@@ -362,6 +636,7 @@ function bindPointer() {
       syncUndoButtons();
     }
     mode = null; dragObj = null;
+    if (st.looking) { st.looking = false; cv.style.cursor = "grab"; }
     try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
   };
   cv.addEventListener("pointerup", stop);
@@ -370,10 +645,13 @@ function bindPointer() {
   cv.addEventListener("pointerleave", () => {
     if (st.hover) { st.hover = null; refreshHierarchy(); }
   });
+  /* Правая кнопка не должна вызывать своё контекстное меню поверх
+     осмотра — это самая частая жалоба при таком управлении. */
+  cv.addEventListener("contextmenu", (e) => e.preventDefault());
 
   cv.addEventListener("wheel", (e) => {
     e.preventDefault();
-    st.dist = Math.max(4, Math.min(28, st.dist + (e.deltaY > 0 ? 0.7 : -0.7)));
+    st.dist = Math.max(2, Math.min(160, st.dist * (e.deltaY > 0 ? 1.12 : 0.89)));
   }, { passive: false });
 }
 
@@ -437,6 +715,14 @@ function addObject(kind) {
 }
 
 function publish() {
+  /* Камеру вьюпорта записываем в сцену перед публикацией: иначе игра
+     запускалась бы с камерой по умолчанию, а человек собирал с другой. */
+  const c = camObj();
+  st.scene.camera.x = round2(c.x);
+  st.scene.camera.y = round2(c.y);
+  st.scene.camera.z = round2(c.z);
+  st.scene.camera.yaw = round2(st.yaw);
+  st.scene.camera.pitch = round2(st.pitch);
   const r = Studio.publish(st.scene);
   if (!r.ok) { log("❌ " + r.error, "err"); return; }
   log("✅ опубликовано в каталог. Открой NebulaBloom → «Мои игры»", "ok");
@@ -452,6 +738,14 @@ function publish() {
 }
 
 function save() {
+  /* Камера — часть сцены: её положение должно уезжать вместе с ней,
+     иначе после перезагрузки вьюпорт смотрел бы в другую точку. */
+  const c = camObj();
+  st.scene.camera.x = round2(c.x);
+  st.scene.camera.y = round2(c.y);
+  st.scene.camera.z = round2(c.z);
+  st.scene.camera.yaw = round2(st.yaw);
+  st.scene.camera.pitch = round2(st.pitch);
   if (Studio.save(st.scene)) {
     st.dirty = false;
     $("status").textContent = "сохранено " + new Date().toLocaleTimeString();
@@ -465,6 +759,9 @@ function frame(now) {
   const dt = st.last ? Math.min(.05, (now - st.last) / 1000) : 0;
   st.last = now;
   if (st.playing) st.ang += dt;
+  /* Полёт идёт каждый кадр: клавиши держат камеру, а не одно нажатие. */
+  if (flyStep(dt)) cv.style.cursor = "crosshair";
+  else if (st.looking) cv.style.cursor = "move";
   render();
   requestAnimationFrame(frame);
 }
@@ -490,12 +787,24 @@ function fit() {
 /* Полное управление с клавиатуры. Раньше обработчика клавиш не было
    вовсе: выбрать объект, удалить, отменить и сохранить можно было только
    мышью, а колесом и стрелками управлять камерой — нельзя было никак. */
+/* Клавиши полёта. Пишем коды клавиш, а не буквы: на русской раскладке
+   e.code остаётся прежним, и WASD работает одинаково в любой раскладке. */
+const FLY_KEYS = { KeyW: 1, KeyS: 1, KeyA: 1, KeyD: 1, KeyQ: 1, KeyE: 1 };
 function bindKeyboard() {
   document.addEventListener("keydown", (e) => {
     const t = e.target;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
     const k = e.key.toLowerCase();
     const mod = e.ctrlKey || e.metaKey;
+
+    /* Полёт камеры. Клавиши запоминаем и читаем каждый кадр: так движение
+       не зависит от скорости повтора клавиатуры. Alt исключён — он у нас
+       занят размером объекта, а русская «ф» на той же раскладке не мешает. */
+    if (!mod && !e.altKey && FLY_KEYS[e.code] !== undefined) {
+      st.keys[e.code] = true;
+      if (e.code !== "KeyE" && e.code !== "KeyQ") e.preventDefault();
+      return;
+    }
 
     if (mod && k === "z") {
       e.preventDefault();
@@ -549,17 +858,21 @@ function bindKeyboard() {
         return;
       }
       case "+": case "=":
-        st.dist = Math.max(4, st.dist - 0.7); e.preventDefault(); return;
+        st.dist = Math.max(2, st.dist - 0.9); e.preventDefault(); return;
       case "-": case "_":
-        st.dist = Math.min(28, st.dist + 0.7); e.preventDefault(); return;
+        st.dist = Math.min(160, st.dist + 0.9); e.preventDefault(); return;
     }
   });
   /* Снимок для серии нажатий стрел ставим один раз: он сбрасывается
      при смене выделения, чтобы откат не съедал всю серию шагом. */
   document.addEventListener("keyup", (e) => {
+    if (FLY_KEYS[e.code] !== undefined) st.keys[e.code] = false;
     const k = e.key.toLowerCase();
     if (k === "arrowup" || k === "arrowdown" || k === "arrowleft" || k === "arrowright") st._kbMoved = false;
   });
+  /* Потеря фокуса (переключили вкладку) оставила бы камеру вечно летящей:
+     браузер не присылает keyup. Обнуляем — иначе сцена уезжает сама. */
+  window.addEventListener("blur", () => { st.keys = Object.create(null); st.looking = false; });
 }
 
 function start() {
@@ -576,6 +889,15 @@ function start() {
   $("btnPyr").onclick = () => addObject("pyramid");
   $("btnSprite").onclick = () => addObject("sprite");
   $("btnPlay").onclick = () => setPlaying(!st.playing);
+  $("btnCamReset").onclick = () => resetCamera();
+  $("btnCopy").onclick = () => copyScene();
+  $("btnPaste").onclick = () => pasteScene();
+  $("btnSnap").onclick = () => {
+    st.snap = !st.snap;
+    $("btnSnap").classList.toggle("on", st.snap);
+    log(st.snap ? "сетка включена — шаг 0.25" : "сетка выключена");
+  };
+  $("btnSnap").classList.toggle("on", st.snap);
   $("btnSave").onclick = save;
   $("btnPublish").onclick = publish;
   $("btnUndo").onclick = () => undo();
@@ -614,8 +936,10 @@ function setupClear() {
   bindKeyboard();
   refreshHierarchy();
   refreshInspector();
+  scenePanel();
   $("status").textContent = "готово";
   log("Studio открыта. Объекты: " + st.scene.objects.length);
+  log("Камера: WASD — лететь, ПКМ — осмотреть, колесо — приблизить");
   requestAnimationFrame(frame);
 }
 
