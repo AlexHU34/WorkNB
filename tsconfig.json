@@ -9,10 +9,11 @@
     "noEmit": true,
     "strict": false,
     "noImplicitAny": false,
-    "skipLibCheck": true,
+    "skipLibCheck": false,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": []
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/types/**/*.d.ts"],
   "exclude": ["node_modules", "dist", "release"]
 }
