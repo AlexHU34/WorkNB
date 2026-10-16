@@ -1,0 +1,58 @@
+# Выкладка сайта на GitHub Pages
+#
+# Зачем это нужно. В настройках Pages папку выбрать нельзя: GitHub
+# предлагает только корень репозитория или папку /docs. А корень
+# нельзя — там лежат tools/, src/ и docs/, служебные скрипты
+# проверок, которые видеть никто не должен.
+#
+# Поэтому сайт выкладывается из папки site/ — там ровно семь
+# готовых файлов.
+#
+# Собирать ничего не нужно: файлы уже собраны и лежат в репозитории.
+# Благодаря этому выкладка не зависит от того, есть ли на сервере
+# Python и Node.
+#
+# Сайт обновляется сам при каждом изменении в ветке master.
+
+name: Выкладка сайта
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Права: читать код репозитория и публиковать страницы. Больше
+# ничего выдавать не нужно.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Если два запуска совпали, второй отменяет первый: иначе сайт
+# мог бы на секунду показать полузагруженную версию.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Забрать код
+        uses: actions/checkout@v4
+
+      - name: Настроить Pages
+        uses: actions/configure-pages@v5
+
+      # Ключевая строка: отдаём папку site, а не корень репозитория.
+      - name: Собрать содержимое сайта
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+      - name: Опубликовать
+        id: deployment
+        uses: actions/deploy-pages@v4
