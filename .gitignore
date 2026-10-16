@@ -39,3 +39,11 @@ __pycache__/
 # проекта: держать их в истории незачем, они лежат на диске.
 _backup-before-move/
 _backup-before-connect/
+
+# ��ʵ��� ������ ��ʳ�� ��ʳ�� �� ����. ��
+*.txt
+!docs/*.txt
+
+# ��ˢ��� ��� ����.
+full.txt
+g.txt
