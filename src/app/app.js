@@ -395,3 +395,29 @@ requestAnimationFrame(t=>E3.auto.tick(t));
 heroRender();renderLobby();renderWorks();renderAch();renderQuests();updateHUD();
 (function streak(){const t=new Date().toDateString(),last=store.get("bb2_last","","x");let s=store.get("bb2_streak",1);try{s=JSON.parse(localStorage.getItem("bb2_streak"))||1}catch(e){}const lv=localStorage.getItem("bb2_lastday");if(lv!==t){const y=new Date(Date.now()-864e5).toDateString();s=(lv===y)?s+1:1;localStorage.setItem("bb2_lastday",t);localStorage.setItem("bb2_streak",s)}$("stStreak").textContent=s+(s===1?" день":s<5?" дня":" дней")})();
 if(!store.get("bb2_seen",false))$("coach").classList.add("show");
+
+/* ============ ОФЛАЙН ============
+   Сервис-воркер кладёт три страницы в кэш, и дальше приложение
+   открывается без сети.
+
+   Он работает только на http:// и https://. При запуске файла двойным
+   щелчком (file://) его нет — и не нужно: файл лежит на диске. Поэтому
+   сначала проверяем протокол, а не регистрируем и не ловим ошибку:
+   иначе в консоли каждого запуска с диска было бы предупреждение,
+   которое ничего не значит. */
+(function () {
+  var proto = location.protocol;
+  if (proto !== "http:" && proto !== "https:") return;
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function (err) {
+        if (window.NebulaDiag) {
+          NebulaDiag.report("info", "Офлайн не включился: " + (err && err.message));
+        }
+      });
+    });
+  } catch (e) {
+    /* Регистрация не должна никогда мешать игре. */
+  }
+})();

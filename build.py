@@ -196,6 +196,17 @@ def minify(results):
                 log("      " + line.rstrip())
         if r.returncode != 0:
             ok = False
+    # Статика офлайна. Воркер и манифест нужны рядом со страницами: на
+    # сервере браузер ищет их именно там, где лежит сама страница, и без
+    # них офлайн молча не включается. В папку с тремя готовыми файлами
+    # их не копируем — там запуск двойным щелчком, а воркер по file:// не
+    # работает в принципе, и лишние файлы только путают.
+    for f in ("sw.js", "manifest.webmanifest", "icon.svg"):
+        src = os.path.join(ROOT, f)
+        if os.path.isfile(src):
+            for d in (DIST, out_dir):
+                shutil.copyfile(src, os.path.join(d, f))
+            log("  %s: скопирован в dist/ и dist/min/" % f)
     return ok
 
 

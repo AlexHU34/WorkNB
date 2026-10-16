@@ -129,7 +129,16 @@ def run_on(entry, label):
              "--virtual-time-budget=25000", "--allow-file-access-from-files",
              "--dump-dom", "file:///" + tmp.replace("\\", "/")],
             capture_output=True, text=True, encoding="utf-8",
-            errors="replace").stdout
+            errors="replace", timeout=180).stdout
+    except subprocess.TimeoutExpired:
+        # Потолок обязателен. Приложение крутит бесконечный кадровый
+        # цикл, и под нагрузкой (параллельно поднято ещё несколько
+        # Chrome) виртуальное время в этом окне не доходит до конца:
+        # процесс не завершается и молча держит весь прогон гейтов.
+        # Раньше здесь просто ждали вечно.
+        print("FAIL  страница не дошла до проверки: Chrome не ответил за 180 с")
+        print("      Это гонка за ресурсы, а не поломка диагностики.")
+        return 1
     finally:
         shutil.rmtree(prof, ignore_errors=True)
         try:

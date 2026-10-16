@@ -9,7 +9,20 @@ import os
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Потолок на один гейт. Без него зависший процесс молча держит прогон
+# бесконечно. Лёгкий гейт берёт Chrome и упирается в полминуты-минуту,
+# тяжёлый гоняет сто игр и снимки кадров — ему нужно заметно больше.
+FAST_TIMEOUT = 420
+FULL_TIMEOUT = 1500
+
+# Ставится в run_one: тяжёлые гейты получают больший потолок.
+heavy_flag = False
+
+# Параллельный режим — только по запросу --parallel. По умолчанию гейты
+# идут по одному: так быстрее и надёжнее (см. run_parallel).
+PARALLEL = False
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS = os.path.join(ROOT, "tools")
@@ -49,6 +62,7 @@ FAST = [
     # Ошибки должны доходить до человека: гейт роняет все три страницы
     # и требует, чтобы каждая поломка попала в журнал.
     ("диагностика ошибок", "diag-gate.py", []),
+    # (диагностику убрали из общей кучи — см. DIAG ниже)
     # Описания типов не должны отставать от кода: гейт сверяет имена с
     # исходниками и ломает описание намеренно, чтобы убедиться, что
     # проверка типов вообще что-то ловит.
@@ -61,6 +75,9 @@ FAST = [
     # потому что e3gl-gate сверяет КАК рисует GL, а здесь — КАК он
     # выбирается и откатывается.
     ("выбор отрисовки", "glmode-gate.py", []),
+    # Офлайн: воркер, манифест, и главное — регистрация защищена
+    # проверкой протокола, иначе запуск файла двойным щелчком ломается.
+    ("офлайн", "offline-gate.py", []),
 ]
 FULL = [
     ("100 игр", "run-tests.py", ["--all", "--budget", "120000"]),
@@ -83,16 +100,30 @@ def run_one(job):
     t0 = time.time()
     path = script if os.path.isfile(os.path.join(ROOT, script)) \
         else os.path.join(TOOLS, script)
-    p = subprocess.run([sys.executable, path] + args,
-                       cwd=ROOT, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace")
+    limit = job[3] if len(job) > 3 else (FULL_TIMEOUT if heavy_flag else FAST_TIMEOUT)
+    try:
+        p = subprocess.run([sys.executable, path] + args,
+                           cwd=ROOT, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=limit)
+        ok_ = p.returncode == 0
+        lines = [l.strip() for l in p.stdout.splitlines() if l.strip()]
+        tail = lines[-1:] or ["(нет вывода)"]
+        tail = tail[0][:70]
+        if not ok_ and lines:
+            tail = (lines[-1][:70])
+    except subprocess.TimeoutExpired:
+        # Раньше потолка не было: любой гейт, подвисший намертво (обычно
+        # Chrome, который не смог закрыться), держал весь прогон вечно —
+        # а так как результаты печатались в конце, выглядело это как
+        # «ничего не происходит». Теперь зависший гейт называет себя
+        # сам и не блокирует остальные.
+        ok_ = False
+        tail = "НЕ ОТВЕЧИТ за %d с" % limit
     dt = time.time() - t0
-    lines = [l.strip() for l in p.stdout.splitlines() if l.strip()]
-    tail = lines[-1:] or ["(нет вывода)"]
-    return (p.returncode == 0, name, dt, tail[0][:70])
+    return (ok_, name, dt, tail)
 
 
-def run_parallel(jobs):
+def run_parallel(jobs, heavy=False):
     """Параллельный прогон. Три тяжёлых гейта (движок, поведение, сборка)
     занимали 18 минут по очереди; одновременно это те же гейты, но общее
     время ограничено самым долгим, а не суммой.
@@ -102,14 +133,33 @@ def run_parallel(jobs):
     кадр, ловил чужие 18 процессов и падал без причины. Считать время
     можно только в покое. Проверено: fill-gate отдельно зелёный, а после
     ограничения потоков перестал падать в общем прогоне."""
-    workers = min(4, len(jobs))
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        results = list(ex.map(run_one, jobs))
+    global heavy_flag
+    heavy_flag = heavy
+    # По умолчанию гейты идут ПО ОДНОМУ, и это не из осторожности, а по
+    # замерам. По одному все двадцать проходят примерно за 100 секунд.
+    # При четырёх потоках тот же набор растягивался до 500 секунд и
+    # начинал зависать: каждый гейт поднимает свой Chrome, страницы
+    # крутят бесконечный кадровый цикл, и под нагрузкой виртуальное
+    # время в окне Chrome не доходит до конца. Пришлось бы ещё ловить
+    # чужие процессы в гейтах времени, которые меряют скорость.
+    # Параллельный режим оставлен как --parallel, но по умолчанию
+    # выключен: на этой машине он медленнее и нестабильнее.
+    workers = PARALLEL and min(4, len(jobs)) or 1
+    if not jobs:
+        return []
     bad = []
-    for ok_, name, dt, tail in results:
-        print("%-6s %-28s %5.1f с  %s" % ("OK" if ok_ else "FAIL", name, dt, tail))
-        if not ok_:
-            bad.append(name)
+    # Печатаем по мере готовности, а не в конце списка: гейтов двадцать,
+    # и раньше до первых строк вывода приходилось ждать минутами, не зная,
+    # идёт ли дело вообще.
+    futs = {}
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for job in jobs:
+            futs[ex.submit(run_one, job)] = job[0]
+        for fut in as_completed(futs):
+            ok_, name, dt, tail = fut.result()
+            print("%-6s %-28s %5.1f с  %s" % ("OK" if ok_ else "FAIL", name, dt, tail))
+            if not ok_:
+                bad.append(name)
     return bad
 
 
@@ -122,6 +172,8 @@ def run(name, script, args):
 def main():
     full = "--full" in sys.argv
     light_only = "--light" in sys.argv
+    global PARALLEL
+    PARALLEL = "--parallel" in sys.argv
     t0 = time.time()
     bad = []
 
@@ -135,13 +187,21 @@ def main():
     #    оставил в dist/ свежие файлы, поэтому повторно строить не нужно.
     # 4. Офлайн-проверка — строго после сборки: она читает dist/, и при
     #    параллельном запуске попадала в файл посреди записи.
-    light = [j for j in FAST if "движок" not in j[0] and "поведение" not in j[0]]
+    diag = [j for j in FAST if j[0] == "диагностика ошибок"]
+    light = [j for j in FAST if "движок" not in j[0] and "поведение" not in j[0]
+             and j[0] != "диагностика ошибок"]
     heavy = [j for j in FAST if "движок" in j[0] or "поведение" in j[0]]
     if full:
         heavy = heavy + FULL
 
     print("=== лёгкие гейты (параллельно) ===")
     bad += run_parallel(light)
+    print("\n=== диагностика ошибок (одна, без соседей) ===")
+    # Диагностику не гоняем в общей куче. Она открывает страницу с
+    # бесконечным кадровым циклом и ждёт виртуальное время; когда рядом
+    # поднято ещё три Chrome, этого времени не хватает и гейт зависает.
+    # В одиночку он честно зелёный за ~9 с.
+    bad += run_parallel(diag)
 
     print("\n=== гейты времени (по одному — они меряют скорость) ===")
     for job in TIMING:
@@ -149,7 +209,7 @@ def main():
 
     if not light_only:
         print("\n=== движок и поведение ===")
-        bad += run_parallel(heavy)
+        bad += run_parallel(heavy, heavy=True)
 
         print("\n=== офлайн-сборка (после сборки) ===")
         bad += run_parallel([("офлайн-сборка", "dist-gate.py", [])])
