@@ -14,8 +14,8 @@
 
   "$schema": "node_modules/wrangler/config-schema.json",
 
-  // Имя проекта. Из него Cloudflare делает адрес: nebula-bloom.pages.dev
-  "name": "nebula-bloom",
+  // Имя проекта. Из него Cloudflare делает адрес: nebulabloom.pages.dev
+  "name": "nebulabloom",
 
   // Обязательное поле Wrangler: на какую дату считать поведение
   // платформы. Ставим сегодняшнюю, новые возможности не включаем задним
