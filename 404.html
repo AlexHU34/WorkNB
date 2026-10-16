@@ -11,22 +11,13 @@
 /* Палитра взята с образца: холодный серо-голубой и графит.
    Фон светлый — на тёмном сайте такая страница сразу бросается в глаза,
    и читать её спокойно. */
-:root{
-  --paper:#f1f1f2;
-  --paper2:#e6e6e8;
-  --ink:#232326;
-  --ink-soft:#5c6069;
-  --line:rgba(35,35,38,.10);
-  --accent:#7a8296;
-  --accent-soft:rgba(122,130,150,.16);
-  --r:22px;
-}
+:root{--dark:#d7d8db;--dark2:#c9cacb;--dark3:#b9bbbf;--bg:#f1f1f2;--bg2:#e7e7e9;--card:#ffffff;--txt:#2a2a2c;--muted:#6c6f76;--line:#dcdce0;--blue:#4f6d94;--green:#5f8a72;--pink:#a97185;--yellow:#9c8547;--violet:#7b6fa6;--accent:#5a6377;--glow:#7a829633;--glass:rgba(255,255,255,.72);--radius:14px;--font:'Segoe UI',system-ui,Wingdings,Apple Color Emoji,sans-serif;--shadow:0 2px 10px rgba(42,42,44,.08);--shadow2:0 18px 50px -28px rgba(42,42,44,.35);--bg-gradient:linear-gradient(135deg,#f8f8f9 0%,#e3e4e7 100%)}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
   margin:0;
   background:
-    radial-gradient(120% 90% at 15% 0%,#fafafa 0%,var(--paper) 45%,var(--paper2) 100%),
+    radial-gradient(120% 90% at 15% 0%,#303030 0%,var(--paper) 45%,var(--paper2) 100%),
     var(--paper);
   color:var(--ink);
   font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
@@ -51,11 +42,11 @@ main{position:relative;z-index:1;width:100%;max-width:620px;text-align:center}
 .hole{
   position:relative;width:186px;height:186px;margin:0 auto 26px;
   display:grid;place-items:center;border-radius:50%;
-  background:radial-gradient(circle at 50% 46%,var(--paper2) 0%,var(--paper) 62%,#e9e9eb 100%);
+  background:radial-gradient(circle at 50% 46%,var(--paper2) 0%,var(--paper) 62%,#303030 100%);
   box-shadow:
      inset 0 0 0 1px var(--line),
-     inset 0 14px 26px -14px rgba(35,35,38,.16),
-     0 22px 46px -26px rgba(35,35,38,.34);
+     inset 0 14px 26px -14px rgba(231,231,237,0.08),
+     0 22px 46px -26px rgba(231,231,237,0.17);
   transition:transform .5s cubic-bezier(.22,1,.36,1);
 }
 .hole::after{
@@ -67,7 +58,7 @@ main{position:relative;z-index:1;width:100%;max-width:620px;text-align:center}
 .hole span{
   font-size:52px;font-weight:300;letter-spacing:.03em;
   color:var(--accent);
-  text-shadow:0 1px 0 rgba(255,255,255,.85);
+  text-shadow:0 1px 0 rgba(42,42,44,0.16);
   transition:color .45s ease;
 }
 
@@ -85,16 +76,16 @@ nav{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
   display:inline-flex;align-items:center;gap:9px;
   padding:14px 26px;border-radius:var(--r);text-decoration:none;
   font-size:.98rem;font-weight:600;color:var(--ink);
-  background:rgba(255,255,255,.72);
+  background:rgba(42,42,44,0.16);
   border:1px solid var(--line);
-  box-shadow:0 1px 2px rgba(35,35,38,.04),0 10px 24px -18px rgba(35,35,38,.5);
+  box-shadow:0 1px 2px rgba(231,231,237,0.02),0 10px 24px -18px rgba(231,231,237,0.25);
   transition:transform .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease;
 }
 .btn:hover{transform:translateY(-2px);background:#fff;
-          box-shadow:0 1px 2px rgba(35,35,38,.05),0 16px 30px -18px rgba(35,35,38,.5)}
+          box-shadow:0 1px 2px rgba(231,231,237,0.03),0 16px 30px -18px rgba(231,231,237,0.25)}
 .btn:active{transform:translateY(0)}
 .btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.btn.primary{background:var(--accent);color:#fbfbfc;border-color:transparent}
+.btn.primary{background:var(--accent);color:#303030;border-color:transparent}
 .btn.primary:hover{background:var(--accent);filter:brightness(1.06)}
 
 /* --- Палитра внизу, как на образце ---------------------------- */
@@ -102,7 +93,7 @@ nav{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
   position:fixed;left:0;right:0;bottom:0;z-index:2;
   display:flex;height:84px;
   border-top:1px solid var(--line);
-  background:rgba(255,255,255,.55);
+  background:rgba(42,42,44,0.16);
   backdrop-filter:blur(10px);
 }
 .sw{
@@ -111,7 +102,7 @@ nav{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
   filter:saturate(.2);
   /* Граница обязательна: два светлых цвета палитры почти совпадают с
      фоном полосы, и без неё справа остаются две пустые белые полосы. */
-  box-shadow:inset 0 0 0 1px rgba(35,35,38,.14);
+  box-shadow:inset 0 0 0 1px rgba(231,231,237,0.07);
 }
 .sw:hover{filter:saturate(.6)}
 .sw[aria-pressed="true"]{flex:1.6 1 0;filter:none}
@@ -160,11 +151,11 @@ nav{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 
 <div class="palette" id="palette" role="group" aria-label="Цвет страницы">
   <span class="hint">выберите цвет</span>
-  <button class="sw" data-accent="#2a2a2c" data-name="Графит" style="--c:#2a2a2c" aria-pressed="false" aria-label="Цвет: графит"></button>
-  <button class="sw" data-accent="#7a8296" data-name="Сланец" style="--c:#7a8296" aria-pressed="true"  aria-label="Цвет: сланец"></button>
-  <button class="sw" data-accent="#8a92a3" data-name="Дым"    style="--c:#8a92a3" aria-pressed="false" aria-label="Цвет: дым"></button>
-  <button class="sw" data-accent="#c9cacb" data-name="Светлый" style="--c:#c9cacb" aria-pressed="false" aria-label="Цвет: светлый"></button>
-  <button class="sw" data-accent="#d3d4d5" data-name="Пепельный" style="--c:#d3d4d5" aria-pressed="false" aria-label="Цвет: пепельный"></button>
+  <button class="sw" data-accent="#2a2a2c" data-name="Графит" style="--c:#e9e9ed" aria-pressed="false" aria-label="Цвет: графит"></button>
+  <button class="sw" data-accent="#7a8296" data-name="Сланец" style="--c:#3a3c40" aria-pressed="true"  aria-label="Цвет: сланец"></button>
+  <button class="sw" data-accent="#8a92a3" data-name="Дым"    style="--c:#3b3c40" aria-pressed="false" aria-label="Цвет: дым"></button>
+  <button class="sw" data-accent="#c9cacb" data-name="Светлый" style="--c:#535454" aria-pressed="false" aria-label="Цвет: светлый"></button>
+  <button class="sw" data-accent="#d3d4d5" data-name="Пепельный" style="--c:#545454" aria-pressed="false" aria-label="Цвет: пепельный"></button>
 </div>
 
 <script>

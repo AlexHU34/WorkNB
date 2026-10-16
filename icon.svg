@@ -1,16 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#00ffab"/>
-      <stop offset="1" stop-color="#00d4ff"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="#0e1420"/>
-  <circle cx="256" cy="230" r="120" fill="url(#g)"/>
-  <g fill="#0e1420">
-    <circle cx="256" cy="230" r="46"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="AERIS">
+<!-- Знак AERIS: три потока, сходящиеся в одну точку.
+     Собран по образцу, но в векторе, а не картинкой: файл весит 1 КБ
+     вместо сотен, не мылится на Retina и не грузится отдельным запросом.
+     Тот же знак служит иконкой вкладки, иконкой приложения и логотипом
+     в шапке. -->
+  <rect width="512" height="512" fill="#f2f2f3"/>
+  <g transform="translate(0,10)">
+    <!-- правый поток: самый светлый, самый дальний по плану -->
+    <path fill="#c9cacb" d="M256 458
+      C318 424 372 352 374 262
+      C332 342 286 412 258 458 Z"/>
+    <!-- левый поток: дымчатый, перекрывает правый -->
+    <path fill="#8a92a3" d="M256 458
+      C186 424 136 328 160 210
+      C204 320 242 412 258 458 Z"/>
+    <!-- средний поток: главный, сланцевый, поверх остальных -->
+    <path fill="#7a8296" d="M256 458
+      C214 386 214 296 250 190
+      C262 150 286 108 302 58
+      C304 148 316 232 306 302
+      C298 382 276 428 258 458 Z"/>
+    <!-- две тонкие линии, как на образце -->
+    <path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8"
+      d="M170 442 C212 396 240 322 268 206"/>
+    <path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8"
+      d="M304 440 C326 372 332 292 328 206"/>
   </g>
-  <path d="M256 312 L256 430" stroke="url(#g)" stroke-width="26" stroke-linecap="round"/>
-  <path d="M256 356 L196 404" stroke="url(#g)" stroke-width="22" stroke-linecap="round"/>
-  <path d="M256 356 L316 404" stroke="url(#g)" stroke-width="22" stroke-linecap="round"/>
 </svg>
