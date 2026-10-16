@@ -9,7 +9,7 @@
 сайт.
 
 Что проверяем:
-  * в site/ ровно семь файлов, ничего лишнего;
+  * в site/ ровно восемь файлов, ничего лишнего;
   * главная страница самодостаточна: скрипты внутри, а не ссылками
     на другие файлы. Именно это ломает сайт на сервере и не ломает
     при открытии с диска;
@@ -37,7 +37,7 @@ def check(cond, msg):
 
 
 EXPECT = {"index.html", "lang.html", "studio.html",
-          "sw.js", "manifest.webmanifest", "icon.svg", "404.html"}
+          "sw.js", "manifest.webmanifest", "icon.svg", "404.html", "og.png"}
 PAIRS = [("index.html", "Aeris.html"),
          ("lang.html", "BloomScript.html"),
          ("studio.html", "AerisStudio.html")]
@@ -50,7 +50,7 @@ if not os.path.isdir(SITE):
 have = set(os.listdir(SITE))
 missing = EXPECT - have
 extra = have - EXPECT
-check(not missing, "все семь файлов на месте" +
+check(not missing, "все восемь файлов на месте" +
       ("" if not missing else " — нет: " + ", ".join(sorted(missing))))
 check(not extra, "лишнего нет" +
       ("" if not extra else " — лишние: " + ", ".join(sorted(extra))))
@@ -84,7 +84,7 @@ for site_name, min_name in PAIRS:
 
 print("")
 print("=== ОФЛАЙН И 404 ===")
-for f in ("sw.js", "manifest.webmanifest", "404.html"):
+for f in ("sw.js", "manifest.webmanifest", "404.html", "og.png"):
     p = os.path.join(SITE, f)
     ok = os.path.isfile(p) and os.path.getsize(p) > 50
     check(ok, "есть и не пустой: " + f)

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!-- Картинка для ссылки. Когда ты отправляешь адрес в чат или выкладываешь
+     постом, мессенджер подставляет картинку — вот эту.
+
+     Сделана в HTML, а не сгенерирована картинкой по запросу: надпись
+     получается чёткой на любом экране и её можно править текстом.
+     Готовый файл og.png получается, если открыть эту страницу в браузере
+     и сохранить снимок экрана (build.py так и делает). -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>AERIS — картинка для ссылки</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  width:1200px;height:630px;overflow:hidden;position:relative;
+  background:linear-gradient(135deg,#fafafb 0%,#f1f1f2 55%,#e3e4e7 100%);
+  color:#2a2a2c;
+  font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+/* светлое пятно сверху — то же, что на заставке */
+.bloom{position:absolute;inset:0;
+  background:radial-gradient(760px 420px at 50% 12%,rgba(255,255,255,.95),rgba(255,255,255,0) 70%)}
+.air{position:absolute;inset:0}
+.mark{position:absolute;left:74px;top:62px;width:76px;height:76px}
+.mark svg{width:100%;height:100%;display:block}
+h1{
+  position:relative;font-size:104px;font-weight:300;letter-spacing:30px;
+  text-indent:30px;color:#2a2a2c;line-height:1;
+}
+p{
+  position:relative;margin-top:34px;font-size:27px;font-weight:400;
+  letter-spacing:5px;color:#7a8296;text-transform:lowercase;
+}
+.rule{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);
+  width:120px;height:2px;background:#c9cacb}
+</style>
+</head>
+<body>
+<div class="bloom"></div>
+<svg class="air" viewBox="0 0 1200 630" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <g fill="#8a92a3">
+    <circle cx="118" cy="120" r="3" opacity=".3"/><circle cx="286" cy="196" r="2.2" opacity=".24"/>
+    <circle cx="452" cy="102" r="4" opacity=".2"/><circle cx="640" cy="176" r="2.4" opacity=".26"/>
+    <circle cx="848" cy="96" r="3.2" opacity=".22"/><circle cx="1046" cy="188" r="2.6" opacity=".28"/>
+    <circle cx="196" cy="402" r="2.4" opacity=".2"/><circle cx="1002" cy="436" r="3.2" opacity=".22"/>
+    <circle cx="92" cy="526" r="2.8" opacity=".26"/><circle cx="596" cy="520" r="3" opacity=".16"/>
+  </g>
+  <g fill="#c9cacb">
+    <circle cx="352" cy="318" r="6" opacity=".45"/><circle cx="886" cy="352" r="5" opacity=".38"/>
+  </g>
+  <g fill="none" stroke="#b9bbbf" stroke-width="1.1" opacity=".45">
+    <path d="M-20 268 C180 240 330 306 520 278 S840 232 1000 266 1160 292 1220 262"/>
+    <path d="M-20 556 C190 528 350 588 540 560 S860 520 1030 552 1160 570 1220 548"/>
+  </g>
+</svg>
+
+<div class="mark" aria-hidden="true">
+<svg viewBox="0 0 512 512"><g transform="translate(0,10)">
+<path fill="#c9cacb" d="M256 458 C318 424 372 352 374 262 C332 342 286 412 258 458 Z"/>
+<path fill="#8a92a3" d="M256 458 C186 424 136 328 160 210 C204 320 242 412 258 458 Z"/>
+<path fill="#7a8296" d="M256 458 C214 386 214 296 250 190 C262 150 286 108 302 58 C304 148 316 232 306 302 C298 382 276 428 258 458 Z"/>
+<path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8" d="M170 442 C212 396 240 322 268 206"/>
+<path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8" d="M304 440 C326 372 332 292 328 206"/>
+</g></svg>
+</div>
+
+<h1>AERIS</h1>
+<p>100 игр · bloom script · studio</p>
+<div class="rule"></div>
+</body>
+</html>

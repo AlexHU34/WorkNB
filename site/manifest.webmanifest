@@ -1,14 +1,14 @@
 {
-  "name": "AERIS",
+  "name": "AERIS — игры и конструктор",
   "short_name": "AERIS",
-  "description": "Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без сети.",
+  "description": "Каталог 3D-игр, редактор кода BloomScript и студия сцен.",
   "lang": "ru",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
-  "background_color": "#0e1420",
-  "theme_color": "#0e1420",
+  "background_color": "#f2f2f3",
+  "theme_color": "#f2f2f3",
   "icons": [
     {
       "src": "./icon.svg",

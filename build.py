@@ -244,7 +244,7 @@ def make_site():
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, dst_name))
             n += 1
-    for f in ("sw.js", "manifest.webmanifest", "icon.svg", "404.html"):
+    for f in ("sw.js", "manifest.webmanifest", "icon.svg", "404.html", "og.png"):
         src = os.path.join(ROOT, f)
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, f))
