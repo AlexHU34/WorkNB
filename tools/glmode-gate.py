@@ -163,15 +163,23 @@ def main():
     rc |= run_probe("редактор", "lang.html", PROBE_FALLBACK, "glfallbackreport")
     print("")
     print("=== НАСТРОЙКА В ПРИЛОЖЕНИИ ===")
-    app = io.open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
+    # После разбивки логика приложения живёт в src/app/app.js, а в
+    # index.html остался только каркас. Искать настройку надо там, где она
+    # теперь: проверка искала в разметке и падала, хотя всё работало.
+    sources = {}
+    for rel in ("index.html", "src/app/app.js"):
+        p = os.path.join(ROOT, rel)
+        if os.path.isfile(p):
+            sources[rel] = io.open(p, encoding="utf-8").read()
     need = [("bb2_gl", "ключ настройки ускорения"),
             ("segGl", "переключатель в окне настроек"),
             ("function setGl", "функция переключения")]
     for token, what in need:
-        if token in app:
-            print("  OK   %s есть" % what)
+        where = [rel for rel, s in sources.items() if token in s]
+        if where:
+            print("  OK   %s есть (%s)" % (what, ", ".join(where)))
         else:
-            print("  FAIL  %s отсутствует" % what)
+            print("  FAIL  %s отсутствует — искали в: %s" % (what, ", ".join(sources)))
             rc = 1
     return rc
 

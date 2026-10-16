@@ -154,62 +154,91 @@ def page_title(dom):
 
 
 def cmd_syntax(args, chrome):
-    """Быстрая проверка СИНТАКСИСА главного <script>.
+    """Проверка синтаксиса ВСЕГО кода: модулей и встроенных скриптов.
 
-    Разметку намеренно не подставляем: скрипт упадёт на выполнении (нет DOM),
-    и это нормально. Важно другое — SyntaxError не даёт скрипту выполниться
-    ВООБЩЕ, поэтому первая ошибка парсинга отличается от рантайм-ошибки.
-    Именно это и проверяем: SyntaxError -> FAIL, иначе PASS.
-    Номер строки берём из window.onerror, а для SyntaxError дополнительно
-    показываем окрестности найденной строки.
+    Раньше проверялся только последний встроенный <script> главной
+    страницы. После того как игры, данные и логика уехали в src/app/*.js,
+    встроенного скрипта в index.html не осталось — и проверка молча падала
+    на пустом месте (0 секунд, нет вывода), не сообщая почему.
+
+    Теперь проверяется всё, и каждый файл отдельно:
+      * все .js под src/ — через node --check, это мгновенно и точно;
+      * встроенные <script> без src во всех трёх страницах.
+    SyntaxError означает, что файл не выполнится вообще, поэтому проверка
+    идёт без выполнения: разметка и DOM не нужны.
     """
-    src = read_index()
-    code = list(re.finditer(r"<script>(.*?)</script>", src, re.S))[-1].group(1)
-    page = ("<!doctype html><meta charset=utf-8><body><script>"
-            "window.__e='';window.__ln=0;"
-            "window.addEventListener('error',function(e){if(!window.__e){"
-            "window.__e=String(e.message||e.error);window.__ln=e.lineno||0}},true);"
-            "</script><script>" + code.replace("</script>", "<\\/script>") + "</script>"
-            "<script>document.title='R:'+window.__e+'@'+window.__ln;</script></body>")
-    tmpdir = tempfile.mkdtemp(prefix="syn_")
-    profile = tempfile.mkdtemp(prefix="nbprof_")
-    try:
-        copy_src_tree(tmpdir)
-        p = os.path.join(tmpdir, "page.html")
-        with open(p, "w", encoding="utf-8", newline="\n") as f:
-            f.write(page)
-        dom = run_chrome(chrome, "file:///" + p.replace("\\", "/"), profile, 8000)
-        title = page_title(dom)
-        msg = title[2:] if title.startswith("R:") else "R:" + title
-        msg, _, ln = msg.rpartition("@")
-        if "SyntaxError" in msg:
-            print("FAIL  синтаксис главного скрипта :: " + msg + " (строка " + (ln or "?") + ")")
+    root = ROOT
+    bad = []
+    checked = 0
+
+    node = shutil.which("node") or "node"
+    js_files = []
+    for dirpath, dirnames, filenames in os.walk(os.path.join(root, "src")):
+        dirnames[:] = [d for d in dirnames if d != "node_modules"]
+        for fn in filenames:
+            if fn.endswith(".js"):
+                js_files.append(os.path.join(dirpath, fn))
+    js_files.sort()
+    for path in js_files:
+        checked += 1
+        r = subprocess.run([node, "--check", path], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace")
+        if r.returncode != 0:
+            first = (r.stderr or "").strip().splitlines()
+            msg = next((l for l in first if "Error" in l), first[0] if first else "?")
+            bad.append("модуль %s: %s" % (os.path.relpath(path, root), msg.strip()))
+
+    for page_name in ("index.html", "lang.html", "studio.html"):
+        page_path = os.path.join(root, page_name)
+        if not os.path.isfile(page_path):
+            continue
+        with open(page_path, encoding="utf-8") as f:
+            page = f.read()
+        for k, m in enumerate(re.finditer(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>",
+                                          page, re.S)):
+            code = m.group(1)
+            if not code.strip():
+                continue
+            checked += 1
+            tmp = tempfile.mkdtemp(prefix="syn_")
             try:
-                lines = code.split("\n")
-                n = int(ln)
-                for k in range(max(0, n - 4), min(len(lines), n + 2)):
-                    print("      %s%5d: %s" % (">>" if k + 1 == n else "  ", k + 1, lines[k][:150]))
-            except ValueError:
-                pass
-            return 1
-        # ЛИНТ: requestAnimationFrame в конце тела цикла. Такой вызов удваивает
-        # цепочку каждый кадр (в начале тела уже есть raf=...requestAnimationFrame),
-        # и Chrome зависает насмерть, а гейт молчит.
-        dbl = [i + 1 for i, l in enumerate(code.split("\n"))
+                p = os.path.join(tmp, "in.html.js")
+                with open(p, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(code.replace("</script>", "<\\/script>"))
+                r = subprocess.run([node, "--check", p], capture_output=True,
+                                   text=True, encoding="utf-8", errors="replace")
+                if r.returncode != 0:
+                    first = (r.stderr or "").strip().splitlines()
+                    msg = next((l for l in first if "Error" in l),
+                               first[0] if first else "?")
+                    bad.append("%s, встроенный скрипт #%d: %s" % (page_name, k + 1, msg.strip()))
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+
+# ЛИНТ: requestAnimationFrame в конце тела цикла. Такой вызов удваивает
+    # цепочку каждый кадр (в начале тела уже есть raf=...requestAnimationFrame),
+    # и Chrome зависает насмерть, а гейт молчит. Раньше проверка смотрела
+    # только на последний встроенный скрипт; теперь — на все файлы, потому
+    # что игры с такими циклами уехали в src/app/games.js.
+    for path in js_files:
+        with open(path, encoding="utf-8") as f:
+            code = f.read()
+        ls = code.split("\n")
+        dbl = [i + 1 for i, l in enumerate(ls)
                if l.strip().endswith("requestAnimationFrame(loop)};")
                or l.strip().endswith("requestAnimationFrame(loop);}")]
         if dbl:
-            print("FAIL  дублирующий requestAnimationFrame в теле цикла :: строки " +
-                  ", ".join(str(x) for x in dbl[:8]))
-            ls = code.split("\n")
+            print("FAIL  дублирующий requestAnimationFrame :: %s, строки %s" % (
+                os.path.relpath(path, root), ", ".join(str(x) for x in dbl[:8])))
             for n in dbl[:8]:
                 print("      %5d: %s" % (n, ls[n - 1][:150]))
-            return 1
-        print("PASS  синтаксис главного скрипта (скрипт разобран и запущен)")
-        return 0
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        shutil.rmtree(profile, ignore_errors=True)
+            bad.append(os.path.relpath(path, root))
+
+    if bad:
+        print("FAIL  синтаксис или цикл: %d из %d" % (len(bad), checked))
+        return 1
+    print("PASS  синтаксис верен: файлов и скриптов проверено %d" % checked)
+    return 0
 
 
 # --------------------------------------------------------------------- smoke
