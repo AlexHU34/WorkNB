@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import datetime
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -207,6 +208,17 @@ def minify(results):
             for d in (DIST, out_dir):
                 shutil.copyfile(src, os.path.join(d, f))
             log("  %s: скопирован в dist/ и dist/min/" % f)
+
+    # Метка кэша воркера — время сборки. Без неё старый кэш
+    # переживал любую выкладку, и люди видели прежнюю версию сайта.
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    swp = os.path.join(ROOT, "sw.js")
+    if os.path.isfile(swp):
+        sw = io.open(swp, encoding="utf-8").read()
+        if "__BUILDSTAMP__" in sw:
+            sw = sw.replace("__BUILDSTAMP__", stamp)
+            io.open(swp, "w", encoding="utf-8", newline="\n").write(sw)
+            log("  воркер: метка кэша %s" % stamp)
 
     make_site()
     return ok
