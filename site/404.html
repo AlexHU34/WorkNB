@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Страница потерялась — NEBULA BLOOM</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="Такой страницы нет. Вернитесь в каталог игр NEBULA BLOOM.">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<style>
+/* Палитра взята с образца: холодный серо-голубой и графит.
+   Фон светлый — на тёмном сайте такая страница сразу бросается в глаза,
+   и читать её спокойно. */
+:root{
+  --paper:#f1f1f2;
+  --paper2:#e6e6e8;
+  --ink:#232326;
+  --ink-soft:#5c6069;
+  --line:rgba(35,35,38,.10);
+  --accent:#7a8296;
+  --accent-soft:rgba(122,130,150,.16);
+  --r:22px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(120% 90% at 15% 0%,#fafafa 0%,var(--paper) 45%,var(--paper2) 100%),
+    var(--paper);
+  color:var(--ink);
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 20px calc(112px + env(safe-area-inset-bottom));
+  min-height:100%;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* --- Мягкие пятна, следующие за курсором --------------------- */
+.orb{position:fixed;border-radius:50%;filter:blur(46px);pointer-events:none;
+     z-index:0;will-change:transform,opacity}
+.orb.a{width:340px;height:340px;top:-90px;left:-70px;background:var(--accent);opacity:.22}
+.orb.b{width:260px;height:260px;bottom:-80px;right:-60px;background:var(--accent);opacity:.16}
+.orb.me{width:190px;height:190px;background:var(--accent);opacity:.30;
+        transition:opacity .5s ease}
+
+/* --- Дырка, в которую провалился адрес ----------------------- */
+main{position:relative;z-index:1;width:100%;max-width:620px;text-align:center}
+
+.hole{
+  position:relative;width:186px;height:186px;margin:0 auto 26px;
+  display:grid;place-items:center;border-radius:50%;
+  background:radial-gradient(circle at 50% 46%,var(--paper2) 0%,var(--paper) 62%,#e9e9eb 100%);
+  box-shadow:
+     inset 0 0 0 1px var(--line),
+     inset 0 14px 26px -14px rgba(35,35,38,.16),
+     0 22px 46px -26px rgba(35,35,38,.34);
+  transition:transform .5s cubic-bezier(.22,1,.36,1);
+}
+.hole::after{
+  content:"";position:absolute;inset:-9px;border-radius:50%;
+  border:1px dashed var(--line);opacity:.85;
+  animation:turn 26s linear infinite;
+}
+@keyframes turn{to{transform:rotate(360deg)}}
+.hole span{
+  font-size:52px;font-weight:300;letter-spacing:.03em;
+  color:var(--accent);
+  text-shadow:0 1px 0 rgba(255,255,255,.85);
+  transition:color .45s ease;
+}
+
+h1{
+  margin:0 0 10px;font-size:clamp(1.5rem,4.6vw,2.05rem);
+  font-weight:400;letter-spacing:-.01em;
+}
+p{
+  margin:0 auto 30px;max-width:44ch;color:var(--ink-soft);
+  font-size:1rem;line-height:1.62;
+}
+
+nav{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:9px;
+  padding:14px 26px;border-radius:var(--r);text-decoration:none;
+  font-size:.98rem;font-weight:600;color:var(--ink);
+  background:rgba(255,255,255,.72);
+  border:1px solid var(--line);
+  box-shadow:0 1px 2px rgba(35,35,38,.04),0 10px 24px -18px rgba(35,35,38,.5);
+  transition:transform .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease;
+}
+.btn:hover{transform:translateY(-2px);background:#fff;
+          box-shadow:0 1px 2px rgba(35,35,38,.05),0 16px 30px -18px rgba(35,35,38,.5)}
+.btn:active{transform:translateY(0)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.btn.primary{background:var(--accent);color:#fbfbfc;border-color:transparent}
+.btn.primary:hover{background:var(--accent);filter:brightness(1.06)}
+
+/* --- Палитра внизу, как на образце ---------------------------- */
+.palette{
+  position:fixed;left:0;right:0;bottom:0;z-index:2;
+  display:flex;height:84px;
+  border-top:1px solid var(--line);
+  background:rgba(255,255,255,.55);
+  backdrop-filter:blur(10px);
+}
+.sw{
+  flex:1 1 0;position:relative;border:0;padding:0;cursor:pointer;
+  background:var(--c);transition:flex .35s cubic-bezier(.22,1,.36,1),filter .2s ease;
+  filter:saturate(.2);
+  /* Граница обязательна: два светлых цвета палитры почти совпадают с
+     фоном полосы, и без неё справа остаются две пустые белые полосы. */
+  box-shadow:inset 0 0 0 1px rgba(35,35,38,.14);
+}
+.sw:hover{filter:saturate(.6)}
+.sw[aria-pressed="true"]{flex:1.6 1 0;filter:none}
+.sw::after{
+  content:attr(data-name);
+  position:absolute;left:50%;bottom:9px;transform:translateX(-50%) translateY(6px);
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+  white-space:nowrap;opacity:0;transition:opacity .3s ease,transform .3s ease;
+}
+.sw[aria-pressed="true"]::after{opacity:.92;transform:translateX(-50%) translateY(0)}
+.sw:focus-visible{outline:3px solid var(--ink);outline-offset:-4px;z-index:3}
+.hint{
+  position:absolute;left:50%;top:-30px;transform:translateX(-50%);
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);
+  opacity:.8;white-space:nowrap;
+}
+
+@media (max-width:520px){
+  .palette{height:66px}
+  .sw::after{display:none}
+  .hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .hole::after{border-style:solid}
+}
+</style>
+</head>
+<body>
+
+<div class="orb a"></div>
+<div class="orb b"></div>
+<div class="orb me" id="me"></div>
+
+<main>
+  <div class="hole" id="hole"><span>404</span></div>
+  <h1>Страница потерялась</h1>
+  <p>Адрес, по которому вы пришли, никто не открывает.
+     Зато сто игр — открываются все.</p>
+  <nav>
+    <a class="btn primary" href="./index.html">Каталог игр</a>
+    <a class="btn" href="./lang.html">Редактор кода</a>
+    <a class="btn" href="./studio.html">Студия сцен</a>
+  </nav>
+</main>
+
+<div class="palette" id="palette" role="group" aria-label="Цвет страницы">
+  <span class="hint">выберите цвет</span>
+  <button class="sw" data-accent="#2a2a2c" data-name="Графит" style="--c:#2a2a2c" aria-pressed="false" aria-label="Цвет: графит"></button>
+  <button class="sw" data-accent="#7a8296" data-name="Сланец" style="--c:#7a8296" aria-pressed="true"  aria-label="Цвет: сланец"></button>
+  <button class="sw" data-accent="#8a92a3" data-name="Дым"    style="--c:#8a92a3" aria-pressed="false" aria-label="Цвет: дым"></button>
+  <button class="sw" data-accent="#c9cacb" data-name="Светлый" style="--c:#c9cacb" aria-pressed="false" aria-label="Цвет: светлый"></button>
+  <button class="sw" data-accent="#d3d4d5" data-name="Пепельный" style="--c:#d3d4d5" aria-pressed="false" aria-label="Цвет: пепельный"></button>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var me = document.getElementById("me");
+  var hole = document.getElementById("hole");
+  var quiet = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Пятно тянется за курсором. На телефоне курсора нет — там пятно
+     просто висит по центру и слегка дышит. */
+  var x = innerWidth / 2, y = innerHeight / 2, cx = x, cy = y, raf = 0;
+
+  function follow() {
+    cx += (x - cx) * 0.12;
+    cy += (y - cy) * 0.12;
+    me.style.transform = "translate(" + (cx - 95) + "px," + (cy - 95) + "px)";
+    hole.style.transform = "translate(" + ((cx - innerWidth / 2) * -0.012) + "px," +
+                          ((cy - innerHeight / 2) * -0.012) + "px)";
+    raf = (Math.abs(x - cx) > 0.4 || Math.abs(y - cy) > 0.4) ? requestAnimationFrame(follow) : 0;
+  }
+  addEventListener("pointermove", function (e) {
+    x = e.clientX; y = e.clientY;
+    if (!raf && !quiet) raf = requestAnimationFrame(follow);
+  }, { passive: true });
+
+  /* Палитра. Цвет применяется к странице сразу и запоминается, чтобы
+     выбор не пришлось повторять. */
+  var bar = document.getElementById("palette");
+  var sws = [].slice.call(bar.querySelectorAll(".sw"));
+  function pick(el) {
+    sws.forEach(function (b) { b.setAttribute("aria-pressed", b === el ? "true" : "false"); });
+    var c = el.getAttribute("data-accent");
+    var dark = c === "#2a2a2c";
+    root.style.setProperty("--accent", c);
+    root.style.setProperty("--accent-soft", hexA(c, dark ? .28 : .16));
+    me.style.background = c;
+    document.querySelectorAll(".orb").forEach(function (o) { o.style.background = c; });
+    var prim = document.querySelector(".btn.primary");
+    prim.style.color = dark ? "#fbfbfc" : "#fbfbfc";
+    try { localStorage.setItem("nb404", c); } catch (e) {}
+  }
+  function hexA(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + a + ")";
+  }
+  sws.forEach(function (b) {
+    b.addEventListener("click", function () { pick(b); });
+    b.addEventListener("keydown", function (e) {
+      var i = sws.indexOf(b), n = null;
+      if (e.key === "ArrowRight") n = sws[(i + 1) % sws.length];
+      if (e.key === "ArrowLeft")  n = sws[(i - 1 + sws.length) % sws.length];
+      if (n) { e.preventDefault(); n.focus(); pick(n); }
+    });
+  });
+
+  var saved = null;
+  try { saved = localStorage.getItem("nb404"); } catch (e) {}
+  var found = saved && sws.filter(function (b) { return b.getAttribute("data-accent") === saved; })[0];
+  pick(found || sws[1]);
+})();
+</script>
+</body>
+</html>
