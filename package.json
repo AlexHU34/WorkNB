@@ -11,10 +11,13 @@
     "pack": "python tools/pack.py --zip",
     "gates": "python tools/all-gates.py",
     "gates:light": "python tools/all-gates.py --light",
-    "gates:full": "python tools/all-gates.py --full"
+    "gates:full": "python tools/all-gates.py --full",
+    "deploy": "npx wrangler deploy",
+    "preview": "npx wrangler dev"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
+    "wrangler": "^4.0.0",
     "typescript": "^5.7.0"
   }
 }
