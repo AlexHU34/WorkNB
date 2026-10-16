@@ -54,16 +54,24 @@ self.addEventListener("fetch", function (e) {
   if (url.origin !== self.location.origin) return;
 
   /* Навигация: сначала сеть, при неудаче кэш. Так игрок получает свежую
-     версию, если связь есть, и всё равно попадает в игру без неё. */
+     версию, если связь есть, и всё равно попадает в игру без неё.
+
+     Важно: из кэша отдаётся та страница, которую просили, а не главная.
+     Раньше здесь жёстко стоял index.html, и без связи запрос редактора
+     или студии молча открывал каталог игр: адрес один, заголовок другой,
+     и человек терял свою работу. */
   if (req.mode === "navigate") {
     e.respondWith(
       fetch(req).then(function (res) {
         var copy = res.clone();
-        caches.open(VERSION).then(function (c) { c.put("./index.html", copy); });
+        caches.open(VERSION).then(function (c) { c.put(req, copy); });
         return res;
       }).catch(function () {
-        return caches.match("./index.html").then(function (r) {
-          return r || caches.match("./");
+        return caches.match(req, { ignoreSearch: true }).then(function (hit) {
+          if (hit) return hit;
+          return caches.match("./index.html").then(function (r) {
+            return r || caches.match("./");
+          });
         });
       })
     );

@@ -207,7 +207,53 @@ def minify(results):
             for d in (DIST, out_dir):
                 shutil.copyfile(src, os.path.join(d, f))
             log("  %s: скопирован в dist/ и dist/min/" % f)
+
+    make_site()
     return ok
+
+
+SITE_NAMES = {"NebulaBloom.html": "index.html",
+              "BloomScript.html": "lang.html",
+              "NebulaStudio.html": "studio.html"}
+
+
+def make_site():
+    """Папка site/ — ровно то, что уезжает в интернет.
+
+    Зачем она нужна. На хостинге (Cloudflare Pages) отдаётся содержимое
+    одной папки. Если указать корень проекта, наружу попадут tools/,
+    src/ и docs/ — служебные скрипты проверок, которые никто видеть не
+    должен. Поэтому собираем отдельную папку ровно из шести файлов.
+
+    Имена приводятся к человеческим: NebulaBloom.html -> index.html.
+    Иначе главная страница была бы nebula-bloom.html и по ссылке.
+
+    Папка site/ в git — намеренно. На хостинге нечем собрать проект:
+    Python там не запускается, а Cloudflare выполняет только Node.
+    """
+    site = os.path.join(ROOT, "site")
+    if not os.path.isdir(site):
+        os.makedirs(site)
+    for old in os.listdir(site):
+        p = os.path.join(site, old)
+        if os.path.isfile(p):
+            os.remove(p)
+    n = 0
+    for src_name, dst_name in SITE_NAMES.items():
+        src = os.path.join(ROOT, "dist", "min", src_name)
+        if os.path.isfile(src):
+            shutil.copyfile(src, os.path.join(site, dst_name))
+            n += 1
+    for f in ("sw.js", "manifest.webmanifest", "icon.svg", "404.html"):
+        src = os.path.join(ROOT, f)
+        if os.path.isfile(src):
+            shutil.copyfile(src, os.path.join(site, f))
+            n += 1
+    size = sum(os.path.getsize(os.path.join(site, f)) for f in os.listdir(site))
+    log("")
+    log("=== ПАПКА ДЛЯ ВЫКЛАДКИ ===")
+    log("  site/: %d файлов, %.0f КБ — это всё, что уезжает в интернет" % (n, size / 1024.0))
+    return n
 
 
 def verify(results):
