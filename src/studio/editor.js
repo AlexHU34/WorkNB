@@ -1,4 +1,4 @@
-/* NEBULA Studio — интерфейс редактора.
+/* AERIS Studio — интерфейс редактора.
  *
  * Три панели, как в Unity: иерархия, вьюпорт, инспектор. Отличие в том,
  * что здесь нет шага «сборки»: кнопка «Опубликовать» превращает сцену в
@@ -150,7 +150,7 @@ async function pasteScene() {
   let data = null;
   try { data = JSON.parse(text); } catch (e) { data = null; }
   if (!data || !Array.isArray(data.objects)) {
-    log("это не сцена NEBULA Studio", "err");
+    log("это не сцена AERIS Studio", "err");
     return;
   }
   pushUndo();
@@ -725,7 +725,7 @@ function publish() {
   st.scene.camera.pitch = round2(st.pitch);
   const r = Studio.publish(st.scene);
   if (!r.ok) { log("❌ " + r.error, "err"); return; }
-  log("✅ опубликовано в каталог. Открой NebulaBloom → «Мои игры»", "ok");
+  log("✅ опубликовано в каталог. Открой Aeris → «Мои игры»", "ok");
   Studio.save(st.scene);
   st.dirty = false;
   $("status").textContent = "опубликовано " + new Date().toLocaleTimeString();

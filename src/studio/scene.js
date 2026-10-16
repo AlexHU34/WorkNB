@@ -1,4 +1,4 @@
-/* NEBULA Studio — модель сцены и компиляция в BloomScript.
+/* AERIS Studio — модель сцены и компиляция в BloomScript.
  *
  * Отделена от интерфейса намеренно: здесь нет DOM и нет localStorage,
  * поэтому её можно проверять в Node как обычные данные (см. studio-gate).
@@ -136,7 +136,7 @@ function toBloomScript(scene) {
   const q = (s) => '"' + String(s).replace(/"/g, "'") + '"';
 
   L.push("// " + (scene.title || "Моя сцена"));
-  L.push("// Сделано в NEBULA Studio");
+  L.push("// Сделано в AERIS Studio");
   L.push("");
 
   const anySprite = scene.objects.some(o => o.kind === "sprite");

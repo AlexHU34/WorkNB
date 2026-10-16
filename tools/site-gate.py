@@ -38,9 +38,9 @@ def check(cond, msg):
 
 EXPECT = {"index.html", "lang.html", "studio.html",
           "sw.js", "manifest.webmanifest", "icon.svg", "404.html"}
-PAIRS = [("index.html", "NebulaBloom.html"),
+PAIRS = [("index.html", "Aeris.html"),
          ("lang.html", "BloomScript.html"),
-         ("studio.html", "NebulaStudio.html")]
+         ("studio.html", "AerisStudio.html")]
 
 print("=== СОСТАВ ПАПКИ ===")
 if not os.path.isdir(SITE):

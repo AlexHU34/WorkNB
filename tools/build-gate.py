@@ -63,7 +63,7 @@ p = subprocess.run([sys.executable, BUILD, "--no-verify"],
                    cwd=ROOT, capture_output=True, text=True,
                    encoding="utf-8", errors="replace")
 ok(p.returncode == 0, "сборка отработала (--no-verify)")
-for n in ("NebulaBloom.html", "BloomScript.html"):
+for n in ("Aeris.html", "BloomScript.html"):
     q = os.path.join(DIST, n)
     ok(os.path.isfile(q) and os.path.getsize(q) > 1000,
        "%s собран: %d КБ" % (n, os.path.getsize(q) // 1024 if os.path.isfile(q) else 0))
@@ -74,7 +74,7 @@ ok(not junk, "мусора в dist/ не осталось: %s" % (junk or "не�
 # 5. СОДЕРЖИМОЕ важнее имени: в собранном файле должен быть настоящий код,
 #    а не исходник приложения. Проверяем по размеру и по отсутствию
 #    внешних <script src> — у исходника они есть, у сборки нет.
-nb = os.path.join(DIST, "NebulaBloom.html")
+nb = os.path.join(DIST, "Aeris.html")
 if os.path.isfile(nb):
     t = io.open(nb, encoding="utf-8").read()
     ext = re.findall(r'<script src="([^"]+)"', t)

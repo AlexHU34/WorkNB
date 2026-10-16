@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-run-tests.py — пргон автотестов NEBULA BLOOM в headless Chrome.
+run-tests.py — пргон автотестов AERIS в headless Chrome.
 
 Использование:
     python tools/run-tests.py                 # полный прогон всех игр (ворота)
@@ -551,7 +551,7 @@ def cmd_list(_args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="автотесты NEBULA BLOOM")
+    ap = argparse.ArgumentParser(description="автотесты AERIS")
     ap.add_argument("--behaviour", action="store_true", help="только поведенческие проверки")
     ap.add_argument("--engine", action="store_true", help="только тесты движка E3")
     ap.add_argument("--syntax", action="store_true", help="только проверка синтаксиса (быстро)")

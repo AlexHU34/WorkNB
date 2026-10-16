@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Гейт офлайн-сборки: dist/NebulaBloom.html работает один, без каталога src/.
+"""Гейт офлайн-сборки: dist/Aeris.html работает один, без каталога src/.
 
 Смысл проверки: приложение обязано запускаться двойным кликом по одному файлу.
 Если сборка тянет внешние скрипты, она не самостоятельна. Проверяем честно —
@@ -16,7 +16,7 @@ import tempfile
 
 sys.stdout.reconfigure(encoding='utf-8')
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DIST = os.path.join(ROOT, "dist", "NebulaBloom.html")
+DIST = os.path.join(ROOT, "dist", "Aeris.html")
 
 GAME = '''// Прыгающий кубик
 let px = 0
@@ -90,7 +90,7 @@ def find_chrome():
 
 def main():
     if not os.path.isfile(DIST):
-        print("FAIL  нет dist/NebulaBloom.html — сначала python build.py")
+        print("FAIL  нет dist/Aeris.html — сначала python build.py")
         return 1
     chrome = find_chrome()
     if not chrome:
@@ -98,7 +98,7 @@ def main():
         return 1
 
     box_dir = tempfile.mkdtemp(prefix="nbdist_")
-    target = os.path.join(box_dir, "NebulaBloom.html")
+    target = os.path.join(box_dir, "Aeris.html")
     shutil.copy2(DIST, target)
 
     src_json = GAME.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")

@@ -60,7 +60,7 @@ BANNED = [
     ("динамический import()", re.compile(r'\bimport\s*\(')),
 ]
 
-README = """# NEBULA BLOOM — готовый к выкладке пакет
+README = """# AERIS — готовый к выкладке пакет
 
 Собранный продукт. Дальше его только заливают на хостинг.
 
@@ -70,7 +70,7 @@ README = """# NEBULA BLOOM — готовый к выкладке пакет
 |---|---|
 | `index.html` | приложение: каталог из 100 игр, точка входа |
 | `editor.html` | редактор и среда BloomScript, свои игры на публикацию |
-| `studio.html` | NEBULA Studio: сборка 3D-сцены мышью и публикация в каталог |
+| `studio.html` | AERIS Studio: сборка 3D-сцены мышью и публикация в каталог |
 
 Все три файла самодостаточны: движок, интерпретатор и игры встроены внутрь.
 Каталога `src/` рядом нет и не требуется. Интернет для запуска не нужен —
@@ -169,9 +169,9 @@ def main():
 
     # Отдаём минифицированную сборку: игрок получает файл на 27-49% меньше.
     # Эталон без сжатия остаётся в dist/ для гейтов, которые читают исходники.
-    src_app = pick("NebulaBloom.html")
+    src_app = pick("Aeris.html")
     src_editor = pick("BloomScript.html")
-    src_studio = pick("NebulaStudio.html")
+    src_studio = pick("AerisStudio.html")
     for p in (src_app, src_editor, src_studio):
         if not os.path.isfile(p):
             log("НЕТ %s — сначала python build.py" % os.path.relpath(p, ROOT))

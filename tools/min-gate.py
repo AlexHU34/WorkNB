@@ -33,9 +33,9 @@ MIN = os.path.join(ROOT, "dist", "min")
 # повтор, окно кода с подсказками, свободная камера и диагностика.
 # Редактор прибавил диагностику, доступность и расширенные подсказки.
 BUDGET_KB = {
-    "NebulaBloom.html": 540,
+    "Aeris.html": 540,
     "BloomScript.html": 215,
-    "NebulaStudio.html": 72,
+    "AerisStudio.html": 72,
 }
 
 PROBE = r'''
@@ -48,7 +48,7 @@ PROBE = r'''
   ok(typeof window.BB !== "undefined", "хранилище BB загрузилось");
   ok(typeof createRuntime === "function", "среда createRuntime загрузилась");
   /* Studio в приложении нет намеренно: он живёт на своей странице,
-     NebulaStudio.html. Проверяется отдельным гейтом. */
+     AerisStudio.html. Проверяется отдельным гейтом. */
 
   /* Каталог нарисован: это доказывает, что разметка не поехала от сжатия. */
   var cards = document.querySelectorAll("#gridAll .card").length;
@@ -141,7 +141,7 @@ def budget_check():
 
 def run_probe():
     """Гоняет проверку поведения на минифицированном приложении."""
-    target = os.path.join(MIN, "NebulaBloom.html")
+    target = os.path.join(MIN, "Aeris.html")
     if not os.path.isfile(target):
         print("FAIL  нет минифицированного приложения")
         return 1
@@ -191,11 +191,11 @@ def check_globals_kept():
     rc = 0
     names = ["E3", "E3GL", "E3Step", "E3Pool", "Interp", "Env", "parse",
              "createRuntime", "BB", "Studio", "StudioEditor", "StudioCode"]
-    for name, fn in (("NebulaBloom.html", ("E3", "Interp", "Env", "parse",
+    for name, fn in (("Aeris.html", ("E3", "Interp", "Env", "parse",
                                            "createRuntime", "BB")),
                      ("BloomScript.html", ("Interp", "Env", "parse",
                                            "createRuntime", "E3")),
-                     ("NebulaStudio.html", ("E3", "Studio", "StudioEditor",
+                     ("AerisStudio.html", ("E3", "Studio", "StudioEditor",
                                             "StudioCode"))):
         p = os.path.join(MIN, name)
         if not os.path.isfile(p):

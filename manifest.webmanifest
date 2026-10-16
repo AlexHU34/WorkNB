@@ -1,6 +1,6 @@
 {
-  "name": "NEBULA BLOOM — игры и конструктор",
-  "short_name": "NEBULA BLOOM",
+  "name": "AERIS",
+  "short_name": "AERIS",
   "description": "Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без сети.",
   "lang": "ru",
   "start_url": "./index.html",

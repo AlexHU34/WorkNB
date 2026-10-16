@@ -44,8 +44,8 @@ const OUT = join(DIST, "bundle");
 const TARGETS = {
   app: {
     key: "app",
-    entry: "NebulaBloom.js",
-    ref: "NebulaBloom.html",
+    entry: "Aeris.js",
+    ref: "Aeris.html",
     modules: [
       "src/data/store.js",
       "src/engine/e3.js",
@@ -61,8 +61,8 @@ const TARGETS = {
   },
   studio: {
     key: "studio",
-    entry: "NebulaStudio.js",
-    ref: "NebulaStudio.html",
+    entry: "AerisStudio.js",
+    ref: "AerisStudio.html",
     modules: ["src/engine/e3.js", "src/studio/scene.js", "src/studio/editor.js",
       "src/studio/codewin.js"],
   },

@@ -1,9 +1,9 @@
 {
-  "name": "nebula-bloom",
+  "name": "aeris",
   "version": "1.0.0",
   "private": true,
   "sideEffects": true,
-  "description": "NEBULA BLOOM — каталог 3D-игр и среда BloomScript. Оффлайн-сборка одним файлом.",
+  "description": "AERIS. Оффлайн-сборка одним файлом.",
   "scripts": {
     "build": "node tools/esbuild.mjs",
     "watch": "node tools/esbuild.mjs --watch",

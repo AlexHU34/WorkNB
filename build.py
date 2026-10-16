@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Сборщик NEBULA BLOOM.
+"""Сборщик AERIS.
 
 Задача: приложение должно работать офлайн одним файлом (открыл index.html —
 и играешь), но код при этом живёт в куче модулей, а не в монолите на полмегабайта.
@@ -12,7 +12,7 @@
 
 build.py делает две вещи:
 
-  python build.py            → dist/NebulaBloom.html   (приложение одним файлом)
+  python build.py            → dist/Aeris.html   (приложение одним файлом)
                               dist/BloomScript.html    (редактор одним файлом)
 
 Модули инлайнятся на место тега <script src="...">. Порядок не меняется:
@@ -47,9 +47,9 @@ except Exception:
 
 # Имя исходника -> имя собранного файла.
 TARGETS = [
-    ("index.html", "NebulaBloom.html"),
+    ("index.html", "Aeris.html"),
     ("lang.html", "BloomScript.html"),
-    ("studio.html", "NebulaStudio.html"),
+    ("studio.html", "AerisStudio.html"),
 ]
 
 SRC_RE = re.compile(
@@ -162,9 +162,9 @@ def minify(results):
     чтобы tools/min-gate.py гонял именно то, что скачает человек.
 
     Сколько это даёт (замерено на проекте):
-        NebulaBloom   684 -> 498 КБ   (-27%)
+        Aeris   684 -> 498 КБ   (-27%)
         BloomScript   328 -> 194 КБ   (-41%)
-        NebulaStudio  109 ->  56 КБ   (-49%)
+        AerisStudio  109 ->  56 КБ   (-49%)
 
     Ниже 500 КБ приложение не ужмётся без потери игр: 285 КБ из 498 — это
     сами сто игр, и esbuild выжимает из них уже почти всё. Разметка весит
@@ -212,9 +212,9 @@ def minify(results):
     return ok
 
 
-SITE_NAMES = {"NebulaBloom.html": "index.html",
+SITE_NAMES = {"Aeris.html": "index.html",
               "BloomScript.html": "lang.html",
-              "NebulaStudio.html": "studio.html"}
+              "AerisStudio.html": "studio.html"}
 
 
 def make_site():
@@ -225,8 +225,8 @@ def make_site():
     src/ и docs/ — служебные скрипты проверок, которые никто видеть не
     должен. Поэтому собираем отдельную папку ровно из шести файлов.
 
-    Имена приводятся к человеческим: NebulaBloom.html -> index.html.
-    Иначе главная страница была бы nebula-bloom.html и по ссылке.
+    Имена приводятся к человеческим: Aeris.html -> index.html.
+    Иначе главная страница была бы aeris.html и по ссылке.
 
     Папка site/ в git — намеренно. На хостинге нечем собрать проект:
     Python там не запускается, а Cloudflare выполняет только Node.

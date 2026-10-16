@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1280">
-<title>BLOOMSCRIPT — свой язык программирования для NEBULA BLOOM</title>
+<title>BLOOMSCRIPT — свой язык программирования для AERIS</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -536,7 +536,7 @@ details.help[open] summary::before{transform:rotate(90deg)}
 <script>
 "use strict";
 /* ============================================================================
-   BLOOMSCRIPT — интерпретатор языка поверх 3D-движка NEBULA BLOOM.
+   BLOOMSCRIPT — интерпретатор языка поверх 3D-движка AERIS.
    Движок не копия, а тот же самый файл, что у приложения:
    <script src="src/engine/e3.js"> подключается выше. Расхождение движков
    больше невозможно по построению.
@@ -3390,7 +3390,7 @@ function ugCurrentId() {
   return 1;
 }
 
-/* Приём кода из NEBULA Studio: та же схема, что с приложением, но payload
+/* Приём кода из AERIS Studio: та же схема, что с приложением, но payload
    приходит целиком, а не по номеру в списке игр. */
 function ugAdoptFromStudio() {
   let raw = null;
@@ -3418,7 +3418,7 @@ function ugAdoptFromStudio() {
   edTitle.textContent = ugFileName(src, title);
   refresh();
   setView("explorer");
-  printToConsole("Сцена из NEBULA Studio загружена: «" + title + "»", "ok");
+  printToConsole("Сцена из AERIS Studio загружена: «" + title + "»", "ok");
   return true;
 }
 /* Предпросмотр кода из Studio. Отдельной вкладки у редактора нет, поэтому

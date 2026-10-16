@@ -30,9 +30,9 @@ sys.stdout.reconfigure(encoding="utf-8")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE = os.path.join(ROOT, "site")
 
-PAGES = [("index.html", "NEBULA BLOOM"),
+PAGES = [("index.html", "AERIS"),
          ("lang.html", "BLOOMSCRIPT"),
-         ("studio.html", "NEBULA Studio")]
+         ("studio.html", "AERIS Studio")]
 
 
 def find_chrome():
