@@ -609,6 +609,8 @@ function createRuntime(opts) {
     } catch (e) {
       if (e instanceof LangError) {
         out("строка " + e.line + ": " + e.message, "err");
+        { const tip = typeof errHelp === "function" ? errHelp(e.message) : "";
+          if (tip) out("как исправить: " + tip, "warn"); }
         if (opts.debug) out(String(e.stack || ""), "err");
       } else {
         out("внутренняя ошибка: " + e.message, "err");
