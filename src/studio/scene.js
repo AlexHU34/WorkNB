@@ -231,7 +231,149 @@ function readGames() {
   }
 }
 
+/* =============== БИБЛИОТЕКА СЦЕН ===============
+ *
+ * Раньше сцена была одна и переживалась только сама с собой:
+ * закрыл вкладку — и всё, что не успел сохранить, пропало. Буфер
+ * обмена тут не спасает: он не переживает перезагрузку страницы и
+ * не переносится на другой компьютер.
+ *
+ * Теперь сцену можно назвать, положить в список, открыть позже и
+ * удалить. Список хранится отдельным ключом, поэтому прежние
+ * сохранения остаются нетронутыми.
+ */
+const LIB_KEY = "bb2_scenes.v1";
+
+function libRead() {
+  try {
+    const raw = localStorage.getItem(LIB_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function libWrite(list) {
+  try {
+    localStorage.setItem(LIB_KEY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Кладёт сцену в список. Одна и та же сцена не дублируется: если
+   с таким именем уже есть, она обновляется, иначе список забился бы
+   копиями одного и того же. */
+function libSave(scene, name) {
+  const title = String(name || scene.name || "Без названия").trim()
+    .slice(0, 60) || "Без названия";
+  const list = libRead();
+  const code = toBloomScript(scene);
+  const at = list.findIndex(s => s.name === title);
+  const rec = { name: title, code: code, when: Date.now() };
+  if (at >= 0) list[at] = rec;
+  else list.unshift(rec);
+  if (list.length > 60) list.length = 60;
+  return libWrite(list) ? { ok: true, name: title, count: list.length }
+                        : { ok: false, error: "в хранилище нет места" };
+}
+
+function libOpen(name) {
+  const rec = libRead().find(s => s.name === name);
+  return rec ? rec : null;
+}
+
+function libDelete(name) {
+  const list = libRead().filter(s => s.name !== name);
+  return libWrite(list);
+}
+
+function libList() {
+  return libRead().map(s => ({
+    name: s.name,
+    when: s.when,
+    lines: String(s.code || "").split("\n").length
+  }));
+}
+
+/* ---------- ФАЙЛЫ ----------
+ *
+ * Сцена выгружается обычным текстом: код на языке BloomScript. Файл
+ * можно открыть в блокноте, переслать другу и положить в папку —
+ * ничего особенного, обычный текст.
+ *
+ * Почему не .json, как в хранилище: в файле должно быть видно глазами.
+ * Сцена в коде читается, её можно поправить вручную.
+ */
+function sceneToText(scene, name) {
+  const title = String(name || scene.name || "Моя сцена");
+  return ["// " + title,
+          "// Сцена из AERIS Studio. Открой файл в редакторе AERIS,",
+          "// чтобы изменить её, или перенеси эти строки в редактор кода.",
+          ""].concat(String(toBloomScript(scene)).split("\n")).join("\n");
+}
+
+function sceneDownload(scene, name) {
+  try {
+    const text = sceneToText(scene, name);
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safe = String(name || "сцена").replace(/[^\wа-яА-ЯёЁ -]+/g, "")
+      .trim().slice(0, 40) || "сцена";
+    a.href = url;
+    a.download = safe + ".bs";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+}
+
+function scenePickFile() {
+  return new Promise(function (resolve) {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = ".bs,.txt,text/plain";
+    inp.onchange = function () {
+      const f = inp.files && inp.files[0];
+      if (!f) { resolve({ ok: false, error: "файл не выбран" }); return; }
+      const fr = new FileReader();
+      fr.onload = function () { resolve({ ok: true, text: String(fr.result || "") }); };
+      fr.onerror = function () { resolve({ ok: false, error: "файл не прочитан" }); };
+      fr.readAsText(f, "utf-8");
+    };
+    inp.click();
+  });
+}
+
+/* Из текста вытаскиваем код сцены: у файла сверху может быть
+   комментарий-заголовок, а сам код начинается с fn. */
+function sceneFromText(text) {
+  const lines = String(text || "").split("\n");
+  const at = lines.findIndex(l => /^\s*fn\b/.test(l));
+  const code = (at >= 0 ? lines.slice(at) : lines).join("\n");
+  const head = lines.find(l => /^\s*\/\/\s*(.+)$/.test(l));
+  return {
+    code: code,
+    name: head ? head.replace(/^\s*\/\/\s*/, "").trim().slice(0, 60)
+               : "Загруженная сцена"
+  };
+}
+
 const Studio = {
+  libList: libList,
+  libSave: libSave,
+  libOpen: libOpen,
+  libDelete: libDelete,
+  sceneDownload: sceneDownload,
+  scenePickFile: scenePickFile,
+  sceneFromText: sceneFromText,
   SCENE_VERSION: SCENE_VERSION,
   STORAGE_KEY: STORAGE_KEY,
   KINDS: KINDS,

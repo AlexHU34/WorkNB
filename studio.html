@@ -28,9 +28,13 @@ body{
   font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
   overflow:hidden;
 }
+/* Панель инструментов переросла ширину окна и кнопки начали
+   обрезаться справа. Поэтому она переносится на вторую строку и
+   прокручивается вбок, а не отрезает часть кнопок. */
 #top{
-  height:52px;display:flex;align-items:center;gap:8px;padding:0 12px;
-  background:#d5deed;border-bottom:1px solid #e3e8f0;
+  min-height:52px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;
+  background:#d5deed;border-bottom:1px solid #e3e8f0;overflow-x:auto;
+  max-height:116px;
 }
 #top .logo{font-weight:800;letter-spacing:.5px;margin-right:6px}
 #top .logo span{color:#40312d}
@@ -147,6 +151,21 @@ body{
   padding:6px 10px;font-size:11px;color:#5a6377;line-height:1.6;
 }
 #flyHint b{color:#6b7280}
+
+/* Окно списка сцен */
+.sceneWin{position:fixed;z-index:9000;right:18px;top:74px;width:390px;
+  background:#fff;border:1px solid var(--vs-border,#dcdce0);border-radius:16px;
+  box-shadow:0 24px 60px rgba(42,42,44,.26);overflow:hidden}
+.sceneWinHead{display:flex;align-items:center;gap:10px;padding:12px 14px;
+  border-bottom:1px solid var(--vs-border,#dcdce0);font-size:14px}
+.sceneWinHead span{color:#6c6f76;font-size:12px;margin-left:auto}
+.sceneWinBody{max-height:64vh;overflow:auto;padding:8px}
+.sceneRow{display:grid;grid-template-columns:1fr auto auto;gap:8px;
+  align-items:center;padding:10px;border-radius:10px}
+.sceneRow:hover{background:#f4f4f5}
+.sceneRow small{grid-column:1;color:#8e9096;font-size:11px}
+.sceneRow .btn{padding:5px 10px;font-size:12px;margin:0}
+.sceneEmpty{padding:18px 12px;color:#6c6f76;font-size:13px;line-height:1.6}
 </style>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -173,6 +192,9 @@ body{
   <div class="sep"></div>
   <button class="btn primary" id="btnPlay">▶ Играть</button>
   <button class="btn" id="btnSave">Сохранить</button>
+  <button class="btn" id="btnLibrary" title="Список сохранённых сцен">📚 Сцены</button>
+  <button class="btn" id="btnFileOut" title="Сохранить сцену файлом на компьютер">⬇ Файл</button>
+  <button class="btn" id="btnFileIn" title="Загрузить сцену из файла">⬆ Загрузить</button>
   <button class="btn" id="btnPublish">Опубликовать</button>
   <button class="btn" id="btnCode">Код</button>
   <div id="status">загрузка…</div>

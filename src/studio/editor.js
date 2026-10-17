@@ -899,6 +899,120 @@ function start() {
   };
   $("btnSnap").classList.toggle("on", st.snap);
   $("btnSave").onclick = save;
+
+/* ============ БИБЛИОТЕКА СЦЕН И ФАЙЛЫ ============
+ *
+ * Кнопки появились в тот же момент, что и функции в scene.js. Без
+ * этого обработчика они были бы просто картинками.
+ */
+function sceneName() {
+  const el = $("titleIn");
+  return (el && el.value || "").trim() || "Без названия";
+}
+
+function showSceneList() {
+  const S = window.Studio;
+  if (!S || !S.libList) { toast("Библиотека недоступна"); return; }
+  const list = S.libList();
+  document.querySelectorAll(".sceneWin").forEach(n => n.remove());
+  const old = $("sceneWin");
+  if (old) old.remove();
+
+  const win = document.createElement("div");
+  win.className = "sceneWin";
+  win.id = "sceneWin";
+  const head = document.createElement("div");
+  head.className = "sceneWinHead";
+  head.innerHTML = "<b>Мои сцены</b><span>" +
+    (list.length ? list.length + " шт." : "пока пусто") +
+    "</span><button class=\"btn\" style=\"margin:0;padding:2px 9px\">✕</button>";
+  head.querySelector("button").onclick = () => win.remove();
+  win.appendChild(head);
+
+  const body = document.createElement("div");
+  body.className = "sceneWinBody";
+  if (!list.length) {
+    const hint = document.createElement("div");
+    hint.className = "sceneEmpty";
+    hint.textContent = "Сцена ещё не сохранена. Нажми «Сохранить» — " +
+      "и она появится здесь.";
+    body.appendChild(hint);
+  } else {
+    list.forEach(s => {
+      const row = document.createElement("div");
+      row.className = "sceneRow";
+      const when = new Date(s.when || 0);
+      const d = isNaN(when.getTime()) ? "" :
+        when.toLocaleDateString("ru-RU") + " " +
+        String(when.getHours()).padStart(2, "0") + ":" +
+        String(when.getMinutes()).padStart(2, "0");
+      const nm = document.createElement("span");
+      nm.className = "sceneName";
+      nm.textContent = s.name;
+      const meta = document.createElement("small");
+      meta.textContent = (d ? d + " · " : "") + s.lines + " строк";
+      const open = document.createElement("button");
+      open.className = "btn";
+      open.textContent = "Открыть";
+      open.onclick = () => {
+        const rec = window.Studio.libOpen(s.name);
+        if (!rec) { toast("Сцена не найдена"); return; }
+        loadSceneFromCode(rec.code, s.name);
+        win.remove();
+        toast("Открыто: " + s.name);
+      };
+      const del = document.createElement("button");
+      del.className = "btn";
+      del.textContent = "Удалить";
+      del.onclick = () => {
+        if (!confirm("Удалить сцену «" + s.name + "»?")) return;
+        window.Studio.libDelete(s.name);
+        win.remove();
+        showSceneList();
+      };
+      row.appendChild(nm);
+      row.appendChild(meta);
+      row.appendChild(open);
+      row.appendChild(del);
+      body.appendChild(row);
+    });
+  }
+  win.appendChild(body);
+  document.body.appendChild(win);
+}
+
+/* Кладёт код в окно редактора и открывает его.
+ *
+ * Файл со сценой — это код на BloomScript, поэтому его место в окне
+ * кода, а не в иерархии сцены. Обратного разбора кода в объекты сцены
+ * здесь нет: сцена пишется кодом, значит и возвращается кодом. Из
+ * окна кода его можно запустить одной кнопкой.
+ */
+function loadSceneFromCode(code, name) {
+  const box = $("codeIn");
+  if (!box) { toast("Окно кода недоступно"); return; }
+  box.value = String(code || "");
+  const wrap = $("codeWrap");
+  if (wrap) wrap.hidden = false;
+  const msg = $("codeMsg");
+  if (msg) msg.textContent = name ? ("открыто: " + name) : "открыто из файла";
+  const el = $("titleIn");
+  if (el && name) el.value = name;
+  toast("Код загружен. Нажми «Запустить», чтобы увидеть сцену");
+}
+
+$("btnLibrary").onclick = showSceneList;
+$("btnFileOut").onclick = function () {
+  const r = window.Studio.sceneDownload(st.scene, sceneName());
+  toast(r.ok ? "Файл сохранён" : "Не удалось: " + r.error);
+};
+$("btnFileIn").onclick = function () {
+  window.Studio.scenePickFile().then(function (r) {
+    if (!r.ok) { toast(r.error); return; }
+    const p = window.Studio.sceneFromText(r.text);
+    loadSceneFromCode(p.code, p.name);
+  });
+};
   $("btnPublish").onclick = publish;
   $("btnUndo").onclick = () => undo();
   $("btnRedo").onclick = () => redo();
