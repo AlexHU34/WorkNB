@@ -526,7 +526,7 @@ body::before,body::after{display:none}
   <main class="main" id="lobbyMain">
     <div class="hero" id="hero"></div>
     <div class="stats-strip">
-      <div class="stat"><span class="em">🟢</span><div><b id="stOnline">128K</b><small>сейчас в игре</small></div></div>
+      <div class="stat"><span class="em">🎮</span><div><b id="stOnline">0</b><small>игр ты уже открыл</small></div></div><div class="stat"><span class="em">✅</span><div><b id="stTruth">0</b><small>из них прошёл</small></div></div>
       <div class="stat"><span class="em">🎨</span><div><b id="stWorks">0</b><small>твоих работ</small></div></div>
       <div class="stat"><span class="em">🪙</span><div><b id="stCoins">0</b><small>флоринов</small></div></div>
       <div class="stat"><span class="em">🔥</span><div><b id="stStreak">1 день</b><small>серия входа</small></div></div>
@@ -536,11 +536,11 @@ body::before,body::after{display:none}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <div class="tabs" id="tabs">
           <button class="tab active" data-f="all">Все</button>
-          <button class="tab" data-f="pop">Популярные</button>
+          <button class="tab" data-f="pop">Не начатые</button>
           <button class="tab" data-f="new">Новые</button>
           <button class="tab" data-f="fav">❤️ Мои</button>
         </div>
-        <select class="sortsel" id="sort" onchange="renderLobby()"><option value="pop">Сначала популярные</option><option value="like">По рейтингу</option><option value="az">По алфавиту</option></select>
+        <select class="sortsel" id="sort" onchange="renderLobby()"><option value="pop">Сначала те, что не начал</option><option value="like">По звёздам</option><option value="az">По алфавиту</option></select>
       </div>
     </div>
     <div class="section"><div class="section-head"><h3>🕘 Недавние</h3></div><div class="row-scroll" id="rowRecent"></div></div>
@@ -610,7 +610,7 @@ body::before,body::after{display:none}
 <div class="overlay" id="overlay"><div class="modal">
   <div class="modal-thumb" id="mThumb"><button title="Закрыть окно игры" onclick="closeModal()">✕</button></div>
   <div class="modal-body"><h2 id="mTitle"></h2><div style="color:var(--muted);font-size:13px;margin:4px 0 10px" id="mSub"></div>
-    <div style="display:flex;gap:10px;background:var(--bg2);border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:13.5px;font-weight:800"><span id="mPlayers"></span><span id="mLikes"></span><span>🟢 онлайн</span><span id="mStars" style="color:#9c8547"></span></div>
+    <div style="display:flex;gap:10px;background:var(--bg2);border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:13.5px;font-weight:800"><span id="mPlayers"></span><span id="mLikes"></span><span id="mTruth"></span><span id="mStars" style="color:#9c8547"></span></div>
     <p id="mDesc" style="font-size:14.5px;line-height:1.55;color:var(--muted);margin-bottom:12px"></p>
     <div class="ach-row" id="mAch"></div>
     <div style="display:flex;gap:10px"><button class="btn btn-green" id="mPlay">▶ Играть</button><button class="btn btn-white" id="mFav" title="Добавить в избранное">🤍</button></div>
@@ -706,6 +706,8 @@ body::before,body::after{display:none}
 <script src="src/app/games.js"></script>
 <!-- Данные каталога: см. src/app/data.js -->
 <script src="src/app/data.js"></script>
+<!-- Честный учёт: что человек реально сыграл, без выдуманных счётчиков. -->
+<script src="src/app/truth.js"></script>
 <script src="src/app/app.js"></script>
 </script>
 </body>

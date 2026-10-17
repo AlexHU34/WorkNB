@@ -177,6 +177,8 @@ function shakeIt(mag){
 }
 /* ============ HELPERS ============ */
 function toast(t){const el=$("toast");el.textContent=t;el.classList.add("show");clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove("show"),2300)}
+/* Шапка показывает настоящие числа: сколько игр человек уже открыл и прошёл. */
+function renderTruthStats(){const c=AERIS_TRUTH.counts();const e=$("stOnline");if(e)e.textContent=c.played;const d=$("stTruth");if(d)d.textContent=c.done}
 function saveAll(){store.set("bb2_favs",favs);store.set("bb2_coins",coins);store.set("bb2_xp",xp);store.set("bb2_works",works);store.set("bb2_owned",owned);store.set("bb2_ach",ach);store.set("bb2_hist",history);store.set("bb2_own",ownedG)}
 let lastLvl=0;function updateHUD(pop){$("coins").textContent="🪙 "+coins;const lvl=Math.floor(xp/200)+1;if(lastLvl&&lvl>lastLvl){setTimeout(()=>{sfx.win();boom(160);toast("🎉 Новый уровень "+lvl+"! Так держать!")},700)}lastLvl=lvl;$("lvlPill").textContent="⭐ "+lvl;$("lvlTxt").textContent=`Уровень ${lvl} • ${xp} XP`;$("lvlBar").style.width=((xp%200)/2)+"%";$("stCoins").textContent=coins;$("stWorks").textContent=works.length;const gc=$("gameCount");if(gc)gc.textContent="• "+GAMES.length+" игр";$("favCount").textContent=favs.length?`(${favs.length})`:"";$("achCount").textContent=`${ach.length}/${ACHS.length}`;if(pop){$("coins").classList.remove("pop");void $("coins").offsetWidth;$("coins").classList.add("pop")}saveAll()}
 function unlock(id){if(ach.includes(id))return;ach.push(id);saveAll();sfx.coin();toast("🏆 Достижение: "+ACHS.find(a=>a.id===id).n);renderAch();boom(60)}
@@ -187,24 +189,24 @@ function heroPlay(){const a=HERO[heroI].act;if(a===0)openShop();else openGame(a|
 function heroNext(){heroI=(heroI+1)%HERO.length;heroRender()}
 function heroGo(i){heroI=i;heroRender()}
 setInterval(()=>{if(document.hidden)return;if(!$("gameView").classList.contains("show")){heroI=(heroI+1)%HERO.length;heroRender()}},7000);
-function cardHTML(g,i){const loved=favs.includes(g.id),locked=g.price&&ownedG.indexOf(g.id)<0;return `<div class="card tilt${locked?" locked":""}${g.price?" vip":""}${g.isNew?" fresh":""}" data-id="${g.id}" onclick="openModal(${g.id})" style="animation:cardIn .45s backwards;animation-delay:${((i||0)%12)*45}ms">${locked?`<div class="badge">🔒 ${g.price} 🪙</div>`:(g.badge?`<div class="badge">${g.badge}</div>`:"")}<button class="fav ${loved?"loved":""}" onclick="event.stopPropagation();toggleFav(${g.id})">${loved?"❤️":"🤍"}</button><div class="thumb" style="background:${g.grad}"><div class="shine"></div><span class="big">${g.emoji}</span><div class="play"><div class="play-btn">▶</div></div></div><div class="card-body"><b>${g.title}</b><div class="meta"><span>👥 ${fmt(g.players)}</span><span>👍 ${g.likes}%</span></div><div class="stars">${"★".repeat(g.stars)}${"☆".repeat(5-g.stars)}</div></div></div>`}
+function cardHTML(g,i){const loved=favs.includes(g.id),locked=g.price&&ownedG.indexOf(g.id)<0;return `<div class="card tilt${locked?" locked":""}${g.price?" vip":""}${g.isNew?" fresh":""}" data-id="${g.id}" onclick="openModal(${g.id})" style="animation:cardIn .45s backwards;animation-delay:${((i||0)%12)*45}ms">${locked?`<div class="badge">🔒 ${g.price} 🪙</div>`:(g.badge?`<div class="badge">${g.badge}</div>`:"")}<button class="fav ${loved?"loved":""}" onclick="event.stopPropagation();toggleFav(${g.id})">${loved?"❤️":"🤍"}</button><div class="thumb" style="background:${g.grad}"><div class="shine"></div><span class="big">${g.emoji}</span><div class="play"><div class="play-btn">▶</div></div></div><div class="card-body"><b>${g.title}</b><div class="meta"><span>${AERIS_TRUTH.meta(g)}</span></div><div class="stars">${"★".repeat(g.stars)}${"☆".repeat(5-g.stars)}</div></div></div>`}
 function skeleton(n){return Array(n).fill('<div class="skel"></div>').join("")}
 /* Статичные части лобби (популярное, недавние, боковой список) не зависят от
    строки поиска и фильтра — только от history/favs/игр. Раньше каждый ввод в
    поиск пересобирал их заново через innerHTML. Теперь они кэшируются и
    перерисовываются, только когда реально изменились данные. */
 const lobbyCache={row1:"",rowRecent:"",side:"",sig:"",n:0,q:"",sort:"",filter:"",shown:24};
-function renderLobby(skel){
+function renderLobby(skel){renderTruthStats();
   const grid=$("gridAll");if(skel){grid.innerHTML=skeleton(6);setTimeout(()=>renderLobby(false),450);return}
   const q=($("search").value||"").toLowerCase(),sort=$("sort").value;
   let list=GAMES.filter(g=>g.title.toLowerCase().includes(q));
-  if(filter==="pop")list=list.filter(g=>g.players>15000);
+  if(filter==="pop")list=list.filter(g=>AERIS_TRUTH.state(g)==="new");
   if(filter==="new")list=list.filter(g=>g.isNew);
   if(filter==="fav")list=list.filter(g=>favs.includes(g.id));
-  list.sort((a,b)=>sort==="like"?b.likes-a.likes:sort==="az"?a.title.localeCompare(b.title,"ru"):b.players-a.players);
+  list.sort((a,b)=>sort==="like"?b.stars-a.stars:sort==="az"?a.title.localeCompare(b.title,"ru"):(AERIS_TRUTH.state(b)==="new")-(AERIS_TRUTH.state(a)==="new"));
   const sig=history.join(",")+"|"+favs.join(",");
   if(sig!==lobbyCache.sig){
-    lobbyCache.row1=[...GAMES].sort((a,b)=>b.players-a.players).map(cardHTML).join("");
+    lobbyCache.row1=[...GAMES].sort((a,b)=>(AERIS_TRUTH.state(b)==="new")-(AERIS_TRUTH.state(a)==="new")||b.stars-a.stars).map(cardHTML).join("");
     lobbyCache.rowRecent=history.length?history.map(id=>{const g=GAMES.find(x=>x.id===id);return g?cardHTML(g):""}).join(""):`<div style="color:var(--muted);font-size:13.5px;padding:14px;font-weight:600">Сыграй во что-нибудь — и оно появится здесь 🕘</div>`;
     /* В боковом списке раньше было сто кнопок — длиннее экрана.
      Показываем первые двенадцать и пишем, сколько всего. */
@@ -261,7 +263,7 @@ function bindTilt(){
 }
 function scrollRow(id,dx){$(id).scrollBy({left:dx,behavior:"smooth"})}
 function contGame(){if(!history.length){toast("Сыграй во что-нибудь! 🎲");return}openGame(history[0])}
-function goHome(){stopMode();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameClose();$("gameView").classList.remove("show");$("gameView").classList.remove("mode-on");$("lobbyMain").style.display="block";stopTimer();renderLobby();scrollTo({top:0,behavior:"smooth"});const ts=document.getElementById("titleScreen");if(ts)ts.style.display="none"}
+function goHome(){stopMode();renderTruthStats();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameClose();$("gameView").classList.remove("show");$("gameView").classList.remove("mode-on");$("lobbyMain").style.display="block";stopTimer();renderLobby();scrollTo({top:0,behavior:"smooth"});const ts=document.getElementById("titleScreen");if(ts)ts.style.display="none"}
 function randomGame(){openModal(GAMES[Math.floor(Math.random()*GAMES.length)].id)}
 function toggleFav(id){sfx.click();favs=favs.includes(id)?favs.filter(f=>f!==id):[...favs,id];if(!history.includes(id)){}renderLobby();toast(favs.includes(id)?"В избранном ❤️":"Убрано из избранного")}
 function setFilter(f){filter=f;document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.f===f));sfx.click();renderLobby(true)}
@@ -278,7 +280,7 @@ $("search").addEventListener("input",()=>{
     const q=$("search").value.toLowerCase(),s=$("suggest");
     if(!q){s.classList.remove("show");return}
     const m=GAMES.filter(g=>g.title.toLowerCase().includes(q));
-    s.innerHTML=m.map(g=>`<button onclick="openModal(${g.id})">${g.emoji} ${g.title} <span style='margin-left:auto;color:var(--muted);font-size:12px'>👥 ${fmt(g.players)}</span></button>`).join("")||"<button>Ничего не найдено</button>";
+    s.innerHTML=m.map(g=>`<button onclick="openModal(${g.id})">${g.emoji} ${g.title} <span style='margin-left:auto;color:var(--muted);font-size:12px'>${AERIS_TRUTH.meta(g)}</span></button>`).join("")||"<button>Ничего не найдено</button>";
     s.classList.add("show");
   },180);
 });
@@ -305,7 +307,7 @@ magnet:"магнит",ferry:"паром",mole:"крот",hive:"улей",house:"
 aquarium:"аквариум",orient:"ориентирование",butterfly:"бабочка",mine:"шахта",
 dna:"ДНК",ghost:"призрак",firework:"фейерверк",rainbow:"радуга"};
 function modeLabel(g){return MODE_LABEL[g.mode]||"конструктор"}
-function openModal(id){const g=GAMES.find(x=>x.id===id);sfx.click();$("mThumb").style.background=g.grad;$("mThumb").querySelector(".big")?.remove();const b=document.createElement("span");b.className="big";b.textContent=g.emoji;$("mThumb").prepend(b);$("mTitle").textContent=g.title;$("mSub").textContent="AERIS • "+modeLabel(g)+" • без скачивания";$("mPlayers").textContent="👥 "+fmt(g.players);$("mLikes").textContent="👍 "+g.likes+"%";$("mStars").textContent="★".repeat(g.stars);$("mDesc").textContent=g.desc;$("mAch").innerHTML=ACHS.map(a=>`<span class="ach ${ach.includes(a.id)?"got":""}">${a.n}</span>`).join("");$("mFav").textContent=favs.includes(id)?"❤️ В избранном":"🤍 В избранное";$("mFav").onclick=()=>{toggleFav(id);openModal(id)};if(g.price&&ownedG.indexOf(id)<0){$("mPlay").textContent="🔓 Купить за "+g.price+" 🪙";$("mPlay").onclick=()=>{if(!ecoPay(g.price))return;ownedG.push(id);saveAll();sfx.win();boom(100);toast("Куплено: "+g.title+"! Приятной игры 👑");openModal(id)}}else{$("mPlay").textContent="▶ Играть";$("mPlay").onclick=()=>{closeModal();openGame(id)}};$("overlay").classList.add("show")}
+function openModal(id){const g=GAMES.find(x=>x.id===id);sfx.click();$("mThumb").style.background=g.grad;$("mThumb").querySelector(".big")?.remove();const b=document.createElement("span");b.className="big";b.textContent=g.emoji;$("mThumb").prepend(b);$("mTitle").textContent=g.title;$("mSub").textContent="AERIS • "+modeLabel(g)+" • без скачивания";$("mPlayers").textContent=AERIS_TRUTH.meta(g);$("mLikes").textContent="";$("mStars").textContent="★".repeat(g.stars);$("mDesc").textContent=g.desc;$("mAch").innerHTML=ACHS.map(a=>`<span class="ach ${ach.includes(a.id)?"got":""}">${a.n}</span>`).join("");$("mFav").textContent=favs.includes(id)?"❤️ В избранном":"🤍 В избранное";$("mFav").onclick=()=>{toggleFav(id);openModal(id)};if(g.price&&ownedG.indexOf(id)<0){$("mPlay").textContent="🔓 Купить за "+g.price+" 🪙";$("mPlay").onclick=()=>{if(!ecoPay(g.price))return;ownedG.push(id);saveAll();sfx.win();boom(100);toast("Куплено: "+g.title+"! Приятной игры 👑");openModal(id)}}else{$("mPlay").textContent="▶ Играть";$("mPlay").onclick=()=>{closeModal();openGame(id)}};$("overlay").classList.add("show")}
 function closeModal(){$("overlay").classList.remove("show")}
 $("overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeModal()});
 /* ============ SHOP ============ */
@@ -322,9 +324,9 @@ function dailyBonus(){const t=new Date().toDateString(),last=store.get("bb2_dail
 /* ============ GAME ENGINE ============ */
 function isModeGame(){const g=GAMES.find(x=>x.id===currentGame);return !!(g&&g.mode)}
 function allParts(){const base=[...(PARTS[currentGame]||[])];owned.forEach(e=>base.push({n:"Премиум",e,c:"Декор"}));return base}
-function openGame(id){const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.indexOf(id)<0){toast("Игра платная — купи её за "+gg.price+" 🪙 🔒");openModal(id);return}stopMode();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameOpen();currentGame=id;selected=null;zTop=10;curCat="Всё";undoStack=[];redoStack=[];sfx.click();
+function openGame(id){const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.indexOf(id)<0){toast("Игра платная — купи её за "+gg.price+" 🪙 🔒");openModal(id);return}stopMode();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameOpen();AERIS_TRUTH.markPlayed(id);currentGame=id;selected=null;zTop=10;curCat="Всё";undoStack=[];redoStack=[];sfx.click();
  const g=GAMES.find(x=>x.id===id);if(!history.includes(id)){history.unshift(id);history=history.slice(0,5)}
- $("lobbyMain").style.display="none";$("gameView").classList.add("show");$("gameView").classList.toggle("mode-on",!!g.mode);$("gTitle").textContent=g.emoji+" "+g.title;$("gPlayers").textContent=`👥 ${fmt(g.players)} • 👍 ${g.likes}%`;$("gTask").textContent=g.task;$("canvasBase").innerHTML=g.mode?"":g.base;
+ $("lobbyMain").style.display="none";$("gameView").classList.add("show");$("gameView").classList.toggle("mode-on",!!g.mode);$("gTitle").textContent=g.emoji+" "+g.title;$("gPlayers").textContent=AERIS_TRUTH.meta(g);$("gTask").textContent=g.task;$("canvasBase").innerHTML=g.mode?"":g.base;
  document.querySelectorAll("#canvas .part").forEach(e=>e.remove());setBg(g.mode?"night":"day");renderWorks();
  if(g.mode){$("starsPrev").innerHTML="";setProg(3);MODES[g.mode]();modeReplay=g.mode}
  else{renderCats();renderToolbar();renderPalette();updateProgress();liveStars();pushUndo()}
@@ -428,7 +430,7 @@ function stopMode(){if(modeCleanup){try{modeCleanup()}catch(e){}}modeCleanup=nul
 function saveClick(){const g=GAMES.find(x=>x.id===currentGame);if(g.mode&&modeFinish){modeFinish()}else{finishWork()}}
 function setProg(p){$("gProg").style.width=Math.max(3,Math.min(100,p))+"%";$("gProgTxt").textContent=Math.round(p)+"%"}
 function modeRoot(html){const d=document.createElement("div");d.className="mode";if(html)d.innerHTML=html;$("canvas").appendChild(d);return d}
-function awardResult(stars,thumb,n,achId,note){const g=GAMES.find(x=>x.id===currentGame);
+function awardResult(stars,thumb,n,achId,note){const g=GAMES.find(x=>x.id===currentGame);AERIS_TRUTH.markDone(currentGame,stars);
  let reward=40+stars*20;const fb=ecoFirstBonus();if(fb>0){reward=Math.round(reward*1.5);setTimeout(()=>toast("🌅 Первый за день +50%!"),1200)}if(g.price)reward=Math.round(reward*1.25);if(store.get("bb2_buff",0)){store.set("bb2_buff",0);reward*=2;setTimeout(()=>toast("⚡ Бафф x2 сработал!"),1400)}coins+=reward;ecoTrack(reward);xp+=30+stars*15;stopTimer();
  if(achId)unlock(achId);if(stars===3)unlock("star3");
  works.unshift({game:currentGame,emoji:thumb||g.emoji,n:n||0,stars,date:new Date().toLocaleDateString("ru-RU")});works=works.slice(0,12);
@@ -450,7 +452,7 @@ function closeCoach(){$("coach").classList.remove("show");store.set("bb2_seen",t
 /* drag from toolbar (desktop nicety) */
 $("canvas").addEventListener("pointerdown",e=>{if(e.target.id==="canvas"||e.target.id==="canvasBase")select(null)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeShop();closeSettings();select(null)}if((e.key==="Delete"||e.key==="Backspace")&&$("gameView").classList.contains("show"))transformSel("del");if((e.ctrlKey||e.metaKey)&&e.key==="z"&&!e.shiftKey)undo();if((e.ctrlKey||e.metaKey)&&(e.key==="y"||(e.key==="z"&&e.shiftKey)))redo()});
-setInterval(()=>{if(document.hidden)return;if($("gameView")&&$("gameView").classList.contains("show"))return;GAMES.forEach(g=>{g.players=Math.max(500,g.players+Math.floor(Math.random()*36-12))});$("stOnline").textContent=fmt(120000+Math.floor(Math.random()*9000))},7000);
+
 /* init */
 $("soundBtn").textContent=soundOn?"🔊":"🔇";
 /* Настройки восстанавливаем при старте: иначе после перезагрузки страницы

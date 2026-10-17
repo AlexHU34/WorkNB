@@ -369,6 +369,15 @@ details.help[open] summary::before{transform:rotate(90deg)}
   .side{width:210px;flex-basis:210px}
   .helpBody{columns:1}
 }
+ /* Навигация между страницами. Её не было: попав в редактор или
+   студию с главной, обратно было не выйти. */
+ .navlink{display:flex;align-items:center;gap:7px;width:100%;text-align:left;
+ padding:7px 9px;margin-top:2px;border-radius:8px;text-decoration:none;
+ color:var(--vs-txt2);font-weight:700;font-size:12.5px}
+ .navlink:hover{background:var(--vs-act);color:var(--vs-txt)}
+ .navlink .ic{font-size:14px}
+ .navsec{margin-top:10px;padding:7px 9px 3px;font-size:10.5px;font-weight:800;
+ letter-spacing:.06em;color:var(--vs-dim)}
 </style>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -399,6 +408,13 @@ details.help[open] summary::before{transform:rotate(90deg)}
         <button class="treeItem" id="tiModules">◫ Модули</button>
         <button class="treeItem" id="tiTest">✓ Самопроверка</button>
       </div>
+<div class="navsec">КУДА ДАЛЬШЕ</div>
+<a class="navlink" id="navStudio" href="studio.html"><span class="ic">&#9701;</span>
+Студия сцен</a>
+<a class="navlink" href="index.html"><span class="ic">&#9672;</span>
+Каталог игр</a>
+<a class="navlink" href="make.html"><span class="ic">?</span>
+Как сделать свою игру</a>
     </div>
 
     <div class="sideSec" data-panel="learn" hidden>
@@ -3490,6 +3506,39 @@ function ugAdoptFromApp() {
   setView("explorer");
   printToConsole("Загружена игра «" + (g.title || "моя игра") + "» — правь и публикуй заново", "ok");
 }
+</script>
+<script>
+
+/* Связь редактор -> студия. Кладём текущий код в localStorage, чтобы
+   студия открылась сразу с набранным, а не с пустым окном. Ключ
+   одноразовый: студия забирает и удаляет, иначе старый код вернулся
+   бы при следующем открытии. Обратный ключ уже был
+   (bb2_studio_to_editor), поэтому второе направление работает само. */
+const EDITOR_TO_STUDIO_KEY = "bb2_editor_to_studio";
+function saveForStudio() {
+  /* Возвращает true, если код действительно записан. Отдельно от
+     перехода, чтобы это можно было проверить, не уходя со страницы. */
+  try {
+    const edEl = document.getElementById("ed");
+    const src = edEl && edEl.value ? edEl.value : "";
+    localStorage.setItem(EDITOR_TO_STUDIO_KEY,
+      JSON.stringify({ src: src, at: Date.now() }));
+    return true;
+  } catch (e) {
+    /* Приватный режим браузера: откроем студию просто без кода. */
+    return false;
+  }
+}
+function navToStudio() {
+  saveForStudio();
+  location.href = "studio.html";
+}
+
+/* Клик по ссылке сначала сохраняет код, потом уводит. */
+document.addEventListener("DOMContentLoaded", function(){
+  const n = document.getElementById("navStudio");
+  if (n) n.addEventListener("click", navToStudio);
+});
 </script>
 </body>
 </html>

@@ -52,6 +52,11 @@ body{
 .btn.primary:hover{background:#2d3340}
 .btn.danger{border-color:#402d2d;color:#543a3a;width:100%;margin-top:10px}
 .btn.stop{background:#402e2d;border-color:#402e2d;color:#fff}
+ /* Навигация между страницами: её не было и здесь. */
+ #top a.navb{ text-decoration:none;font:inherit;padding:7px 11px;
+ border-radius:8px;color:#3a4a63;background:#eaf0f8;cursor:pointer;
+ display:inline-block}
+ #top a.navb:hover{background:#dbe4f2}
 .sep{width:1px;height:26px;background:#e3e8f0;margin:0 4px}
 #status{margin-left:auto;color:#5a6377;font-size:12px}
 
@@ -197,6 +202,7 @@ body{
   <button class="btn" id="btnFileIn" title="Загрузить сцену из файла">⬆ Загрузить</button>
   <button class="btn" id="btnPublish">Опубликовать</button>
   <button class="btn" id="btnCode">Код</button>
+  <div class="sep"></div><a class="navb" id="navEditor" href="lang.html">Редактор</a><a class="navb" href="index.html">Каталог</a><a class="navb" href="make.html">Инструкция</a>
   <div id="status">загрузка…</div>
 </div>
 
@@ -257,5 +263,46 @@ body{
 <script src="src/studio/scene.js"></script>
 <script src="src/studio/editor.js"></script>
 <script src="src/studio/codewin.js"></script>
+
+<!-- Код из редактора. Ссылка «Редактор» без этого была бы украшением:
+     человек уходил бы в студию и получал пустое окно. Ключ одноразовый —
+     сразу удаляется, иначе старый код вернулся бы при следующем визите. -->
+<script>
+(function () {
+  var KEY = "bb2_editor_to_studio";
+  function take() {
+    var raw = null;
+    try {
+      raw = localStorage.getItem(KEY);
+      if (raw) localStorage.removeItem(KEY);
+    } catch (e) { return; }
+    if (!raw) return;
+    var payload = null;
+    try { payload = JSON.parse(raw); } catch (e) { payload = null; }
+    var src = payload && typeof payload.src === "string" ? payload.src : "";
+    if (!src.trim()) return;
+    /* Ждём готовности окна кода: оно создаётся при загрузке страницы. */
+    var tries = 0;
+    (function wait() {
+      if (window.StudioCode && typeof StudioCode.setValue === "function") {
+        StudioCode.setValue(src);
+        StudioCode.open();
+        var msg = document.getElementById("codeMsg");
+        if (msg) msg.textContent = "Код из редактора";
+        return;
+      }
+      if (++tries > 40) return;
+      setTimeout(wait, 100);
+    })();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(take, 120);
+    });
+  } else {
+    setTimeout(take, 120);
+  }
+})();
+</script>
 </body>
 </html>
