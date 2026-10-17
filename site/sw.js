@@ -22,6 +22,7 @@ var SHELL = [
   "./index.html",
   "./lang.html",
   "./studio.html",
+  "./make.html",
   "./manifest.webmanifest"
 ];
 

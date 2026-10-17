@@ -402,6 +402,10 @@ body::before,body::after{display:none}
 .moreBtn:hover{background:#fbfbfc;border-color:#b9bbbf}
 .moreBtn:focus-visible{outline:3px solid #7a8296;outline-offset:3px}
 .sideMore{padding:8px 10px;font-size:11.5px;color:var(--muted);opacity:.85}
+
+.navlink{color:var(--muted);text-decoration:none;font-size:13.5px;padding:8px 12px;border-radius:10px;border:1px solid var(--line)}
+.navlink:hover{color:var(--txt);background:rgba(255,255,255,.7)}
+.navlink:focus-visible{outline:3px solid #7a8296;outline-offset:3px}
 </style>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -490,7 +494,7 @@ body::before,body::after{display:none}
   <!-- Навигация: только то, что реально работает. Раньше здесь стояли
        «Discover» без действия и «Каталог», который лишь показывал
        подсказку-всплывашку — нажимаешь, и ничего не происходит. -->
-  <nav class="nav-links"><button class="active" onclick="goHome()">🏠 Главная</button><button onclick="setFilter('fav');goHome()">❤️ Избранное</button><button onclick="openShop()">🛍 Магазин</button></nav>
+  <nav class="nav-links"><a class="navlink" href="make.html" title="Как написать свою игру кодом">Как сделать свою игру</a><button class="active" onclick="goHome()">🏠 Главная</button><button onclick="setFilter('fav');goHome()">❤️ Избранное</button><button onclick="openShop()">🛍 Магазин</button></nav>
   <div class="search"><input id="search" placeholder="Поиск игр..." autocomplete="off"><div class="suggest" id="suggest"></div></div>
   <div class="top-right">
     <div class="pill coins" id="coins" onclick="dailyBonus()" title="Нажми — ежедневный бонус">🪙 0</div>
