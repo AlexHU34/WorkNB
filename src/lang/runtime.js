@@ -123,6 +123,7 @@ function createRuntime(opts) {
     if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) >= 0) e.preventDefault();
   });
   addEventListener("keyup", e => keysDown.delete(e.code));
+
   cv.addEventListener("pointerdown", e => {
     const r = cv.getBoundingClientRect();
     mouse.x = (e.clientX - r.left) * (cv._lw / r.width);

@@ -261,7 +261,7 @@ function bindTilt(){
 }
 function scrollRow(id,dx){$(id).scrollBy({left:dx,behavior:"smooth"})}
 function contGame(){if(!history.length){toast("Сыграй во что-нибудь! 🎲");return}openGame(history[0])}
-function goHome(){stopMode();$("gameView").classList.remove("show");$("gameView").classList.remove("mode-on");$("lobbyMain").style.display="block";stopTimer();renderLobby();scrollTo({top:0,behavior:"smooth"});const ts=document.getElementById("titleScreen");if(ts)ts.style.display="none"}
+function goHome(){stopMode();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameClose();$("gameView").classList.remove("show");$("gameView").classList.remove("mode-on");$("lobbyMain").style.display="block";stopTimer();renderLobby();scrollTo({top:0,behavior:"smooth"});const ts=document.getElementById("titleScreen");if(ts)ts.style.display="none"}
 function randomGame(){openModal(GAMES[Math.floor(Math.random()*GAMES.length)].id)}
 function toggleFav(id){sfx.click();favs=favs.includes(id)?favs.filter(f=>f!==id):[...favs,id];if(!history.includes(id)){}renderLobby();toast(favs.includes(id)?"В избранном ❤️":"Убрано из избранного")}
 function setFilter(f){filter=f;document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.f===f));sfx.click();renderLobby(true)}
@@ -322,7 +322,7 @@ function dailyBonus(){const t=new Date().toDateString(),last=store.get("bb2_dail
 /* ============ GAME ENGINE ============ */
 function isModeGame(){const g=GAMES.find(x=>x.id===currentGame);return !!(g&&g.mode)}
 function allParts(){const base=[...(PARTS[currentGame]||[])];owned.forEach(e=>base.push({n:"Премиум",e,c:"Декор"}));return base}
-function openGame(id){const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.indexOf(id)<0){toast("Игра платная — купи её за "+gg.price+" 🪙 🔒");openModal(id);return}stopMode();currentGame=id;selected=null;zTop=10;curCat="Всё";undoStack=[];redoStack=[];sfx.click();
+function openGame(id){const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.indexOf(id)<0){toast("Игра платная — купи её за "+gg.price+" 🪙 🔒");openModal(id);return}stopMode();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameOpen();currentGame=id;selected=null;zTop=10;curCat="Всё";undoStack=[];redoStack=[];sfx.click();
  const g=GAMES.find(x=>x.id===id);if(!history.includes(id)){history.unshift(id);history=history.slice(0,5)}
  $("lobbyMain").style.display="none";$("gameView").classList.add("show");$("gameView").classList.toggle("mode-on",!!g.mode);$("gTitle").textContent=g.emoji+" "+g.title;$("gPlayers").textContent=`👥 ${fmt(g.players)} • 👍 ${g.likes}%`;$("gTask").textContent=g.task;$("canvasBase").innerHTML=g.mode?"":g.base;
  document.querySelectorAll("#canvas .part").forEach(e=>e.remove());setBg(g.mode?"night":"day");renderWorks();

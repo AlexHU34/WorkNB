@@ -46,13 +46,25 @@ SKIP = re.compile(
 bad = []
 checked = 0
 
+# Комментарии внутри скриптов человек не видит никогда. Например, в
+# коде модуля управления написано «34 игры читают клавиатуру» — это
+# другое утверждение, а не размер каталога, и путать их нельзя.
+# Поэтому перед проверкой вырезаем содержимое всех <script>.
+SCRIPT = re.compile(r"<script\b[^>]*>.*?</script>", re.I | re.S)
+
+
+def visible(t):
+    return SCRIPT.sub(" ", t)
+
+
 for rel in TARGETS:
     p = os.path.join(ROOT, rel)
     if not os.path.isfile(p):
         continue
-    t = io.open(p, encoding="utf-8").read()
-    if "{{GAMES}}" in t:
+    raw = io.open(p, encoding="utf-8").read()
+    if "{{GAMES}}" in raw:
         bad.append((rel, "метка {{GAMES}} осталась в собранном файле"))
+    t = visible(raw)
     for m in PAT.finditer(t):
         ctx = t[max(0, m.start() - 60):m.end() + 10]
         if SKIP.search(ctx):

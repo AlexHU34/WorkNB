@@ -564,7 +564,7 @@ body::before,body::after{display:none}
           <div class="canvas-tools">
             <button class="mini" onclick="undo()" id="btnUndo">↩ Назад</button>
             <button class="mini" onclick="redo()" id="btnRedo">↪ Вперёд</button>
-            <button class="mini" onclick="cycleBg()">🌅 Фон</button>
+            <button class="mini" onclick="AERIS_TOUCH.toggle()" title="Экранные кнопки управления">🌅 Фон</button>
             <button class="mini" onclick="toggleTimer()" id="btnTimer">⏱ Челлендж</button>
             <button class="mini" title="Случайная деталь" onclick="surprise()">🎲</button>
             <button class="mini" onclick="mirrorSel()" title="Отразить выбранное">🪞</button>
@@ -699,6 +699,9 @@ body::before,body::after{display:none}
 <script src="src/lang/runtime.js"></script>
 <!-- Мост: запуск кода BloomScript внутри приложения (Фаза 0.3). -->
 <script src="src/lang/play.js"></script>
+<!-- Экранные кнопки управления: нужны играм, которые читают клавиатуру,
+     когда страницу открыли на телефоне. -->
+<script src="src/ui/touch.js"></script>
 <!-- Сто игр вынесены из файла: см. src/app/games.js -->
 <script src="src/app/games.js"></script>
 <!-- Данные каталога: см. src/app/data.js -->
