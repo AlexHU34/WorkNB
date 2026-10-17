@@ -5,13 +5,18 @@
 в интернете с тем, что должно быть. Проверяет не по одному признаку,
 а по всем сразу, чтобы не вышло «частично обновилось».
 """
+import os
 import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gamecount import count_games  # noqa: E402
+
 sys.stdout.reconfigure(encoding="utf-8")
 
 BASE = "https://alexhu34.github.io/WorkNB"
+GAME_COUNT_STR = str(count_games()[0])
 
 PAGES = [
     ("/", "заставка"),
@@ -26,7 +31,11 @@ PAGES = [
 ]
 
 CONTENT = [
-    ("новый заголовок вкладки", "/", "3D-игры и редактор"),
+    # Заголовок теперь собирается из настоящего числа игр, поэтому
+    # проверяем не точную строку, а что число в ней есть и совпадает
+    # с данными — иначе сайт начнёт врать после добавления игр.
+    ("заголовок с числом игр", "/", GAME_COUNT_STR + " 3D-игр и редактор"),
+    ("в заголовке не осталось метки", "/", None),
     ("что это — первой строкой", "/", "запускаются прямо в браузере"),
     ("главная кнопка «Играть»", "/", ">Играть<"),
     ("кнопка «Написать свою игру»", "/", "Написать свою игру"),
@@ -67,7 +76,11 @@ for path, name in PAGES:
 print()
 print("=== СОДЕРЖИМОЕ ===")
 for name, path, needle in CONTENT:
-    ok = needle in pages.get(path, "")
+    # needle None означает «такого куска быть НЕ должно».
+    if needle is None:
+        ok = "{{" not in pages.get(path, "")
+    else:
+        ok = needle in pages.get(path, "")
     print("  %-4s %s" % ("OK" if ok else "FAIL", name))
     if not ok:
         rc = 1
