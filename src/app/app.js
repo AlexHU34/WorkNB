@@ -283,7 +283,29 @@ $("search").addEventListener("input",()=>{
   },180);
 });
 document.addEventListener("click",e=>{if(!e.target.closest(".search"))$("suggest").classList.remove("show")});
-function openModal(id){const g=GAMES.find(x=>x.id===id);sfx.click();$("mThumb").style.background=g.grad;$("mThumb").querySelector(".big")?.remove();const b=document.createElement("span");b.className="big";b.textContent=g.emoji;$("mThumb").prepend(b);$("mTitle").textContent=g.title;$("mSub").textContent="BloomBlox • конструктор • без скачивания";$("mPlayers").textContent="👥 "+fmt(g.players);$("mLikes").textContent="👍 "+g.likes+"%";$("mStars").textContent="★".repeat(g.stars);$("mDesc").textContent=g.desc;$("mAch").innerHTML=ACHS.map(a=>`<span class="ach ${ach.includes(a.id)?"got":""}">${a.n}</span>`).join("");$("mFav").textContent=favs.includes(id)?"❤️ В избранном":"🤍 В избранное";$("mFav").onclick=()=>{toggleFav(id);openModal(id)};if(g.price&&ownedG.indexOf(id)<0){$("mPlay").textContent="🔓 Купить за "+g.price+" 🪙";$("mPlay").onclick=()=>{if(!ecoPay(g.price))return;ownedG.push(id);saveAll();sfx.win();boom(100);toast("Куплено: "+g.title+"! Приятной игры 👑");openModal(id)}}else{$("mPlay").textContent="▶ Играть";$("mPlay").onclick=()=>{closeModal();openGame(id)}};$("overlay").classList.add("show")}
+/* Человеческое название жанра для карточки игры. В данных у игры лежит
+   внутреннее имя режима — «run3d», «td», «hockey». В интерфейсе такие
+   слова выглядят как мусор, поэтому здесь перевод. Игры без своего режима
+   все до одной — конструкторы, и им подходит общее название. */
+const MODE_LABEL={mem:"память",color:"цвета",green:"сад",quiz:"викторина",
+run3d:"3D-забег",tycoon:"бизнес",lab:"лаборатория",flower3d:"3D-цветок",
+maze:"лабиринт",tower:"башня",wheel:"колесо фортуны",catch:"ловля",
+shoot:"стрельба",cubes:"кубики",snake:"змейка",slide:"скольжение",
+bowl:"боулинг",ark:"ковчег",golf:"гольф",pin:"пинбол",tet:"тетрис",
+jump:"прыжки",pool:"пул",hoops:"баскетбол",heli:"вертолёт",train:"поезд",
+fish:"рыбалка",plane:"самолёт",sumo:"сумо",pac:"поймай призрака",
+tanks:"танки",td:"оборона башни",ski:"лыжи",race:"гонки",parkour:"паркур",
+hockey:"хоккей",drift:"дрифт",zombie:"зомби",cosmo:"космос",surf:"сёрфинг",
+chess:"шахматы",climb:"восхождение",city:"строительство города",
+curling:"кёрлинг",skate:"скейт",kite:"воздушный змей",archery:"лук",
+freestyle:"фристайл",crane:"кран",orbit:"орбита",glider:"планер",
+balloon:"воздушный шар",mono:"монополия",rocket:"ракета",dino:"динозавры",
+skip:"прыжки по кругам",boomerang:"бумеранг",falcon:"сокол",volcano:"вулкан",
+magnet:"магнит",ferry:"паром",mole:"крот",hive:"улей",house:"дом",hoop:"кольцо",
+aquarium:"аквариум",orient:"ориентирование",butterfly:"бабочка",mine:"шахта",
+dna:"ДНК",ghost:"призрак",firework:"фейерверк",rainbow:"радуга"};
+function modeLabel(g){return MODE_LABEL[g.mode]||"конструктор"}
+function openModal(id){const g=GAMES.find(x=>x.id===id);sfx.click();$("mThumb").style.background=g.grad;$("mThumb").querySelector(".big")?.remove();const b=document.createElement("span");b.className="big";b.textContent=g.emoji;$("mThumb").prepend(b);$("mTitle").textContent=g.title;$("mSub").textContent="AERIS • "+modeLabel(g)+" • без скачивания";$("mPlayers").textContent="👥 "+fmt(g.players);$("mLikes").textContent="👍 "+g.likes+"%";$("mStars").textContent="★".repeat(g.stars);$("mDesc").textContent=g.desc;$("mAch").innerHTML=ACHS.map(a=>`<span class="ach ${ach.includes(a.id)?"got":""}">${a.n}</span>`).join("");$("mFav").textContent=favs.includes(id)?"❤️ В избранном":"🤍 В избранное";$("mFav").onclick=()=>{toggleFav(id);openModal(id)};if(g.price&&ownedG.indexOf(id)<0){$("mPlay").textContent="🔓 Купить за "+g.price+" 🪙";$("mPlay").onclick=()=>{if(!ecoPay(g.price))return;ownedG.push(id);saveAll();sfx.win();boom(100);toast("Куплено: "+g.title+"! Приятной игры 👑");openModal(id)}}else{$("mPlay").textContent="▶ Играть";$("mPlay").onclick=()=>{closeModal();openGame(id)}};$("overlay").classList.add("show")}
 function closeModal(){$("overlay").classList.remove("show")}
 $("overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeModal()});
 /* ============ SHOP ============ */
@@ -438,7 +460,7 @@ applyQuality();
 if($("gcount"))$("gcount").textContent=GAMES.length;
 heroRender();renderLobby();renderWorks();renderAch();renderQuests();updateHUD();
 (function streak(){const t=new Date().toDateString(),last=store.get("bb2_last","","x");let s=store.get("bb2_streak",1);try{s=JSON.parse(localStorage.getItem("bb2_streak"))||1}catch(e){}const lv=localStorage.getItem("bb2_lastday");if(lv!==t){const y=new Date(Date.now()-864e5).toDateString();s=(lv===y)?s+1:1;localStorage.setItem("bb2_lastday",t);localStorage.setItem("bb2_streak",s)}$("stStreak").textContent=s+(s===1?" день":s<5?" дня":" дней")})();
-if(!store.get("bb2_seen",false))$("coach").classList.add("show");
+if(!store.get("bb2_seen",false)){const cg=$("coachGames");if(cg&&window.GAMES)cg.textContent=GAMES.length;$("coach").classList.add("show")}
 
 /* ============ ОФЛАЙН ============
    Сервис-воркер кладёт три страницы в кэш, и дальше приложение
