@@ -50,10 +50,14 @@ PROBE = r'''
      "средний уровень восстановился: minGrad=" + E3.minGrad);
 
   /* тема */
-  setTheme("dark");
-  ok(document.documentElement.dataset.theme === "dark", "тема стала тёмной");
-  setTheme("light");
-  ok(document.documentElement.dataset.theme === "light", "тема стала светлой");
+  /* Тёмной темы больше нет: выбрана одна, светлая. Раньше проверка
+   требовала переключиться на тёмную и падала, как только тёмную
+   убрали. Теперь проверяем обратное: вернуть тёмную нельзя. */
+setTheme("dark");
+ok(document.documentElement.dataset.theme === "light", "тёмная тема не возвращается");
+ok(!document.querySelector('[data-v=\"dark\"]'), "кнопки тёмной темы в настройках нет");
+setTheme("light");
+ok(document.documentElement.dataset.theme === "light", "тема осталась светлой");
 
   /* размер интерфейса */
   setScale("1.1");

@@ -73,7 +73,9 @@ const sfx={click:()=>beep(600,.08,"square",.05),pop:()=>{beep(500,.09,"sine");se
 function toggleSound(){soundOn=!soundOn;store.set("bb2_sound",soundOn);$("soundBtn").textContent=soundOn?"🔊":"🔇";toast(soundOn?"Звук включён 🔊":"Звук выключен 🔇")}
 /* ============ THEME/PARTICLES/CONFETTI ============ */
 function toggleTheme(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==="light"?"dark":"light";store.set("bb2_theme",h.dataset.theme);sfx.click()}
-document.documentElement.dataset.theme=store.get("bb2_theme","light");
+document.documentElement.dataset.theme="light";/* Старые версии сохраняли тему. Читать её больше нельзя: на светлом
+   фоне тёмные переменные давали чёрные карточки и невидимые подписи. */
+store.set("bb2_theme","light");
 
 /* ============ НАСТРОЙКИ ============ */
 /* Звук, громкость, размер интерфейса, тема и графика живут в одном окне.
@@ -116,7 +118,7 @@ function setScale(v){
   document.documentElement.style.zoom=uiScale===1?"":uiScale;
   seg("segScale",uiScale);
 }
-function setTheme(t){document.documentElement.dataset.theme=t;store.set("bb2_theme",t);seg("segTheme",t);sfx.click()}
+function setTheme(t){t="light";document.documentElement.dataset.theme=t;store.set("bb2_theme",t);seg("segTheme",t);sfx.click()}
 /* Графика: три уровня нагрузки. Что именно они делают — в applyQuality. */
 function setQuality(q){quality=q;store.set("bb2_quality",q);applyQuality();seg("segQuality",q)}
 function applyQuality(){ if(typeof E3!=="undefined"&&E3.setQuality) E3.setQuality(quality) }
@@ -151,7 +153,7 @@ function resetProgress(){
 }
 (function petals(){const c=$("petals"),x=c.getContext("2d");let W,H,ps=[];function rs(){W=c.width=innerWidth;H=c.height=innerHeight}rs();addEventListener("resize",rs);
  const EM=["🌸","🌷","💮","🏵","🌼"];for(let i=0;i<22;i++)ps.push({e:EM[i%5],x:Math.random()*innerWidth,y:Math.random()*innerHeight,s:10+Math.random()*16,v:.3+Math.random()*.7,ph:Math.random()*6,sw:.5+Math.random()});
- (function loop(t){x.clearRect(0,0,W,H);x.globalAlpha=.5;ps.forEach(p=>{p.y+=p.v;p.ph+=.01;p.x+=Math.sin(p.ph)*p.sw*.4;if(p.y>H+30){p.y=-30;p.x=Math.random()*W}x.font=p.s+"px serif";x.fillText(p.e,p.x,p.y)});x.globalAlpha=1;requestAnimationFrame(loop)})();
+ (function loop(t){if(document.hidden||!$('gameView')||$('gameView').classList.contains('show')||document.hidden){setTimeout(()=>requestAnimationFrame(loop),250);return}x.clearRect(0,0,W,H);x.globalAlpha=.5;ps.forEach(p=>{p.y+=p.v;p.ph+=.01;p.x+=Math.sin(p.ph)*p.sw*.4;if(p.y>H+30){p.y=-30;p.x=Math.random()*W}x.font=p.s+"px serif";x.fillText(p.e,p.x,p.y)});x.globalAlpha=1;setTimeout(()=>requestAnimationFrame(loop),33)})();
 })();
 let confetti=[];
 function boom(n,CC){const c=$("confetti"),x=c.getContext("2d");c.width=innerWidth;c.height=innerHeight;const C=CC||["#ff5d8f","#ffb700","#00c06f","#00a2ff","#8b5cf6"];for(let i=0;i<(n||120);i++)confetti.push({x:innerWidth/2+(Math.random()-.5)*200,y:innerHeight* .45,vx:(Math.random()-.5)*11,vy:-4-Math.random()*8,s:4+Math.random()*6,c:C[i%5],r:Math.random()*6,l:1});
@@ -184,7 +186,7 @@ function heroRender(){const s=HERO[heroI];$("hero").innerHTML=`<div class="slide
 function heroPlay(){const a=HERO[heroI].act;if(a===0)openShop();else openGame(a||1)}
 function heroNext(){heroI=(heroI+1)%HERO.length;heroRender()}
 function heroGo(i){heroI=i;heroRender()}
-setInterval(()=>{if(!$("gameView").classList.contains("show")){heroI=(heroI+1)%HERO.length;heroRender()}},5000);
+setInterval(()=>{if(document.hidden)return;if(!$("gameView").classList.contains("show")){heroI=(heroI+1)%HERO.length;heroRender()}},7000);
 function cardHTML(g,i){const loved=favs.includes(g.id),locked=g.price&&ownedG.indexOf(g.id)<0;return `<div class="card tilt${locked?" locked":""}${g.price?" vip":""}${g.isNew?" fresh":""}" data-id="${g.id}" onclick="openModal(${g.id})" style="animation:cardIn .45s backwards;animation-delay:${((i||0)%12)*45}ms">${locked?`<div class="badge">🔒 ${g.price} 🪙</div>`:(g.badge?`<div class="badge">${g.badge}</div>`:"")}<button class="fav ${loved?"loved":""}" onclick="event.stopPropagation();toggleFav(${g.id})">${loved?"❤️":"🤍"}</button><div class="thumb" style="background:${g.grad}"><div class="shine"></div><span class="big">${g.emoji}</span><div class="play"><div class="play-btn">▶</div></div></div><div class="card-body"><b>${g.title}</b><div class="meta"><span>👥 ${fmt(g.players)}</span><span>👍 ${g.likes}%</span></div><div class="stars">${"★".repeat(g.stars)}${"☆".repeat(5-g.stars)}</div></div></div>`}
 function skeleton(n){return Array(n).fill('<div class="skel"></div>').join("")}
 /* Статичные части лобби (популярное, недавние, боковой список) не зависят от
@@ -383,7 +385,7 @@ function closeCoach(){$("coach").classList.remove("show");store.set("bb2_seen",t
 /* drag from toolbar (desktop nicety) */
 $("canvas").addEventListener("pointerdown",e=>{if(e.target.id==="canvas"||e.target.id==="canvasBase")select(null)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeShop();closeSettings();select(null)}if((e.key==="Delete"||e.key==="Backspace")&&$("gameView").classList.contains("show"))transformSel("del");if((e.ctrlKey||e.metaKey)&&e.key==="z"&&!e.shiftKey)undo();if((e.ctrlKey||e.metaKey)&&(e.key==="y"||(e.key==="z"&&e.shiftKey)))redo()});
-setInterval(()=>{GAMES.forEach(g=>{g.players=Math.max(500,g.players+Math.floor(Math.random()*36-12))});$("stOnline").textContent=fmt(120000+Math.floor(Math.random()*9000))},5000);
+setInterval(()=>{if(document.hidden)return;if($("gameView")&&$("gameView").classList.contains("show"))return;GAMES.forEach(g=>{g.players=Math.max(500,g.players+Math.floor(Math.random()*36-12))});$("stOnline").textContent=fmt(120000+Math.floor(Math.random()*9000))},7000);
 /* init */
 $("soundBtn").textContent=soundOn?"🔊":"🔇";
 /* Настройки восстанавливаем при старте: иначе после перезагрузки страницы
@@ -391,7 +393,6 @@ $("soundBtn").textContent=soundOn?"🔊":"🔇";
 document.documentElement.style.zoom=uiScale===1?"":uiScale;
 applyQuality();
 if($("gcount"))$("gcount").textContent=GAMES.length;
-requestAnimationFrame(t=>E3.auto.tick(t));
 heroRender();renderLobby();renderWorks();renderAch();renderQuests();updateHUD();
 (function streak(){const t=new Date().toDateString(),last=store.get("bb2_last","","x");let s=store.get("bb2_streak",1);try{s=JSON.parse(localStorage.getItem("bb2_streak"))||1}catch(e){}const lv=localStorage.getItem("bb2_lastday");if(lv!==t){const y=new Date(Date.now()-864e5).toDateString();s=(lv===y)?s+1:1;localStorage.setItem("bb2_lastday",t);localStorage.setItem("bb2_streak",s)}$("stStreak").textContent=s+(s===1?" день":s<5?" дня":" дней")})();
 if(!store.get("bb2_seen",false))$("coach").classList.add("show");

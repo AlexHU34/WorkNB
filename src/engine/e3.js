@@ -464,9 +464,16 @@ E3.qLimit=0;
    меряет реальное время кадра, опускает бюджет при просадке FPS и возвращает
    его обратно, когда снова хорошо. Пороги широкие: 26 мс — терпимо,
    13 мс — можно расслабить бюджет. */
-E3.auto={min:240,ms:16.7,frames:[],last:0,on:true,
+E3.auto={min:240,ms:16.7,frames:[],last:0,on:true,hid:false,
+ resume:function(){if(E3.auto.hid){E3.auto.hid=false;E3.auto.tick(E3.auto.last)}},
+ resume:function(){if(E3.auto.hid){E3.auto.hid=false;E3.auto.tick(E3.auto.last)}},
  tick:function(t){
   if(!E3.auto.on)return;
+  /* Скрытая вкладка: цикл останавливается. Когда человек вернётся,
+     событие снова запустит его. Иначе браузер в фоне крутит
+     движок и ест батарею впустую. */
+  if(document.hidden){E3.auto.hid=true;return}
+  E3.auto.hid=false;
   requestAnimationFrame(function(s){E3.auto.tick(s)});
   if(!t)return;
   if(!E3.auto.last){E3.auto.last=t;return}
@@ -568,3 +575,5 @@ E3.profile = {
  onBudgetChange(){ E3.profile.frames.length = 0; }
 };
 
+
+document.addEventListener("visibilitychange",function(){if(!document.hidden)E3.auto.resume()});
