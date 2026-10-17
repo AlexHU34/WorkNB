@@ -3,17 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1280">
-<title>AERIS — 3D-игры и редактор в браузере</title>
+<title>AERIS — {{GAMES}} 3D-игр и редактор в браузере</title>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="AERIS">
-<meta property="og:title" content="AERIS — 100 игр в одном файле">
+<meta property="og:title" content="AERIS — {{GAMES}} игр в одном файле">
 <meta property="og:description" content="Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без интернета, прямо из одного файла.">
 <meta property="og:url" content="https://alexhu34.github.io/WorkNB/index.html">
 <meta property="og:image" content="https://alexhu34.github.io/WorkNB/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="AERIS — 100 игр в одном файле">
+<meta name="twitter:title" content="AERIS — {{GAMES}} игр в одном файле">
 <meta name="twitter:description" content="Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без интернета, прямо из одного файла.">
 <meta name="twitter:image" content="https://alexhu34.github.io/WorkNB/og.png">
 <meta name="description" content="Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без интернета, прямо из одного файла.">
@@ -483,7 +483,7 @@ body::before,body::after{display:none}
   <div class="mark" aria-hidden="true"><svg viewBox="0 0 512 512"><g transform="translate(0,10)"><path fill="#c9cacb" d="M256 458 C318 424 372 352 374 262 C332 342 286 412 258 458 Z"/><path fill="#8a92a3" d="M256 458 C186 424 136 328 160 210 C204 320 242 412 258 458 Z"/><path fill="#7a8296" d="M256 458 C214 386 214 296 250 190 C262 150 286 108 302 58 C304 148 316 232 306 302 C298 382 276 428 258 458 Z"/><path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8" d="M170 442 C212 396 240 322 268 206"/><path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8" d="M304 440 C326 372 332 292 328 206"/></g></svg></div>
   <h1>AERIS</h1>
   <p class="lead">3D-игры, которые запускаются прямо в браузере</p>
-  <p class="lead sub">Сто игр. Можно играть сразу, а можно написать свою&nbsp;— в редакторе.</p>
+  <p class="lead sub"><span id="gcountTop">Сто</span> игр. Можно играть сразу, а можно написать свою&nbsp;— в редакторе.</p>
   <button class="startBtn" onclick="document.getElementById('titleScreen').style.display='none';goHome();toast('Добро пожаловать в AERIS — '+GAMES.length+' игр!')">Играть</button>
   <button class="startBtn ghost" onclick="document.getElementById('titleScreen').style.display='none';location.href='lang.html'">Написать свою игру</button>
   <p id="instruction">Нажми кнопку и выбери игру. Ничего устанавливать не нужно.</p>

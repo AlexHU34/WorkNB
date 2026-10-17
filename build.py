@@ -221,6 +221,12 @@ def minify(results):
             io.open(swp, "w", encoding="utf-8", newline="\n").write(sw)
             log("  воркер: метка кэша %s" % stamp)
 
+    # Настоящее число игр вместо метки в описаниях для ссылки.
+    sys.path.insert(0, TOOLS)
+    import stamp_count
+    stamp_count.stamp([os.path.join(DIST, o) for _, o, *_ in TARGETS] +
+                      [os.path.join(DIST, "min", o) for _, o, *_ in TARGETS])
+
     make_site()
     return ok
 
