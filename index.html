@@ -45,10 +45,13 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   text-transform:uppercase;margin:0}
 #titleScreen .mark{width:96px;height:96px;margin:0 auto 26px;position:relative;z-index:2}
 #titleScreen .mark svg{width:100%;height:100%;display:block}
-#titleScreen p{font:400 24px var(--font);margin:20px 0;color:#5a5d63;letter-spacing:4px;
-  position:relative;z-index:2}
-#titleScreen .startBtn{font:700 28px var(--font);padding:16px 48px;background:#2a2a2c;
-  color:#fafafb;border:none;border-radius:var(--radius);cursor:pointer;outline:none;
+#titleScreen p{font:400 23px var(--font);margin:8px 0;color:#5a5d63;letter-spacing:0;max-width:34ch}
+#titleScreen p.sub{font-size:18px;color:#8e9096;margin-bottom:30px}
+#titleScreen p.lead{color:#4a4d55}
+#titleScreen #instruction{font-size:15px;color:#8e9096;margin-top:26px}
+#titleScreen .startBtn.ghost{background:transparent;border:1.5px solid #c9cacb;color:#5a6377;font-size:16px;font-weight:600;padding:12px 26px;box-shadow:none;margin-top:14px}
+#titleScreen .startBtn.ghost:hover{background:#fff;border-color:#7a8296;color:#2a2a2c;box-shadow:0 8px 20px rgba(122,130,150,.18)}
+#titleScreen .startBtn{font:700 26px var(--font);padding:16px 54px;background:#fff;color:#2a2a2c;border:1.5px solid #7a8296;border-radius:var(--radius);cursor:pointer;outline:none;
   transition:transform .18s ease,background .18s ease,box-shadow .18s ease;
   box-shadow:0 6px 20px rgba(42,42,44,.22);position:relative;z-index:2}
 #titleScreen .startBtn:hover{transform:translateY(-2px);background:#3a3a3e;
@@ -468,9 +471,11 @@ body::before,body::after{display:none}
 </svg>
   <div class="mark" aria-hidden="true"><svg viewBox="0 0 512 512"><g transform="translate(0,10)"><path fill="#c9cacb" d="M256 458 C318 424 372 352 374 262 C332 342 286 412 258 458 Z"/><path fill="#8a92a3" d="M256 458 C186 424 136 328 160 210 C204 320 242 412 258 458 Z"/><path fill="#7a8296" d="M256 458 C214 386 214 296 250 190 C262 150 286 108 302 58 C304 148 316 232 306 302 C298 382 276 428 258 458 Z"/><path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8" d="M170 442 C212 396 240 322 268 206"/><path fill="none" stroke="#2a2a2c" stroke-width="2.6" stroke-linecap="round" opacity=".8" d="M304 440 C326 372 332 292 328 206"/></g></svg></div>
   <h1>AERIS</h1>
-  <p>ВСЕЛЕННАЯ · <span id="gcount">70</span> ИГР В ОДНОМ ФАЙЛЕ · NOVA UPDATE</p>
-  <button class="startBtn" onclick="document.getElementById('titleScreen').style.display='none';goHome();toast('Добро пожаловать в AERIS — '+GAMES.length+' игр! 🌌')">ПУСКНУТЬ — В ИГРЫ</button>
-  <p id="instruction">Нажми ПУСКНУТЬ или выбери игру в каталоге ↓</p>
+  <p class="lead">3D-игры, которые запускаются прямо в браузере</p>
+  <p class="lead sub">Сто игр. Можно играть сразу, а можно написать свою&nbsp;— в редакторе.</p>
+  <button class="startBtn" onclick="document.getElementById('titleScreen').style.display='none';goHome();toast('Добро пожаловать в AERIS — '+GAMES.length+' игр!')">Играть</button>
+  <button class="startBtn ghost" onclick="document.getElementById('titleScreen').style.display='none';location.href='lang.html'">Написать свою игру</button>
+  <p id="instruction">Нажми кнопку и выбери игру. Ничего устанавливать не нужно.</p>
 </div>
 
 <header class="topbar">
