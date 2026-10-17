@@ -35,7 +35,7 @@ MIN = os.path.join(ROOT, "dist", "min")
 BUDGET_KB = {
     "Aeris.html": 540,
     "BloomScript.html": 215,
-    "AerisStudio.html": 72,
+    "AerisStudio.html": 80,   # было 72: +3 КБ на библиотеку сцен и выгрузку в файл
 }
 
 PROBE = r'''

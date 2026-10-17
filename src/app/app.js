@@ -193,7 +193,7 @@ function skeleton(n){return Array(n).fill('<div class="skel"></div>').join("")}
    строки поиска и фильтра — только от history/favs/игр. Раньше каждый ввод в
    поиск пересобирал их заново через innerHTML. Теперь они кэшируются и
    перерисовываются, только когда реально изменились данные. */
-const lobbyCache={row1:"",rowRecent:"",side:"",sig:""};
+const lobbyCache={row1:"",rowRecent:"",side:"",sig:"",n:0,q:"",sort:"",filter:"",shown:24};
 function renderLobby(skel){
   const grid=$("gridAll");if(skel){grid.innerHTML=skeleton(6);setTimeout(()=>renderLobby(false),450);return}
   const q=($("search").value||"").toLowerCase(),sort=$("sort").value;
@@ -206,16 +206,59 @@ function renderLobby(skel){
   if(sig!==lobbyCache.sig){
     lobbyCache.row1=[...GAMES].sort((a,b)=>b.players-a.players).map(cardHTML).join("");
     lobbyCache.rowRecent=history.length?history.map(id=>{const g=GAMES.find(x=>x.id===id);return g?cardHTML(g):""}).join(""):`<div style="color:var(--muted);font-size:13.5px;padding:14px;font-weight:600">Сыграй во что-нибудь — и оно появится здесь 🕘</div>`;
-    lobbyCache.side=GAMES.map(g=>`<button class="side-btn" onclick="openGame(${g.id})"><span class="ic">${g.emoji}</span> ${g.title}</button>`).join("");
+    /* В боковом списке раньше было сто кнопок — длиннее экрана.
+     Показываем первые двенадцать и пишем, сколько всего. */
+   const SIDE_N=12;
+   lobbyCache.side=GAMES.slice(0,SIDE_N).map(g=>`<button class="side-btn" onclick="openGame(${g.id})"><span class="ic">${g.emoji}</span> ${g.title}</button>`).join("")+(GAMES.length>SIDE_N?`<div class="sideMore">и ещё ${GAMES.length-SIDE_N} — все в каталоге</div>`:``);
     lobbyCache.sig=sig;
   }
   if($("row1").innerHTML!==lobbyCache.row1)$("row1").innerHTML=lobbyCache.row1;
   if($("rowRecent").innerHTML!==lobbyCache.rowRecent)$("rowRecent").innerHTML=lobbyCache.rowRecent;
-  grid.innerHTML=list.length?list.map(cardHTML).join(""):`<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px">Ничего не найдено 😢</div>`;
+  /* Каталог собирается порциями: первый экран готов сразу, остальное
+     по кнопке. Сто карточек за раз — это сто элементов, сто фонов
+     и сто подписей, и всё это строится заново при поиске. */
+  const PAGE=24;
+  if(lobbyCache.n!==list.length||lobbyCache.q!==q||lobbyCache.sort!==sort||lobbyCache.filter!==filter){
+    lobbyCache.n=list.length;lobbyCache.q=q;
+    lobbyCache.sort=sort;lobbyCache.filter=filter;lobbyCache.shown=PAGE}
+  if(!list.length){lobbyCache.shown=0;grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px">Ничего не найдено 😢</div>`}
+  else{
+    const slice=list.slice(0,lobbyCache.shown);
+    let html=slice.map(cardHTML).join("");
+    if(list.length>lobbyCache.shown)html+=
+      `<button class="moreBtn" id="moreBtn">Показать ещё `+
+      Math.min(PAGE,list.length-lobbyCache.shown)+` · всего `+list.length+`</button>`;
+    grid.innerHTML=html;
+    const more=$("moreBtn");
+    if(more)more.onclick=function(){lobbyCache.shown+=PAGE;renderLobby(false)};
+  }
   if($("sideGames").innerHTML!==lobbyCache.side)$("sideGames").innerHTML=lobbyCache.side;
   umountMyGames();bindTilt();updateHUD();
 }
-function bindTilt(){if(matchMedia("(hover:none)").matches)return;document.querySelectorAll(".tilt").forEach(c=>{c.onmousemove=e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform=`perspective(700px) rotateY(${x*10}deg) rotateX(${-y*10}deg) translateY(-5px)`};c.onmouseleave=()=>c.style.transform=""})}
+/* Наклон карточек — одним обработчиком на всю сетку, а не по одному
+   на карточку. Раньше их было больше трёхсот, и они пересоздавались
+   при каждом поиске: наведение на новую карточку начинало работать
+   только после перерисовки. */
+function bindTilt(){
+  const grid=$("gridAll");
+  if(!grid||grid.dataset.tilt==="1")return;
+  grid.dataset.tilt="1";
+  if(matchMedia("(hover:none)").matches)return;
+  let cur=null;
+  grid.addEventListener("pointermove",function(e){
+    const el=e.target;
+    const c=el&&el.closest?el.closest(".tilt"):null;
+    if(!c){if(cur){cur.style.transform="";cur=null}return}
+    if(c!==cur){if(cur)cur.style.transform="";cur=c}
+    const r=c.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width-.5;
+    const y=(e.clientY-r.top)/r.height-.5;
+    c.style.transform="perspective(700px) rotateY("+(x*10)+"deg) rotateX("+(-y*10)+"deg) translateY(-5px)";
+  });
+  grid.addEventListener("pointerleave",function(){
+    if(cur){cur.style.transform="";cur=null}
+  });
+}
 function scrollRow(id,dx){$(id).scrollBy({left:dx,behavior:"smooth"})}
 function contGame(){if(!history.length){toast("Сыграй во что-нибудь! 🎲");return}openGame(history[0])}
 function goHome(){stopMode();$("gameView").classList.remove("show");$("gameView").classList.remove("mode-on");$("lobbyMain").style.display="block";stopTimer();renderLobby();scrollTo({top:0,behavior:"smooth"});const ts=document.getElementById("titleScreen");if(ts)ts.style.display="none"}
