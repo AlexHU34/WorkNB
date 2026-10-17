@@ -202,7 +202,8 @@ def minify(results):
     # них офлайн молча не включается. В папку с тремя готовыми файлами
     # их не копируем — там запуск двойным щелчком, а воркер по file:// не
     # работает в принципе, и лишние файлы только путают.
-    for f in ("sw.js", "manifest.webmanifest", "icon.svg"):
+    for f in ("sw.js", "manifest.webmanifest", "icon.svg",
+              "make.html", "parents.html"):
         src = os.path.join(ROOT, f)
         if os.path.isfile(src):
             for d in (DIST, out_dir):
@@ -256,7 +257,8 @@ def make_site():
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, dst_name))
             n += 1
-    for f in ("sw.js", "manifest.webmanifest", "icon.svg", "404.html", "og.png", "make.html"):
+    for f in ("sw.js", "manifest.webmanifest", "icon.svg", "404.html",
+              "og.png", "make.html", "parents.html"):
         src = os.path.join(ROOT, f)
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, f))
