@@ -142,8 +142,9 @@ def run_chrome(chrome, url, profile, budget, shot=None, size=None):
 
     # Виртуальный бюджет — это верхняя граница, а не точное время.
     # Реальное время больше: та же картинка рисуется по-настоящему.
-    # Поэтому потолок ставим щедрый, но конечный.
-    limit = max(120, budget / 1000.0 + 150)
+    # Хвост нужен большой: полный прогон игры стоит ~1,7 с реального
+    # времени при ~1000 мс виртуального, и на 100 игр уходит минуты.
+    limit = max(120, budget / 1000.0 + 300)
     try:
         res = subprocess.run(cmd, capture_output=True, text=True,
                              encoding="utf-8", errors="replace",
@@ -598,7 +599,12 @@ def main():
         rc |= cmd_engine(args, chrome)
         print()
         print("=== ПОВЕДЕНИЕ ===")
-        rc |= cmd_behaviour(args, chrome)
+        # поведению не нужен большой бюджет: отчёт пишется в первые-после
+        # старта секунды, а хвост только догоняет кадры анимации в реальном
+        # времени (замер: 45 000 мс шло ~5 минут, 4 000 — 2 минуты).
+        import copy
+        b = copy.copy(args); b.budget = min(args.budget, 4000)
+        rc |= cmd_behaviour(b, chrome)
         print()
         print("=== ИГРЫ ===")
         rc |= cmd_smoke(args, chrome)
