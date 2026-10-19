@@ -309,7 +309,25 @@ def cmd_smoke(args, chrome):
         print("утечек .mode      : %d" % leaks)
         print("не крутились (<20): %s" % (idle or "нет"))
         print("лобби             : %s" % ("ok" if lobby and not lobby[0]["lobby"] else lobby))
-        ok = bad == 0 and leaks == 0 and not idle
+        # Прогон должен накрыть ВСЕ игры, если фильтр --games не задан.
+        # Прежде неполный прогон (обрыв по бюджету) отдавал PASS на трёх
+        # играх и выглядел зелёным — это была тихая ложь ворот.
+        if not args.games:
+            expected = None
+            try:
+                gc = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "gamecount.py")
+                ns = {}
+                with open(gc, encoding="utf-8") as f:
+                    exec(compile(f.read(), gc, "exec"), ns)
+                expected = ns["count_games"]()
+            except Exception:
+                pass
+            if expected is not None and len(games) < expected:
+                print("FAIL  прогон неполный: игр %d из %d — бюджет слишком "
+                      "маленький, ворота не проходят" % (len(games), expected))
+                ok = False
+        ok = ok and bad == 0 and leaks == 0 and not idle
         print("-" * 66)
         print("GATE: " + ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
