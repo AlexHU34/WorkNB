@@ -122,6 +122,13 @@ def run_chrome(chrome, url, profile, budget, shot=None, size=None):
     """Запускает Chrome и возвращает выгруженный DOM (--dump-dom).
 
     --dump-dom нужен всегда; --screenshot добавляется по желанию.
+
+    Про таймаут. Раньше его здесь не было во��се, и из-за этого тяжёлые
+    прогоны не падали с ошибкой, а висели бесконечно: Chrome получает
+    виртуальный бюджет времени (по умолчанию 400 секунд) и успевает
+    отрисовать столько, сколько успевает, а вс�� остальное Python
+    ждал вечно. Теперь есть потолок: он считается от бюджета, потому
+    что виртуальное время всё равно тратит реальное на отрисовку.
     """
     cmd = [chrome, "--headless=new", "--disable-gpu", "--no-sandbox",
            "--user-data-dir=" + profile, "--hide-scrollbars",
@@ -132,7 +139,21 @@ def run_chrome(chrome, url, profile, budget, shot=None, size=None):
         cmd.append("--screenshot=" + shot)
     cmd.append("--dump-dom")
     cmd.append(url)
-    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    # Виртуальный бюджет — это верхняя граница, а не точное время.
+    # Реальное время больше: та же картинка рисуется по-настоящему.
+    # Поэтому потолок ставим щедрый, но конечный.
+    limit = max(120, budget / 1000.0 + 150)
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True,
+                             encoding="utf-8", errors="replace",
+                             timeout=limit)
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(
+            "Chrome не уложился в %.0f с (виртуальный бюджет %d мс).\n"
+            "Это не поломка сайта: бюджет просто слишком большой.\n"
+            "Попробуй --budget поменьше.\n" % (limit, budget))
+        return ""
     if not res.stdout.strip():
         sys.stderr.write(res.stderr[-2000:] + "\n")
     return res.stdout

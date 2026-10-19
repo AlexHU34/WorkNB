@@ -231,8 +231,30 @@
     var settle = function () { return wait(600); };
     goHome();
     setFilter('all'); await settle();
-    ok('filter all renders all games (' + NG + ')', document.querySelectorAll('#gridAll .card').length === NG,
-       document.querySelectorAll('#gridAll .card').length);
+
+    /* Каталог выводится порциями. Проверяем не «всё в документе»,
+       а настоящий контракт: сначала порция, потом кнопка, потом все. */
+    var PAGE_N = (typeof PAGE !== 'undefined') ? PAGE : 24;
+    var cards0 = document.querySelectorAll('#gridAll .card').length;
+    ok('filter all shows one page first (' + cards0 + ')',
+       cards0 === Math.min(PAGE_N, NG), cards0);
+    var more0 = document.getElementById('moreBtn');
+    ok('more button appears when games remain',
+       NG > PAGE_N ? !!more0 : !more0, !!more0);
+    /* Нажатие «Показать ещё» добирает остаток. Кликаем ровно столько,
+       сколько нужно: цикл «пока есть кнопка» тут опасен — если кнопка
+       по какой-то причине не исчезнет, страница зависнет намертво. */
+    var clicks = 0;
+    var steps = Math.ceil(NG / PAGE_N);
+    for (var s = 1; s <= steps && document.getElementById('moreBtn'); s++) {
+      document.getElementById('moreBtn').click();
+      clicks++;
+      await wait(30);
+    }
+    var cardsAll = document.querySelectorAll('#gridAll .card').length;
+    ok('filter all reveals every game (' + cardsAll + '/' + NG + ')',
+       cardsAll === NG, cardsAll);
+    ok('more button gone after the last page', !document.getElementById('moreBtn'));
     setFilter('pop'); await settle();
     var nPop = document.querySelectorAll('#gridAll .card').length;
     ok('filter pop renders some', nPop > 0 && nPop < NG, nPop);
@@ -265,10 +287,33 @@
 
     /* 10. лобби целостен */
     ok('lobby restored', document.getElementById('lobbyMain').style.display !== 'none');
-    ok('all cards rendered', document.querySelectorAll('#gridAll .card').length === NG,
+    /* После прогона всех игр каталог возвращается к первой порции —
+       это правильное поведение, а не поломка. Проверяем, что можно
+       дощелкнуть до всех игр, и что боковой список честен. */
+    await settle();
+    var shownNow = document.querySelectorAll('#gridAll .card').length;
+    ok('lobby paginated after run (' + shownNow + ')',
+       shownNow > 0 && shownNow <= Math.min(PAGE_N, NG), shownNow);
+    var clicks2 = 0;
+    var steps2 = Math.ceil(NG / Math.max(1, PAGE_N));
+    for (var s2 = 1; s2 <= steps2 && document.getElementById('moreBtn'); s2++) {
+      document.getElementById('moreBtn').click();
+      clicks2++;
+      await wait(30);
+    }
+    ok('every game reachable by paging',
+       document.querySelectorAll('#gridAll .card').length === NG,
        document.querySelectorAll('#gridAll .card').length);
-    ok('sidebar games rendered', document.querySelectorAll('#sideGames .side-btn').length === NG,
-       document.querySelectorAll('#sideGames .side-btn').length);
+
+    /* Боковой список намеренно короткий: сто кнопок были длиннее
+       экрана. Он показывает 12 и прямо пишет, сколько ещё. */
+    var sideN = (typeof SIDE_N !== 'undefined') ? SIDE_N : 12;
+    var sideBtns = document.querySelectorAll('#sideGames .side-btn').length;
+    ok('sidebar is short on purpose (' + sideBtns + ')',
+       sideBtns === Math.min(sideN, NG), sideBtns);
+    var sideNote = document.querySelector('#sideGames .sideMore');
+    ok('sidebar admits there are more games',
+       NG > sideN ? !!sideNote : true, !!sideNote);
     /* каждая запись GAMES обязана быть открываема: mode существует либо это конструктор */
     var noMode = GAMES.filter(function (g) {
       if (!g.mode) return false;

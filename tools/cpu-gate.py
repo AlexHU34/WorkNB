@@ -64,10 +64,18 @@ check("setTimeout(()=>requestAnimationFrame(loop),250)" in app,
 
 print("")
 print("=== ФОНОВЫЕ ТАЙМЕРЫ НЕ РАБОТАЮТ ВПУСТУЮ ===")
+# Правило: каждый оставшийся таймер обязан смотреть на скрытую вкладку.
+# Раньше требовалось «не меньше двух», потому что одним из них был
+# таймер выдуманных игроков — его удалили за ненадобностью. Теперь
+# важно не количество, а чтобы не осталось ни одного без проверки.
 int_matches = re.findall(r"setInterval\(\(\)=>\{(.{0,160})", app)
 guarded = [m for m in int_matches if "document.hidden" in m]
-check(len(guarded) >= 2,
-      "таймеры проверяют скрытую вкладку (%d из %d)" % (len(guarded), len(int_matches)))
+check(len(int_matches) >= 1, "в приложении вообще есть фоновый таймер")
+check(len(guarded) == len(int_matches),
+      "все таймеры проверяют скрытую вкладку (%d из %d)"
+      % (len(guarded), len(int_matches)))
+check("Math.random()*36-12" not in app,
+      "таймера выдуманных игроков не вернулось")
 
 print("")
 print("=== НЕТ САМОГО ДОРОГОГО ===")

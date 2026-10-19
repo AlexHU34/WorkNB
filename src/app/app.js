@@ -443,7 +443,8 @@ function awardResult(stars,thumb,n,achId,note){const g=GAMES.find(x=>x.id===curr
 /* bg + timer */
 function setBg(b){const c=$("canvas");c.className=b;document.querySelectorAll("[data-bg]").forEach(x=>x.classList.toggle("on",x.dataset.bg===b));sfx.click()}
 function cycleBg(){const order=["day","night","sunset"],c=$("canvas").className||"day";setBg(order[(order.indexOf(c)+1)%3])}
-function toggleTimer(){if(timerOn){stopTimer();return}timerOn=true;timerSec=60;$("timer").classList.add("on");$("btnTimer").classList.add("on");sfx.click();toast("⏱ Челлендж: собери за 60 сек — награда x2!");timerInt=setInterval(()=>{timerSec--;$("timer").textContent="⏱ "+timerSec;if(timerSec<=10)$("timer").classList.add("low");if(timerSec<=0){stopTimer();toast("⏱ Время вышло! Но работу можно доделать 🌸")}},1000)}
+function toggleTimer(){if(timerOn){stopTimer();return}timerOn=true;timerSec=60;$("timer").classList.add("on");$("btnTimer").classList.add("on");sfx.click();toast("⏱ Челлендж: собери за 60 сек — награда x2!");timerInt=/* Пока вкладка свёрнута, отсчёт стоит. Иначе время уходит, пока человека нет у экрана: это и лишняя работа, и нечестно по отношению к игроку. */
+setInterval(()=>{if(document.hidden)return;timerSec--;$("timer").textContent="⏱ "+timerSec;if(timerSec<=10)$("timer").classList.add("low");if(timerSec<=0){stopTimer();toast("⏱ Время вышло! Но работу можно доделать 🌸")}},1000)}
 function stopTimer(){timerOn=false;clearInterval(timerInt);$("timer").classList.remove("on","low");$("btnTimer")?.classList.remove("on")}
 /* ach sidebar */
 function renderAch(){$("sideAch").innerHTML=ACHS.map(a=>`<div style="padding:6px 4px;${ach.includes(a.id)?"color:var(--txt)":"opacity:.55"}">${ach.includes(a.id)?"✅":"🔒"} ${a.n}<br><small style="font-weight:400">${a.d}</small></div>`).join("")}

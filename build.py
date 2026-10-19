@@ -269,10 +269,17 @@ def make_site():
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, f))
             n += 1
+    # CNAME — привязка своего домена к GitHub Pages. Сохраняем при каждой
+    # сборке, чтобы привязка не пропала после следующего обновления.
+    cname_path = os.path.join(site, "CNAME")
+    with io.open(cname_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("aerisgames.ru\n")
+    n += 1
     size = sum(os.path.getsize(os.path.join(site, f)) for f in os.listdir(site))
     log("")
     log("=== ПАПКА ДЛЯ ВЫКЛАДКИ ===")
     log("  site/: %d файлов, %.0f КБ — это всё, что уезжает в интернет" % (n, size / 1024.0))
+    log("  CNAME: aerisgames.ru — свой домен подключён")
     return n
 
 
