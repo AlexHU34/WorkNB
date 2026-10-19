@@ -100,6 +100,37 @@ return [{v:[[x-r*k,gy,z-r*k*sq],[x+r*k,gy,z-r*k*sq],[x+r*k,gy,z+r*k*sq],[x-r*k,g
  /* спрайт-эмодзи, участвующий в сортировке по глубине вместе с гранями.
     В отличие от ctx.fillText после draw() он корректно перекрывается геометрией. */
  sprite(x,y,z,size,text,col,glow){return {v:[x,y,z,x],c:col||"#fff",n:[0,0,1],k:1,p:[x,y,z],z:size,t2:text,g:glow||0}},
+/* ---- частицы -------------------------------------------------------------
+   Искры, пылинки, брызги. Отдельная очередь, которую игра сама обновляет и
+   передаёт в draw. API из трёх функций:
+     E3.emit(L,x,y,z,{n,sp,up,grav,life,size,col,dot})  — выпустить облако
+     E3.stepParts(L,dt)                                — сдвинуть/остаток
+     E3.pFace(p) (внутри) — частица решается как грань вида k:2, draw рисует
+   её точкой радиуса size с альфой, гаснущей с жизнью.
+   В GL-режиме (?gl=1) частица приходит в ветку спрайта и рисуется кругом
+   свечения — чуть иначе, но не исчезает. */
+
+ emit(list,x,y,z,o){o=o||{};
+  const n=Math.max(1,o.n||12),sp=o.sp||2,up=o.up!==0?(o.up||sp*.9):0,
+        life=o.life||.8,size=o.size||5,col=o.col||"#ffd27a";
+  for(let i=0;i<n;i++){
+   if(E3.maxParts&&list.length>=E3.maxParts){
+    /* предел: старейшая под замену — очередь не растёт бесконечно */
+    list.shift()}
+   const a=Math.random()*6.283,r=Math.random()*sp;
+   list.push({k:2,x:x,y:y,z:z,
+    vx:Math.cos(a)*r+(o.vx||0),vy:up+Math.sin(a)*r*.5+(o.vy||0),vz:Math.sin(a)*r+(o.vz||0),
+    g:o.grav!==undefined?o.grav:8,life:life,t:.6+Math.random()*.4,
+    p:[x,y,z],z:size*(.6+Math.random()*.6),c:col,a:1})}},
+ stepParts(L,dt){if(!dt)dt=1/60;
+  for(let i=L.length-1;i>=0;i--){const p=L[i];
+   p.life-=dt;
+   if(p.life<=0){L.splice(i,1);continue}
+   p.vy-=p.g*dt;
+   p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
+   p.a=Math.min(1,p.life/p.t);
+   p.p[0]=p.x;p.p[1]=p.y;p.p[2]=p.z}},
+ maxParts:240,
  /* текстуры-паттерны через createPattern: заменяют однотонные плоскости.
     Возвращают CanvasPattern; применяются как ctx.fillStyle. */
  pattern(ctx,kind,c1,c2){
@@ -284,7 +315,7 @@ particles(n,opt){
     _n++;
     /* Явная очиска: объект приходит из прошлого кадра с прежними полями,
        и забытый spr/pl сломал бы отрисовку молча. */
-    o.spr=0;o.pl=0;o.e=0;o.ea=0;o.a=0;o.d=0;o.c=null;
+    o.spr=0;o.pl=0;o.pt=0;o.e=0;o.ea=0;o.a=0;o.d=0;o.c=null;
     o.p.length=0;o.pp.length=0;o.pv.length=0;
     return o};
   /* Вершины в виде тоже переиспользуются: их массив на кадр один. */
@@ -298,6 +329,14 @@ particles(n,opt){
      в каждой сборке. */
   const list=faces,listLen=faces.length;
   for(let li=0;li<listLen;li++){const f=list[li];
+if(f.k===2){ /* частица: точка радиуса z, альфа гаснет с жизнью */
+      const vw=E3.view(f.p,cam);
+      if(vw[2]<near||f.a<=0)continue;
+      const q=E3.proj(vw,fl,LW,LH);
+      const it=_take();
+      it.d=vw[2];it.pt=1;it.x=q[0];it.y=q[1];it.s=(f.z||1)*q[2];it.c=f.c;it.a=f.a;
+      items.push(it);
+      continue}
 if(f.k){const vw=E3.view(f.p,cam);
      if(vw[2]<near)continue;
      const q=E3.proj(vw,fl,LW,LH);
@@ -356,6 +395,9 @@ if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
   items.sort((a,b)=>b.d-a.d);
   const _p2=_pf?performance.now():0;
   for(let i=0;i<items.length;i++){const it=items[i];
+   if(it.pt){ctx.globalAlpha=it.a==null?1:it.a;
+    ctx.fillStyle=it.c;ctx.beginPath();ctx.arc(it.x,it.y,Math.max(.7,it.s),0,7);ctx.fill();
+    ctx.globalAlpha=1;continue}
    if(it.spr){const sz=Math.max(2,it.s);
     if(it.g){ctx.globalAlpha=.25+.2*Math.sin(performance.now()/250);
      ctx.fillStyle=it.c;ctx.beginPath();ctx.arc(it.x,it.y,sz*.5,0,7);ctx.fill();ctx.globalAlpha=1}

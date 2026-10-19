@@ -494,6 +494,14 @@ function draw(ctx, faces, cam, fl, L, opts) {
     const f = faces[i];
     if (!f) continue;
 
+    if (f.k===2) {                               /* частица — круг свечения */
+      const vw = E3.view(f.p, cam);
+      if (vw[2] < near) continue;
+      const q = E3.proj(vw, fl, LW, LH);
+      _sprites.push({ d: vw[2], x: q[0], y: q[1], s: (f.z || 1) * q[2],
+                      t: "", c: f.c, g: 1 });
+      continue;
+    }
     if (f.k) {                                   /* спрайт — на 2D-слой */
       const vw = E3.view(f.p, cam);
       if (vw[2] < near) continue;
