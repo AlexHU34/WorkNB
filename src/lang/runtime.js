@@ -135,6 +135,10 @@ function createRuntime(opts) {
   /* Состояние кадра, доступное из программы */
   const S = {
     faces: [],
+    /* частицы: собственная очередь, шагается каждый кадр сама.
+       Автору игры достаточно вызвать emit() — гравитация, сдвиг и
+       угасание происходят без его участия. */
+    parts: [],
     cam: { x: 0, y: 5, z: -14, yaw: 0, pitch: .22 },
     lit: { ao: .16, sky: .14 },
     t: 0,
@@ -283,6 +287,16 @@ function createRuntime(opts) {
   NAT["ground"] = (w,d,c) => { S.faces.push(...E3.tiles(w,d,{ c:c })); };
   NAT["shadow"] = (x,z,r,h) => { S.faces.push(...E3.shadow(x,z,r,h)); };
   NAT["sprite"] = (x,y,z,size,text,col) => { S.faces.push(E3.sprite(x,y,z,size,text,col)); };
+
+  /* --- частицы ----------------------------------------------------------- */
+  /* emit(x, y, z, {…}) — выпустить облако искровых точек из точки.
+     Необязательные ключи: n — сколько (12), sp — разброс скорости (2),
+     up — подброс вверх (0.9*sp), grav — гравитация (8), life — время
+     жизни (0.8 с), size — радиус точки (5), col — цвет ("#ffd27a").
+     Очередь ограничена 240 частицами, старые выталкиваются. Шаг, гравитация
+     и угасание выполняются сами каждый кадр. */
+  NAT["emit"] = (x,y,z,o) => { E3.emit(S.parts, x, y, z, o || {}); };
+  NAT["clearParts"] = () => { S.parts.length = 0; };
 
   /* --- группы (аналог node) --- */
   NAT["group"] = (x,y,z,ry) => {
@@ -587,9 +601,13 @@ function createRuntime(opts) {
         g.addColorStop(0, c0); g.addColorStop(1, c1);
         ctx.fillStyle = g; ctx.fillRect(0, 0, cv._lw, cv._lh);
       }
-      if (useGL) { E3GL.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit); glHealthy(); }
-      else E3.draw(ctx, S.faces, S.cam, 430, LIGHT3, S.lit);
-      const n = E3.stats.faces;
+      /* частицы: шаг и подмешивание к списку граней. Конкатенация каждый
+         кадр — маленькая, до 240 точек; зато глубина сортируется вместе с
+         геометрией и искры честно скрываются за стенами. */
+      E3.stepParts(S.parts, dt);
+      const ALL = S.parts.length ? S.faces.concat(S.parts) : S.faces;
+      if (useGL) { E3GL.draw(ctx, ALL, S.cam, 430, LIGHT3, S.lit); glHealthy(); }
+      else E3.draw(ctx, ALL, S.cam, 430, LIGHT3, S.lit);      const n = E3.stats.faces;
       /* HUD: text() и bar() — слой над сценой. При включённом GL он идёт
          на отдельную канву ПОВЕРХ геометрии: игровая канва с HUD оказалась
          бы под ней, и цифры пропали бы там, где сцена на них налезает. */
