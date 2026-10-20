@@ -24,12 +24,20 @@ function req(table,method,body,extra){
  }};
  if(method==="POST"){opt.body=JSON.stringify(body);opt.headers.Prefer="return=minimal,resolution=ignore-duplicates"}
  if(extra)for(var k in extra)opt.headers[k]=extra[k];
+ /* Постгрест ставит Content-Range со звёздочками даже обычному GET c limit.
+    Счётчиком считаем его ТОЛЬКО когда сами просили count=exact,
+    иначе списку рекордов возвращается строка вместо массива. */
+ var needCount=!!(extra&&extra.Prefer&&String(extra.Prefer).indexOf("count=exact")>=0);
  return fetch(SB_URL+"/rest/v1/"+table,opt).then(function(r){
   if(!r.ok){if(r.status>=500)alive=false;return null}
-  var ct=r.headers.get("content-type")||"";
-  var range=r.headers.get("content-range");/* для счётчиков */
-  if(range)return range;
-  return ct.indexOf("json")>=0?r.json():null;
+  if(needCount){var rg=r.headers.get("content-range");if(rg)return rg;return null}
+  /* POST с return=minimal отвечает 201 и ПУСТЫМ телом: r.json() на нём
+     бросает «Unexpected end of JSON», поэтому текст читаем и
+     парсим мягко — пустое тело это LEGIT «ничего не вернул», а не ошибка. */
+  return r.text().then(function(txt){
+   if(!txt)return null;
+   try{return JSON.parse(txt)}catch(e){return null}
+  });
  }).catch(function(){alive=false;return null});
 }
 
