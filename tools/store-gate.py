@@ -99,6 +99,49 @@ PROBE = r'''
   /* 8. размер хранилища известен */
   ok(BB.bytes() > 0, "размер хранилища: " + BB.bytes() + " байт");
 
+  /* 9. двойное сохранение: основная запись + резервная копия данных */
+  clearAll();
+  BB.data = null;
+  var d9 = BB.load();
+  BB.set("coins", 333);
+  BB.flush();
+  ok(localStorage.getItem("bb2.v3.data_bak") !== null, "резервная копия появилась после flush");
+  var bak = JSON.parse(localStorage.getItem("bb2.v3.data_bak"));
+  ok(bak.coins === 333, "в резерве те же монеты: " + bak.coins);
+  ok(bak.version === BB.schema, "в резерве версия схемы: " + bak.version);
+
+  /* 10. битая основная запись лечится из резерва */
+  localStorage.setItem("bb2.v3.data", "{битый json");
+  BB.data = null;
+  BB.repaired = false;
+  var d10 = BB.load();
+  ok(d10.coins === 333, "битая запись: монеты из резерва " + d10.coins);
+  ok(BB.repaired === true, "самовосстановление зафиксировано");
+  /* после самовосстановления основная запись снова исправна */
+  localStorage.removeItem("bb2.v3.data_bak");
+  BB.data = null;
+  var d10b = BB.load();
+  ok(d10b.coins === 333, "после чинки основная запись сама держит монеты");
+
+  /* 11. битая и основная, и резервная — чистая установка без падения */
+  clearAll();
+  localStorage.setItem("bb2.v3.data", "!!!не-json");
+  localStorage.setItem("bb2.v3.data_bak", "&&&тоже мусор");
+  BB.data = null;
+  var d11 = BB.load();
+  ok(d11.coins === 120, "оба биты — стартуем по умолчанию, монеты " + d11.coins);
+
+  /* 12. резервная запись битая, основная хороша — берём основную */
+  clearAll();
+  BB.data = null;
+  BB.load();
+  BB.set("coins", 101);
+  BB.flush();
+  localStorage.setItem("bb2.v3.data_bak", "$испорченный$");
+  BB.data = null;
+  var d12 = BB.load();
+  ok(d12.coins === 101, "битый резерв не перекрывает целую основную: " + d12.coins);
+
   out.push(fail ? ("ИТОГО: провалено " + fail) : ("ИТОГО: все проверки прошли"));
   var p = document.createElement("pre");
   p.id = "storereport";

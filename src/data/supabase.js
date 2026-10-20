@@ -73,5 +73,25 @@ var API={
  /* Задеморить таблицы без запросов (=сеть мертва — встаём в режим без базы) */
  off:function(){alive=false}
 };
+/* ---- Канал ошибок (не рекорды): отдельный флаг, чтобы проблемы
+   таблицы client_errors не выключали рекордный канал. Ошибки шлём
+   не чаще двух одинаковых за сессию и не больше 10 всего. ---- */
+var ERR_TABLE="client_errors";
+var errOk=true,errTotal=0,errSeen={};
+function errReq(body){
+ if(!errOk||errTotal>=10)return;
+ fetch(SB_URL+"/rest/v1/"+ERR_TABLE,{
+  method:"POST",
+  headers:{"apikey":SB_KEY,"Content-Type":"application/json"},
+  body:JSON.stringify(body)
+ }).then(function(r){if(!r.ok)errOk=false}).catch(function(){errOk=false});
+}
+API.report=function(page,msg){
+ if(!errOk||errTotal>=10||!msg)return;
+ var k=String(msg).slice(0,140);
+ if(errSeen[k])return; /* дубль за сессию — один раз достаточно */
+ errSeen[k]=1;errTotal++;
+ errReq({page:String(page||"").slice(0,30),msg:k});
+};
 G.AERIS_SB=API;
 })(window);

@@ -52,27 +52,39 @@ def file_url(path):
 
 
 def run_chrome(chrome, url, budget=20000):
-    profile = tempfile.mkdtemp(prefix="langtest")
-    cmd = [
-        chrome,
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--disable-extensions",
-        "--allow-file-access-from-files",
-        "--virtual-time-budget=%d" % budget,
-        "--user-data-dir=" + profile,
-        "--dump-dom",
-        url,
-    ]
-    try:
-        res = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=budget / 1000.0 + 60,
-        )
-    finally:
-        shutil.rmtree(profile, ignore_errors=True)
-    return res.stdout or ""
+    """Каждый запуск получает ДВЕ попытки. Chrome может не завестись,
+       пока система была занята соседними проверками: раньше пустой
+       ответ сразу становился провалом «страница не выдала отчёт»,
+       хотя сама страница была исправна. Второй заход лечит случайный
+       пропуск; повторный же пустой ответ — настоящая неисправность."""
+    best = ""
+    for _attempt in (1, 2):
+        profile = tempfile.mkdtemp(prefix="langtest")
+        cmd = [
+            chrome,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--disable-extensions",
+            "--allow-file-access-from-files",
+            "--virtual-time-budget=%d" % budget,
+            "--user-data-dir=" + profile,
+            "--dump-dom",
+            url,
+        ]
+        try:
+            res = subprocess.run(
+                cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=budget / 1000.0 + 60,
+            )
+            best = res.stdout or ""
+        except subprocess.TimeoutExpired:
+            best = ""
+        finally:
+            shutil.rmtree(profile, ignore_errors=True)
+        if best.strip():
+            return best
+    return best
 
 
 def unescape(s):

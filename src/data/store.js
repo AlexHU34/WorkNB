@@ -132,25 +132,23 @@ const BB = {
   /* Загрузка с миграциями. Вызывается один раз при старте страницы. */
   load() {
     if (this.data) return this.data;
+    /* Двойное хранение: основная запись + резервная копия того же
+       сериала (data_bak). Если основная битая (экстренный выключатель
+       света во время записи, сбой диска, ручная порча),
+       восстанавливаем из резерва — это дешевле, чем потерять работы. */
     const stored = bbReadRaw("data");
     if (stored && typeof stored === "object") {
-      /* Всё хранится одним объектом: version + поля. */
-      let d = stored;
-      let v = typeof d.version === "number" ? d.version : 1;
-      while (v < this.schema) {
-        const mig = BB_MIGRATIONS[v];
-        if (mig) d = mig(d) || d;
-        v++;
-      }
-      /* Defaults поверх: новое поле, которого нет в старых данных,
-         должно появиться со значением по умолчанию, а не undefined. */
-      const def = bbDefaults();
-      for (const k in def) if (d[k] === undefined) d[k] = def[k];
-      d.version = this.schema;
-      this.data = d;
-      return d;
+      this.data = this._migrate(stored);
+      return this.data;
     }
-    /* Нового хранилища нет: пробуем старые ключи. */
+    const backup = bbReadRaw("data_bak");
+    if (backup && typeof backup === "object") {
+      this.data = this._migrate(backup);
+      this.save(); /* чиним основную запись сразу же */
+      this.repaired = true;
+      return this.data;
+    }
+    /* Ни основной, ни резервной: пробуем старые ключи. */
     const legacy = bbImportLegacy();
     if (legacy) {
       legacy.version = this.schema;
@@ -163,6 +161,21 @@ const BB = {
     return this.data;
   },
 
+  /* Версии иdefaults поверх: общий шаг для основной записи и резерва. */
+  _migrate(stored) {
+    let d = stored;
+    let v = typeof d.version === "number" ? d.version : 1;
+    while (v < this.schema) {
+      const mig = BB_MIGRATIONS[v];
+      if (mig) d = mig(d) || d;
+      v++;
+    }
+    const def = bbDefaults();
+    for (const k in def) if (d[k] === undefined) d[k] = def[k];
+    d.version = this.schema;
+    return d;
+  },
+
   /* Немедленная запись. Возвращает успех; ошибку запоминает и сообщает. */
   save() {
     if (!this.data) return false;
@@ -170,8 +183,13 @@ const BB = {
     this._pending = false;
     if (this._timer !== null) { clearTimeout(this._timer); this._timer = null; }
     try {
-      localStorage.setItem(bbKey("data"), JSON.stringify(this.data));
+      const text = JSON.stringify(this.data);
+      localStorage.setItem(bbKey("data"), text);
       this.lastError = null;
+      /* Резервная копия — та же строка в другом ключе. Своя порция
+         try/catch: случай «влезло только одной записи» не должен
+         аннулировать успех основной записи. */
+      try { localStorage.setItem(bbKey("data_bak"), text); } catch (e2) {}
       return true;
     } catch (e) {
       /* Переполнение квоты или приватный режим: прогресс уже не сохранить.

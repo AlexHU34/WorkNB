@@ -212,14 +212,17 @@ def minify(results):
 
     # Метка кэша воркера — время сборки. Без неё старый кэш
     # переживал любую выкладку, и люди видели прежнюю версию сайта.
+    # Штампуем КОПИИ: раньше замена шла в исходник, и после первого
+    # срабатывания заглушки в нём уже не было — метка замирала.
     stamp = time.strftime("%Y%m%d-%H%M%S")
     swp = os.path.join(ROOT, "sw.js")
     if os.path.isfile(swp):
         sw = io.open(swp, encoding="utf-8").read()
         if "__BUILDSTAMP__" in sw:
-            sw = sw.replace("__BUILDSTAMP__", stamp)
-            io.open(swp, "w", encoding="utf-8", newline="\n").write(sw)
-            log("  воркер: метка кэша %s" % stamp)
+            for d in (DIST, out_dir):
+                io.open(os.path.join(d, "sw.js"), "w", encoding="utf-8", newline="\n").write(
+                    sw.replace("__BUILDSTAMP__", stamp))
+                log("  воркер: метка кэша %s в %s" % (stamp, d))
 
     # Настоящее число игр вместо метки в описаниях для ссылки.
     sys.path.insert(0, TOOLS)

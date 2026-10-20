@@ -484,6 +484,24 @@ if(!store.get("bb2_seen",false)){const cg=$("coachGames");if(cg&&window.GAMES)cg
    которое ничего не значит. */
 (function () {
   var proto = location.protocol;
+  /* Ловец ошибок в облако: непойманные сбои уходят в client_errors,
+     чтобы мы видели поломку до первой жалобы игрока. Только с сайта
+     (http/https): при двойном щелчке file:// сеть не трогаем — там
+     файл и так локальный. Не чаще двух одинаковых текстов за сессию —
+     шум не нужен, нужен каждый НОВЫЙ сбой. */
+  if (proto === "http:" || proto === "https:") {
+    try {
+      window.addEventListener("error", function (e) {
+        if (!window.AERIS_SB) return;
+        AERIS_SB.report("index",
+          (e.message || "?") + " @ строка " + (e.lineno || 0));
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        if (!window.AERIS_SB) return;
+        AERIS_SB.report("index", String(e.reason || "?").slice(0, 140));
+      });
+    } catch (err) {}
+  }
   if (proto !== "http:" && proto !== "https:") return;
   if (!("serviceWorker" in navigator)) return;
   try {
