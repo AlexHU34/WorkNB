@@ -605,6 +605,7 @@ body::before,body::after{display:none}
           <div id="starsPrev" style="margin-top:10px;font-size:14px;font-weight:800"></div>
         </div>
         <div class="panel-sec"><h4>🖼 Мои работы (<span id="wCount">0</span>) <button class="mini" id="sellToggle" onclick="toggleSell()">💰 Продать</button></h4><div class="works" id="worksBar"></div></div>
+        <div class="panel-sec" id="hallSec"><h4>🏆 Рекорд зала <span id="hallTotal" style="font-size:11.5px;color:var(--muted)"></span></h4><div id="hallList" style="font-size:12.5px;font-weight:700;color:var(--muted);line-height:1.8">Загрузка…</div></div>
       </div>
     </div>
   </main>
@@ -705,6 +706,9 @@ body::before,body::after{display:none}
 <!-- Экранные кнопки управления: нужны играм, которые читают клавиатуру,
      когда страницу открыли на телефоне. -->
 <script src="src/ui/touch.js"></script>
+<!-- Глобальные рекорды и счётчик открытий (Supabase, только publishable-ключ).
+     Работает молча: нет базы или интернета — сайт как раньше. -->
+<script src="src/data/supabase.js"></script>
 <!-- Сто игр вынесены из файла: см. src/app/games.js -->
 <script src="src/app/games.js"></script>
 <!-- Данные каталога: см. src/app/data.js -->

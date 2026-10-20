@@ -331,8 +331,15 @@ function openGame(id){const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.inde
  if(g.mode){$("starsPrev").innerHTML="";setProg(3);MODES[g.mode]();modeReplay=g.mode}
  else{renderCats();renderToolbar();renderPalette();updateProgress();liveStars();pushUndo()}
  stopTimer();timerOn=false;$("btnTimer").classList.remove("on");scrollTo({top:0});
+ if(window.AERIS_SB){AERIS_SB.ping("play:"+g.id);AERIS_SB.total(function(n){const e=$("hallTotal");if(e)e.textContent=n?"🌐 открытий на сайте: "+n:""});renderHall(g)}
  if(!store.get("bb2_played",false)){store.set("bb2_played",true);setTimeout(()=>toast(g.mode?"🎮 Управление — внутри поля игры!":"👆 Тапай детали снизу — они появятся на поле!"),600)}}
-function renderCats(){const g=GAMES.find(x=>x.id===currentGame);$("catTabs").innerHTML=(g.cats||["Всё"]).map(c=>`<button class="cat ${c===curCat?"on":""}" onclick="setCat('${c}')">${c}</button>`).join("")}
+function renderHall(g){const list=$("hallList");if(!list||!window.AERIS_SB)return;
+ AERIS_SB.top(String(g.id),function(rows){
+  if(!rows.length){list.textContent="Пока пусто — сдай работу первым! ✨";return}
+  list.innerHTML=rows.map(function(r,i){return (i+1)+". "+String(r.name||"гость")+" — ⭐"+(r.score||0)}).join("<br>")}
+ )}
+function renderCats(){const g=GAMES.find(x=>x.id===currentGame);
+ $("catTabs").innerHTML=(g.cats||["Всё"]).map(c=>`<button class="cat ${c===curCat?"on":""}" onclick="setCat('${c}')">${c}</button>`).join("")}
 function setCat(c){curCat=c;sfx.click();renderCats();renderToolbar()}
 function renderToolbar(){const bar=$("partsBar");if(!bar)return;bar.innerHTML="";if(isModeGame())return;
  allParts().filter(p=>curCat==="Всё"||(p.c||"Декор")===curCat).forEach(p=>{const b=document.createElement("button");b.className="tool";b.title=p.n;
@@ -409,8 +416,8 @@ function finishWork(){const{n,colors}=partsInfo(),g=GAMES.find(x=>x.id===current
  if(colors>=5)unlock("rich");if(stars===3)unlock("star3");
  const thumbs=[...document.querySelectorAll("#canvas .part")].slice(0,5).map(e=>{const sh=e.querySelector(".shape");return sh?(sh.querySelector("span")?.textContent||"✿"):e.textContent}).join("");
   const parts=[...document.querySelectorAll("#canvas .part")];
-  works.unshift({game:currentGame,emoji:thumbs||g.emoji,n,stars,date:new Date().toLocaleDateString("ru-RU"),html:packParts(parts)});works=works.slice(0,12);
- unlock("first");updateHUD(true);renderWorks();saveAll();questCheck(stars);sfx.win();boom(140);
+  unlock("first");updateHUD(true);renderWorks();saveAll();questCheck(stars);sfx.win();boom(140);
+ if(window.AERIS_SB){AERIS_SB.sendScore(currentGame,g.title,stars*(timerOn&&timerSec>0?2:1));renderHall(g)}
  for(let i=0;i<stars;i++)setTimeout(()=>sfx.star(i),400+i*250);
  toast(`${"⭐".repeat(stars)} +${reward} 🪙 +${30+stars*15} XP • Работа сохранена!`)}
 function renderWorks(){$("wCount").textContent=works.length;$("stWorks").textContent=works.length;$("worksBar").innerHTML=works.length?works.map((w,i)=>`<div class="work-thumb" onclick="onWork(${i})" title="${w.n} деталей • продать за ${20+(w.stars||1)*15} 🪙">${w.emoji}</div>`).join(""):`<span style="font-size:13px;color:var(--muted)">Пока пусто — собери первый цветок!</span>`}
@@ -436,6 +443,7 @@ function awardResult(stars,thumb,n,achId,note){const g=GAMES.find(x=>x.id===curr
  works.unshift({game:currentGame,emoji:thumb||g.emoji,n:n||0,stars,date:new Date().toLocaleDateString("ru-RU")});works=works.slice(0,12);
  unlock("first");updateHUD(true);renderWorks();saveAll();questCheck(stars);sfx.win();boom(140);
  for(let i=0;i<stars;i++)setTimeout(()=>sfx.star(i),400+i*250);
+  if(window.AERIS_SB){AERIS_SB.sendScore(currentGame,g.title,stars);renderHall(g)}
  toast("⭐".repeat(stars)+" +"+reward+" 🪙 +"+(30+stars*15)+" XP"+(note?" • "+note:""));
  modeFinish=()=>{if(modeReplay){const m=modeReplay;stopMode();setProg(3);MODES[m]()}else toast("Награда уже выдана! 🔄")}}
 /* ===== MODES 1: мемори, раскраска, викторина, теплица, лаборатория ===== */

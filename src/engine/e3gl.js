@@ -718,6 +718,19 @@ function draw(ctx, faces, cam, fl, L, opts) {
       if (py > y1) y1 = py;
     }
 
+    /* Bloom (GL): свечение меряем той же яркостью закраски, что в 2D:
+       E3.lum(c) по уже смешанному с блик/туманом цвету (c здесь — массив
+       RGB). Цвет вершины ограничен единицей, поэтому горение — это
+       простой подъём к потолку. */
+    if (!flat && E3.bloom !== false) {
+      const bt = E3.bloomAt || .92;
+      const l2 = E3.lum(c);
+      if (l2 > bt) {
+        const bb = Math.min(1, (l2 - bt) / (1 - bt)) * .5;
+        c = [Math.min(1, c[0] + bb), Math.min(1, c[1] + bb), Math.min(1, c[2] + bb)];
+      }
+    }
+
     const put = (k) => {
       const q = o0 + k * 5;
       pushV(_pool[q + 3] / LW * 2 - 1, 1 - _pool[q + 4] / LH * 2, 0.5,

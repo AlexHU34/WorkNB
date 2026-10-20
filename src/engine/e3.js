@@ -14,7 +14,14 @@ var E3 = {
    const n=parseInt(h.slice(1,7),16);
    const r=Math.min(255,((n>>16)&255)*f|0),g=Math.min(255,((n>>8)&255)*f|0),b=Math.min(255,(n&255)*f|0);
    return "#"+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)},
- /* нормаль по трём точкам (правая рука, против часовой при взгляде снаружи) */
+ /* размер фото-яркости hex-цвета: серые каналы света 0.3/0.6/0.1.
+    Нужна bloom-у: свечение должно зависеть от того, НАСКОЛЬКО СВЕТЛО
+    закрашена грань, а не только от того, куда смотрит нормаль. */
+ lum(hex){if(Array.isArray(hex))return hex[0]*.3+hex[1]*.6+hex[2]*.1;
+  const h=String(hex);if(h.charAt(0)!=="#")return 0;
+  const n=parseInt(h.slice(1,7),16);
+  return (((n>>16)&255)*.3+((n>>8)&255)*.6+(n&255)*.1)/255},
+/* нормаль по трём точкам (правая рука, против часовой при взгляде снаружи) */
  faceN(a,b,c){const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
   const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,l=Math.hypot(nx,ny,nz)||1;
   return [nx/l,ny/l,nz/l]},
@@ -373,20 +380,37 @@ if(f.pl){
    const nrm=[f.n[0]/nl,f.n[1]/nl,f.n[2]/nl];
    /* цвет-текстура (CanvasPattern из E3.pattern) не тонируется, а идёт в fillStyle как есть */
    const flat=f.e===1||typeof f.c!=="string";
-   let fcol=flat?f.c:E3.shade(f.c,E3.lit(nrm,L,opts));
+   /* освещённость запоминаем: она же метрика для bloom (свет на потолке).
+      Имя brt, а не li: счётчик цикла выше остался li, и объявление внутри
+      тела заслоняло его — грань падала с «Cannot access 'li' before
+      initialization» ещё на самом раннем обращении. */
+   const brt=flat?1:E3.lit(nrm,L,opts);
+   let fcol=flat?f.c:E3.shade(f.c,brt);
+   let spv=0;
    if(!flat&&opts&&opts.spec){
     /* направление взгляда: от грани к камере (грани уже в view space) */
     let vx=0,vy=0,vz=0;
     for(let k=0;k<pv.length;k++){vx-=pv[k][0];vy-=pv[k][1];vz-=pv[k][2]}
     const vl=Math.hypot(vx,vy,vz)||1;
     const sp=E3.spec(nrm,E3.rotN(L,cam),[vx/vl,vy/vl,vz/vl],opts.spec,opts.shin);
-    if(sp>0)fcol=E3.mix(fcol,255,255,255,Math.min(.9,sp));
+    if(sp>0){spv=sp;fcol=E3.mix(fcol,255,255,255,Math.min(.9,sp))}
    }
    const fdep=dmax;
    if(E3.fog&&!flat){const fk=Math.max(0,Math.min(1,(fdep-E3.fog[3])/(E3.fog[4]-E3.fog[3])));if(fk>0)fcol=E3.mix(fcol,E3.fog[0],E3.fog[1],E3.fog[2],fk)}
+   /* Bloom: свечение меряем по НАСТОЯЩЕЙ яркости закраски fcol —
+      свет уже умножен на цвет, блик подмешал белого, туман погасил.
+      Пол с нормалью точно в свет теперь не «горит» только потому,
+      что нормаль смотрит вверх: тёмный пол остаётся тёмным. */
+   let bloom=0;
+   if(!flat&&E3.bloom!==false){
+    const t=E3.bloomAt||.92;
+    const l2=E3.lum(fcol);
+    if(l2>t)bloom=Math.min(1,(l2-t)/(1-t));
+    if(spv>.3)bloom=Math.max(bloom,Math.min(1,(spv-.3)/.7)*.9);
+   }
 if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
     const it=_take();
-    it.d=fdep;it.e=f.e?1:0;it.ea=f.e===2?2:0;it.a=f.a;it.c=fcol;
+    it.d=fdep;it.e=f.e?1:0;it.ea=f.e===2?2:0;it.a=f.a;it.c=fcol;it.b=bloom;
     for(let k=0;k<pv.length;k++)it.p.push(E3.proj(pv[k],fl,LW,LH));
     items.push(it)}
   E3.stats.faces=items.length;E3.stats.culled=culled;E3.stats.dropped=dropped;E3.stats.total=faces.length;E3.stats.tested=listLen;
@@ -423,7 +447,26 @@ if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
    if(!it.ea&&(y1-y0)>=E3.minStroke){ctx.strokeStyle="rgba(10,10,25,.25)";ctx.lineWidth=1;ctx.stroke()}}
   if(_pf){const _p3=performance.now();
    E3.profile.push({ms:_p3-_p0,setup:_p1-_p0,sort:_p2-_p1,fill:_p3-_p2,
-    faces:items.length,culled:culled,dropped:dropped,total:faces.length})}}
+    faces:items.length,culled:culled,dropped:dropped,total:faces.length})}
+  /* Bloom-проход: яркие грани подсвечиваются ещё раз в режиме "lighter"
+     (сложение цветов). Граней таких мало (порог отсекает всё слабее ~94%
+     освещённости, блики — слабее 0.3), а ограничитель E3.bloomMax страхует
+     от сцены, где ярко всё сразу. */
+  if(E3.bloom!==false){
+   ctx.globalCompositeOperation="lighter";
+   let bcount=0;const bmax=E3.bloomMax||64;
+   for(let i=0;i<items.length;i++){const it=items[i];
+    if(!(it.b>0)||it.pt||it.spr||it.pl||it.ea)continue;
+    if(bcount++>=bmax)break;
+    const P=it.p;
+    const gc=it.bgc||(it.bgc=E3.shade(it.c,1.35));
+    ctx.globalAlpha=it.b*.34;
+    ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);
+    for(let k=1;k<P.length;k++)ctx.lineTo(P[k][0],P[k][1]);
+    ctx.closePath();ctx.fillStyle=gc;ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle=gc;ctx.stroke()}
+   ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over"}
+ }
 };
 
 /* ================= настройки движка (общие для приложения и языка) ======== */
@@ -481,6 +524,10 @@ const E3_QUALITY={
   high:  {minGrad:3,  maxTiles:16000,qLimit:0,  auto:false, autoMin:240, ms:16.7}
 };
 E3.quality="medium";
+/* Bloom-свечение: порог освещённости (выше — грань «горит»). Отключается
+   целиком E3.bloom=false; количество подсвеченных граней за кадр ограничено
+   E3.bloomMax, чтобы сцена «всё белым-бело» не съедала кадр. */
+E3.bloom=true;E3.bloomAt=.94;E3.bloomMax=64;
 /* Применить уровень. Вызывается из окна настроек и при старте страницы. */
 E3.setQuality=function(level){
   const q=E3_QUALITY[level]||E3_QUALITY.medium;
@@ -488,6 +535,9 @@ E3.setQuality=function(level){
   E3.minGrad=q.minGrad;
   E3.maxTiles=q.maxTiles;
   E3.qLimit=q.qLimit;
+  /* Bloom коротким не живём: на минимальном качестве его выключаем,
+     экономия кадра там важнее красоты. */
+  E3.bloom=level!=="low";
   /* Бюджет граней сбрасываем: иначе новый уровень унаследовал бы просадку,
      измеренную на предыдущем, и первый кадр после переключения рванул. */
   E3.maxFaces=0;
