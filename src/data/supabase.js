@@ -136,7 +136,7 @@ API.claimNick=function(name,cb){
  }).then(function(r){
   if(r.ok){cb(null,true)}
   else if(r.status===409){cb(null,false)} /* уникальный индекс: занято */
-  else if(r.status===400||r.status===403){cb("правила",false)}
+  else if(r.status===400||r.status===401||r.status===403){cb("правила",false)} /* политика формата шлёт кривой ник как 401/403 — это про ник, не про связь */
   else{profOk=(r.status<500);cb("сеть",false)}
  }).catch(function(){profOk=false;cb("сеть",false)});
 };
