@@ -687,6 +687,23 @@
             E3.box(0, 0, 4, 1, 1, 1, '#fff').concat(E3.box(3, 0, 8, 1, 1, 1, '#fff')),
             camFar, 100, LIGHT3);
     ok('budget still caps faces after watchdog added', E3.stats.faces <= 300, E3.stats.faces);
+    /* 25б. блеск тоже слушает скорость кадров: на медленных кадрах потолок
+       подсвеченных граней падает, на лёгких возвращается к полному.
+       Здесь нельзя брать stress(): он возвращает всё на место по договору,
+       поэтому гоняем measure напрямую и снимаем показания в середине. */
+    var wasBloomCap = E3.maxBloom, wasBloomFaces = E3.maxFaces;
+    E3.auto.on = false; E3.auto.frames = []; E3.auto.last = 0;
+    for (var bi = 0; bi < 260; bi++) E3.auto.measure(40, bi * 40);
+    var slowBloom = E3.maxBloom;
+    for (var bf = 0; bf < 400; bf++) E3.auto.measure(6, bf * 6);
+    var fastBloom = E3.maxBloom;
+    E3.auto.on = true; E3.maxBloom = wasBloomCap; E3.maxFaces = wasBloomFaces;
+    E3.auto.frames = []; E3.auto.last = 0;
+    ok('watchdog tightens bloom on slow frames', slowBloom > 0 && slowBloom <= 32, { slowBloom: slowBloom });
+    ok('watchdog restores bloom on fast frames', fastBloom === 0, { fastBloom: fastBloom, slowBloom: slowBloom });
+    ok('quality label names the bloom cap',
+       (function () { E3.maxBloom = 16; var ql = E3.auto.q(); E3.maxBloom = wasBloomCap; return ql.indexOf('блеск') >= 0; })(),
+       { q: E3.auto.q() });
     E3.budget(wasBudget);
   }
 

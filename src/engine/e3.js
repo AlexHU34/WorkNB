@@ -479,7 +479,7 @@ if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
      от сцены, где ярко всё сразу. */
   if(E3.bloom!==false){
    ctx.globalCompositeOperation="lighter";
-   let bcount=0;const bmax=E3.bloomMax||64;
+   let bcount=0;const bmax=E3.maxBloom?Math.min(E3.bloomMax||64,E3.maxBloom):(E3.bloomMax||64);
    for(let i=0;i<items.length;i++){const it=items[i];
     if(!(it.b>0)||it.pt||it.spr||it.pl||it.ea)continue;
     if(bcount++>=bmax)break;
@@ -512,7 +512,7 @@ E3.fog=null;
 /* статистика последнего draw(): total — подано граней, faces — нарисовано,
    culled — отсечено, dropped — выброшено по бюджету */
 E3.stats={faces:0,culled:0,dropped:0,total:0,tiles:0,ms:0};
-E3.maxFaces=0;E3.maxTiles=9000;
+E3.maxFaces=0;E3.maxBloom=0;E3.maxTiles=9000;
  /* Пороги качества заливки.
    Замер (tools/fill-bench.py, 1700 граней): плоская заливка 0.75 мс, с
    градиентом 6.29 мс — создание CanvasGradient это 88% стоимости кадра.
@@ -609,20 +609,27 @@ E3.auto={min:240,ms:16.7,frames:[],last:0,on:true,hid:false,
   if(A.ms>26){
    if(!E3.maxFaces)E3.maxFaces=1000;
    else if(E3.maxFaces>A.min)E3.maxFaces=Math.max(A.min,Math.floor(E3.maxFaces*.72));
+   /* Блеск дорожает наперегонки с просадкой: на тяжёлых кадрах подсвеченных
+      граней вдвое меньше, внизу остаётся восемь — немного света живёт всегда,
+      иначе сцена гаснет целиком. */
+   if(!E3.maxBloom)E3.maxBloom=32;
+   else if(E3.maxBloom>8)E3.maxBloom=Math.max(8,Math.floor(E3.maxBloom/2));
    A.frames.length=0;if(E3.profile)E3.profile.onBudgetChange();
-  }else if(A.ms<13&&E3.maxFaces>0){
-   E3.maxFaces=E3.maxFaces<760?Math.floor(E3.maxFaces*1.35)+60:0;
+  }else if(A.ms<13&&(E3.maxFaces>0||E3.maxBloom>0)){
+   if(E3.maxFaces>0)E3.maxFaces=E3.maxFaces<760?Math.floor(E3.maxFaces*1.35)+60:0;
+   E3.maxBloom=0;
    A.frames.length=0;if(E3.profile)E3.profile.onBudgetChange();
   }},
  /* прогон на синтетике: n кадров по frameMs мс, без побочных rAF */
  stress:function(n,frameMs){
-  var wasOn=E3.auto.on,wasFaces=E3.maxFaces;
+  var wasOn=E3.auto.on,wasFaces=E3.maxFaces,wasBloom=E3.maxBloom;
   E3.auto.on=false;E3.auto.frames=[];E3.auto.last=0;
   for(var i=0;i<n;i++)E3.auto.measure(frameMs,i*frameMs);
   var out=E3.maxFaces;
-  E3.auto.on=wasOn;E3.maxFaces=wasFaces;E3.auto.frames=[];E3.auto.last=0;
+  E3.auto.on=wasOn;E3.maxFaces=wasFaces;E3.maxBloom=wasBloom;E3.auto.frames=[];E3.auto.last=0;
   return out},
- q:function(){return E3.maxFaces?Math.round(E3.maxFaces)+" граней":"полное качество"}};
+ q:function(){var s=E3.maxFaces?Math.round(E3.maxFaces)+" граней":"полное качество";
+  if(E3.maxBloom)s+=" · блеск до "+E3.maxBloom;return s}};
 /* Смешивание с цветом. Если первый аргумент — не #rrggbb (например,
      CanvasPattern), возвращаем его же: раньше здесь был parseInt от
      объекта, и паттерн вместе с туманом ронял кадр. */
