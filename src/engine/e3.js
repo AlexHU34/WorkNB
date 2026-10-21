@@ -11,9 +11,21 @@ var E3 = {
      неизвестный формат проходит через как есть — начертание не ровно,
      но лучше видимый объект, чем исчезнувший. */
   shade(hex,f){const h=String(hex);if(h.charAt(0)!=="#")return h;
+   /* Кеш (цвет × яркость): одинаковые пары повторяются сотни раз в кадре,
+      а парсинг hex + сборка строки — заметная доля затрат (замер
+      fill-bench: полный кадр 7.41 мс на 1700 граней). Ключ хранит
+      яркость, округлённую до 4-той цифры, — результат от этого
+      не отличается. Разросся (много сцен) — сбрасываем.
+      E3.cacheOff=true выключает кеш: так бенчмарк меряет выигрыш
+      в одном и том же прогоне на одном и том же железе. */
+   let m=E3.cacheOff?null:this._shC;
+   if(m){const got=m.get(h+"|"+((f*1e4)|0));if(got!==undefined)return got}
    const n=parseInt(h.slice(1,7),16);
    const r=Math.min(255,((n>>16)&255)*f|0),g=Math.min(255,((n>>8)&255)*f|0),b=Math.min(255,(n&255)*f|0);
-   return "#"+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)},
+   const out="#"+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);
+   if(m){if(m.size>4000)m.clear();m.set(h+"|"+((f*1e4)|0),out)}
+   return out},
+  _shC:new Map(),
  /* размер фото-яркости hex-цвета: серые каналы света 0.3/0.6/0.1.
     Нужна bloom-у: свечение должно зависеть от того, НАСКОЛЬКО СВЕТЛО
     закрашена грань, а не только от того, куда смотрит нормаль. */
@@ -436,9 +448,19 @@ if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
      /* Мелкая грань: градиент не читается глазом, а стоит дорого.
         Замер (tools/fill-bench.py, 1700 граней): плоская заливка 0.75 мс,
         с градиентом 6.29 мс — создание CanvasGradient это 88% стоимости. */
-     ctx.fillStyle=it.flat||(it.flat=E3.shade(it.c,1))
-    }
-    else{const gr=ctx.createLinearGradient(0,y0,0,Math.max(y0+1,y1));gr.addColorStop(0,E3.shade(it.c,1.18));gr.addColorStop(1,E3.shade(it.c,.8));ctx.fillStyle=gr}
+     if(E3.cacheOff||it.flatC!==it.c){it.flat=E3.shade(it.c,1);it.flatC=it.c}
+     ctx.fillStyle=it.flat}
+    else{
+     /* Штампы-проверки: множество цветов кешируются только пока цвет
+        тот же (it.c пересчитывается каждый кадр) и границы грани не
+        уехали (камера повернулась). Свет поедет — всё пересчитается
+        честно, без «арифметики призрака». */
+     if(E3.cacheOff||it.grC!==it.c){it.gt=E3.shade(it.c,1.18);it.gb=E3.shade(it.c,.8);it.grC=it.c}
+     if(E3.cacheOff||!it.gr||it.gy!==y0||it.gy2!==y1){
+      it.gr=ctx.createLinearGradient(0,y0,0,Math.max(y0+1,y1));
+      it.gr.addColorStop(0,it.gt);it.gr.addColorStop(1,it.gb);
+      it.gy=y0;it.gy2=y1}
+     ctx.fillStyle=it.gr}
    ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);
    for(let k=1;k<P.length;k++)ctx.lineTo(P[k][0],P[k][1]);
    ctx.closePath();ctx.fill();
@@ -459,7 +481,7 @@ if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
     if(!(it.b>0)||it.pt||it.spr||it.pl||it.ea)continue;
     if(bcount++>=bmax)break;
     const P=it.p;
-    const gc=it.bgc||(it.bgc=E3.shade(it.c,1.35));
+    const gc=E3.cacheOff?E3.shade(it.c,1.35):(it.bgcC===it.c?it.bgc:(it.bgcC=it.c,it.bgc=E3.shade(it.c,1.35)));
     ctx.globalAlpha=it.b*.34;
     ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);
     for(let k=1;k<P.length;k++)ctx.lineTo(P[k][0],P[k][1]);

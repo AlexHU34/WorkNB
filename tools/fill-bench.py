@@ -89,7 +89,7 @@ PROBE = r'''
   /* прогрев */
   render(faces, "flat"); render(faces, "grad"); render(faces, "grad-stroke");
 
-  var FR = 15;
+  var FR = 8;
   var modes = ["flat", "grad", "grad-nofill", "grad-stroke"];
   var res = {};
   for (var m = 0; m < modes.length; m++) {
@@ -102,12 +102,34 @@ PROBE = r'''
   out.push("ОБВОДКА стоит: " + (res["grad-stroke"] - res.grad).toFixed(2) + " мс");
   out.push("САМА ЗАЛИВКА (без создания градиента): " + res.flat.toFixed(2) + " мс");
 
-  /* для сравнения: полный кадр движка сейчас */
-  E3.grid.clear(); E3.grid.use = false;
-  E3.draw(x, faces, cam, 430, L);
-  var t1 = performance.now();
-  for (var f = 0; f < FR; f++) E3.draw(x, faces, cam, 430, L);
-  out.push("ДВИЖОК целиком: " + ((performance.now() - t1) / FR).toFixed(2) + " мс/кадр");
+  /* Честный A/B в одном прогоне: замеры между запусками плывут от
+     загрузки машины (проги рядом шумят в оба замера одинаково), а
+     здесь оба режима идут друг за другом на одном и том же железе. */
+  /* Честный A/B: кадры кеш/без кеша ЧЕРЕДУЮТСЯ — монотонный дрейф
+     (виртуальное время, разогрев, загрузка машины) ложится на обе
+     стороны одинаково, и разница отвечает только за кеш. */
+  var pairs=50,arrOn=[],arrOff=[],mid=function(a){a.sort(function(u,v){return u-v});return a[a.length>>1]};
+  E3.cacheOff=false;E3.draw(x,faces,cam,430,L);
+  E3.cacheOff=true;E3.draw(x,faces,cam,430,L);
+  E3.profile.on=true;
+  for(var q=0;q<pairs*2;q++){
+   E3.cacheOff=(q%2)===1;
+   var ta=performance.now();
+   E3.draw(x,faces,cam,430,L);
+   var ms=performance.now()-ta;
+   (q%2?arrOff:arrOn).push(ms)}
+  E3.cacheOff=false;
+  var msOn=mid(arrOn),msOff=mid(arrOff);
+  out.push("Кадр С КЕШЕМ (медиана):  " + msOn.toFixed(2) + " мс/кадр");
+  out.push("Кадр БЕЗ кеша (медиана): " + msOff.toFixed(2) + " мс/кадр");
+  out.push("Выигрыш кеша: " + (100 * (1 - msOn / msOff)).toFixed(1) + "%");
+  /* Разбивка кадра: где именно время — установка (view/proj/свет),
+     сортировка или заливка. Первый профилированный кадр — это разогрев
+     исполнения, он ломает среднее; после прогрева счётчик обнуляем. */
+  E3.profile.reset();
+  for(var pd=0;pd<40;pd++)E3.draw(x,faces,cam,430,L);
+  var pa=E3.profile.avg();
+  out.push("ПРОФИЛЬ("+pa.n+" кадров): установка "+pa.setup.toFixed(2)+" мс, сорт "+pa.sort.toFixed(2)+" мс, заливка "+pa.fill.toFixed(2)+" мс, граней "+pa.faces);
 
   var d = document.createElement("pre");
   d.id = "fill"; d.textContent = out.join("\n");
