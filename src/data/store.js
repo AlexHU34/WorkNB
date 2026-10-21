@@ -35,6 +35,8 @@ const BB_DEFAULTS = {
   q: {}, theme: "dark", buff: {}, daily: "", played: false,
   memBest: 0, quizBest: -1, scents: [], wheel: 0, seen: false,
   last: 0, streak: 1, ugames: [],
+  /* Ник профиля: живёт в сейве, пароля нет вообще. Пусто = «гость». */
+  name: "",
   /* Настройки из окна ⚙️. Значения по умолчанию — то, что страница ставит
      сама при первом запуске; здесь они нужны, чтобы новые поля не были
      пустыми у тех, кто обновился со старой версии. */
@@ -52,6 +54,7 @@ const BB_RENAME = {
   "bb2_mem_best": "memBest", "bb2_quiz_best": "quizBest",
   "bb2_scents": "scents", "bb2_wheel": "wheel", "bb2_seen": "seen",
   "bb2_last": "last", "bb2_streak": "streak",
+  "bb2_name": "name",
   "bb2_ugames.v1": "ugames"
 };
 

@@ -9,7 +9,7 @@
 "use strict";
 var SB_URL="https://xqujfjlktbdpxsaylfpn.supabase.co";
 var SB_KEY="sb_publishable_gtAKhIpMmpjPdupENQFvTA_iJX7Ds46";
-var TABLES={scores:"scores", pings:"pings"};
+var TABLES={scores:"scores", pings:"pings", profiles:"profiles"};
 
 /* Живая связь: первая неудачная попытка выключает сеть до перезагрузки
    страницы, чтобы офлайн не сыпал ошибками в консоль на каждый клик. */
@@ -52,11 +52,14 @@ var API={
   if(API._last[ev]&&t-API._last[ev]<30000)return;
   API._last[ev]=t;
   req(TABLES.pings,"POST",{event:String(ev).slice(0,40)})},
- /* Рекорд: пишем каждую сданную работу — доска показывает лучшие. */
- sendScore:function(gameId,gameTitle,score){
+ /* Рекорд: пишем каждую сданную работу — доска показывает лучшие.
+    Имя игрока берём из профиля (аргумент), из старого плоского ключа
+    (до версий хранилища) или «гость». */
+ sendScore:function(gameId,gameTitle,score,name){
   if(!alive)return;
   score=Math.max(0,Math.min(999,Math.round(score||0)));
-  req(TABLES.scores,"POST",{game:String(gameId),name:((G.localStorage&&G.localStorage.getItem("bb2_name"))||"гость").slice(0,20),score:score})},
+  var who=(name||((G.localStorage&&G.localStorage.getItem("bb2_name"))||"гость")).slice(0,20);
+  req(TABLES.scores,"POST",{game:String(gameId),name:who,score:score})},
  /* Лучшие в игре: cb(список) или cb([]), максимум 8 строк. */
  top:function(gameId,cb){
   req(TABLES.scores+"?game=eq."+encodeURIComponent(gameId)+
@@ -93,5 +96,51 @@ API.report=function(page,msg){
  errSeen[k]=1;errTotal++;
  errReq({page:String(page||"").slice(0,30),msg:k});
 };
+/* ---- Канал ников (профили без пароля): третий свой флаг. Уникальность
+   гарантирует база (нижний регистр), поэтому даже если проверка «свободен?»
+   ошиблась на гонке — вторая вставка честно вернёт «занят». ---- */
+var profOk=true;
+function nickClean(s){
+ var n=String(s||"").trim().replace(/\s+/g," ");
+ if(!/^[0-9A-Za-zА-Яа-яЁё_ -]{2,16}$/.test(n))return "";
+ if(/^[ _-]|[ _-]$/.test(n))return ""; /* пробел/дефис не на торцах */
+ return n;
+}
+/* Свободен ли ник: cb(ошибка, свободен). ошибка: "" | "сеть" | "правила". */
+API.nickFree=function(name,cb){
+ var n=nickClean(name);
+ if(!n){cb("правила",false);return}
+ if(!profOk){cb("сеть",false);return}
+ fetch(SB_URL+"/rest/v1/"+TABLES.profiles+"?select=name&name=ilike."+
+  encodeURIComponent(n)+"&limit=1",{headers:{"apikey":SB_KEY}})
+ .then(function(r){
+  if(!r.ok){profOk=(r.status>=500);cb("сеть",false);return}
+  return r.text();
+ })
+ .then(function(t){
+  if(t===undefined)return; /* уже ответили Networking-веткой */
+  var rows=null;try{rows=JSON.parse(t)}catch(e){}
+  cb(null,Array.isArray(rows)&&rows.length===0);
+ })
+ .catch(function(){profOk=false;cb("сеть",false)});
+};
+/* Занять ник: cb(ошибка, ok). "правила" — не прошёл формат/условия базы. */
+API.claimNick=function(name,cb){
+ var n=nickClean(name);
+ if(!n){cb("правила",false);return}
+ if(!profOk){cb("сеть",false);return}
+ fetch(SB_URL+"/rest/v1/"+TABLES.profiles,{
+  method:"POST",
+  headers:{"apikey":SB_KEY,"Content-Type":"application/json"},
+  body:JSON.stringify({name:n})
+ }).then(function(r){
+  if(r.ok){cb(null,true)}
+  else if(r.status===409){cb(null,false)} /* уникальный индекс: занято */
+  else if(r.status===400||r.status===403){cb("правила",false)}
+  else{profOk=(r.status<500);cb("сеть",false)}
+ }).catch(function(){profOk=false;cb("сеть",false)});
+};
+/* Чистка ника наружу: приложение проверяет формат до запросов. */
+API.cleanNick=nickClean;
 G.AERIS_SB=API;
 })(window);

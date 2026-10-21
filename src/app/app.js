@@ -28,7 +28,8 @@ const STORE_MAP={
  /* Настройки из окна ⚙️. Без этих строк store.set("bb2_vol") молча
     ничего не делал: ключ не был известен, значение уходило в никуда,
     и после перезагрузки настройка возвращалась к исходной. */
- "bb2_vol":"vol","bb2_ui":"ui","bb2_quality":"quality"
+ "bb2_vol":"vol","bb2_ui":"ui","bb2_quality":"quality",
+ "bb2_name":"name"
 };
 const store={
  get:(k,d)=>{const n=STORE_MAP[k];return n===undefined?d:BB.get(n,d)},
@@ -336,8 +337,43 @@ function openGame(id){const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.inde
 function renderHall(g){const list=$("hallList");if(!list||!window.AERIS_SB)return;
  AERIS_SB.top(String(g.id),function(rows){
   if(!rows.length){list.textContent="Пока пусто — сдай работу первым! ✨";return}
-  list.innerHTML=rows.map(function(r,i){return (i+1)+". "+String(r.name||"гость")+" — ⭐"+(r.score||0)}).join("<br>")}
+  list.innerHTML=rows.map(function(r,i){const who=String(r.name||"гость");
+   const me=nick&&who.toLowerCase()===String(nick).toLowerCase();
+   return (i+1)+". "+who+(me?" ← это ты":"")+" — ⭐"+(r.score||0)}).join("<br>")}
  )}
+/* ===== Профиль: ник без пароля =====
+   Ник уникален на сервере (уникальный индекс, регистр не важен),
+   паролей и почт нет вообще: это имя для рекордзала, а не учётка.
+   Сети нет / база молчит — не беда: ник продолжает жить в сейве. */
+let nick=store.get("bb2_name","");
+function drawNick(msg){
+ const lbl=$("hallNick");
+ if(lbl)lbl.textContent=nick?("Твой ник: "+nick+" ⭐"):"Без ника — в зале ты «гость»";
+ const m=$("nickMsg");
+ if(m&&msg!==undefined){m.textContent=msg;m.hidden=!msg}
+}
+function nickBtnLock(on){const b=$("nickBtn");if(b){b.disabled=on;b.textContent=on?"…":"Занять ник"}}
+function nickStore(n){nick=n;store.set("bb2_name",n);sfx.click();drawNick();toast("Профиль обновлён: "+n+" 🌟")}
+function nickSave(){
+ const inp=$("nickInput");if(!inp)return;
+ var clean=(window.AERIS_SB&&AERIS_SB.cleanNick)?AERIS_SB.cleanNick(inp.value):String(inp.value||"").trim().replace(/\s+/g," ");
+ if(!clean){drawNick("2–16 знаков: буквы, цифры, дефис; не с пробела/дефиса начинаются");return}
+ if(!window.AERIS_SB){nickStore(clean);drawNick("Облака нет — ник живёт только в этом браузере");return}
+ nickBtnLock(true);drawNick("Проверяю свободность…");
+ AERIS_SB.nickFree(clean,function(err,free){
+  if(err==="сеть"){nickBtnLock(false);nickStore(clean);drawNick("Связи с базой нет — ник пока только у тебя в браузере");return}
+  if(err){nickBtnLock(false);drawNick("Такой ник не примется — измени его");return}
+  if(!free){nickBtnLock(false);drawNick("Занято! Придумай другой ✏️");sfx.click();return}
+  AERIS_SB.claimNick(clean,function(err2,ok){
+   nickBtnLock(false);
+   if(err2==="сеть"){nickStore(clean);drawNick("База молчит — ник пока только у тебя в браузере");return}
+   if(err2==="правила"){drawNick("База такой формат не примет — измени ник");return}
+   if(!ok){drawNick("Занято! Кто-то успел раньше — придумай другой ✏️");sfx.click();return}
+   nickStore(clean);drawNick("Ник «"+clean+"» закреплён за тобой ⭐");
+  });
+ });
+}
+drawNick();
 function renderCats(){const g=GAMES.find(x=>x.id===currentGame);
  $("catTabs").innerHTML=(g.cats||["Всё"]).map(c=>`<button class="cat ${c===curCat?"on":""}" onclick="setCat('${c}')">${c}</button>`).join("")}
 function setCat(c){curCat=c;sfx.click();renderCats();renderToolbar()}
@@ -417,7 +453,7 @@ function finishWork(){const{n,colors}=partsInfo(),g=GAMES.find(x=>x.id===current
  const thumbs=[...document.querySelectorAll("#canvas .part")].slice(0,5).map(e=>{const sh=e.querySelector(".shape");return sh?(sh.querySelector("span")?.textContent||"✿"):e.textContent}).join("");
   const parts=[...document.querySelectorAll("#canvas .part")];
   unlock("first");updateHUD(true);renderWorks();saveAll();questCheck(stars);sfx.win();boom(140);
- if(window.AERIS_SB){AERIS_SB.sendScore(currentGame,g.title,stars*(timerOn&&timerSec>0?2:1));renderHall(g)}
+ if(window.AERIS_SB){AERIS_SB.sendScore(currentGame,g.title,stars*(timerOn&&timerSec>0?2:1),nick);renderHall(g)}
  for(let i=0;i<stars;i++)setTimeout(()=>sfx.star(i),400+i*250);
  toast(`${"⭐".repeat(stars)} +${reward} 🪙 +${30+stars*15} XP • Работа сохранена!`)}
 function renderWorks(){$("wCount").textContent=works.length;$("stWorks").textContent=works.length;$("worksBar").innerHTML=works.length?works.map((w,i)=>`<div class="work-thumb" onclick="onWork(${i})" title="${w.n} деталей • продать за ${20+(w.stars||1)*15} 🪙">${w.emoji}</div>`).join(""):`<span style="font-size:13px;color:var(--muted)">Пока пусто — собери первый цветок!</span>`}
@@ -443,7 +479,7 @@ function awardResult(stars,thumb,n,achId,note){const g=GAMES.find(x=>x.id===curr
  works.unshift({game:currentGame,emoji:thumb||g.emoji,n:n||0,stars,date:new Date().toLocaleDateString("ru-RU")});works=works.slice(0,12);
  unlock("first");updateHUD(true);renderWorks();saveAll();questCheck(stars);sfx.win();boom(140);
  for(let i=0;i<stars;i++)setTimeout(()=>sfx.star(i),400+i*250);
-  if(window.AERIS_SB){AERIS_SB.sendScore(currentGame,g.title,stars);renderHall(g)}
+  if(window.AERIS_SB){AERIS_SB.sendScore(currentGame,g.title,stars,nick);renderHall(g)}
  toast("⭐".repeat(stars)+" +"+reward+" 🪙 +"+(30+stars*15)+" XP"+(note?" • "+note:""));
  modeFinish=()=>{if(modeReplay){const m=modeReplay;stopMode();setProg(3);MODES[m]()}else toast("Награда уже выдана! 🔄")}}
 /* ===== MODES 1: мемори, раскраска, викторина, теплица, лаборатория ===== */
