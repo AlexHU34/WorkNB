@@ -16,6 +16,13 @@
   var MODE = P.get('harness') || 'smoke';
   if (!MODE) return;
 
+  /* Тесты меряют логику и 2D-канву. Головной Chrome без видеокарты
+     тянет WebGL программно, и каждый кадр встаёт в разы дороже —
+     бюджет виртуального времени вылетает. Поэтому в харнессе всегда
+     жёсткий приказ «без видеокарты»; отдельный свой гейт есть у
+     e3gl.js, где GL нужен намеренно. */
+  if (typeof E3GL !== 'undefined' && E3GL.request) E3GL.request(false);
+
   var errs = [];
   window.addEventListener('error', function (e) {
     var msg = 'ERR ' + (e.message || e.error) + ' @' + e.lineno + ':' + e.colno;
@@ -126,6 +133,10 @@
         { bubbles: true, pointerId: 1, button: 0, isPrimary: true }, o)));
     }
     try { localStorage.clear(); } catch (e) {}
+    /* Другая страница того же адреса могла оставить хранилище в памяти:
+       загрузка блоба прошла до нашей чистки. Сбрасываем поведение хранилища
+       сразу — иначе бонус за день «уже забран» вчерашней страницей. */
+    try { store.reset(); } catch (e2) {}
     // сбросить и модульные переменные (localStorage чистим ДО, но переменные уже инициализированы)
     coins = 120; works = []; owned = []; favs = []; ach = []; history = []; updateHUD();
 
@@ -365,6 +376,10 @@
   }
 
   function e3Body(out, ok) {
+    /* Тесты движка меряют пиксели на 2D-холсте: обязаны идти процессором.
+       С P2.2 «авто» — поведение по умолчанию, поэтому здесь жёсткий
+       приказ «выключить» отсекает любые прыжки на видеокарту. */
+    if (typeof E3GL !== 'undefined' && E3GL.request) E3GL.request(false);
     function mk(w, h) {
       var c = document.createElement('canvas');
       c.width = w; c.height = h; c._lw = w; c._lh = h;

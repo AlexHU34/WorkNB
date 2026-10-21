@@ -41,6 +41,11 @@ let filter="all", favs=store.get("bb2_favs",[]), coins=store.get("bb2_coins",120
  currentGame=1, selected=null, zTop=10, curColor=COLORS[0], curCat="Всё",
  undoStack=[], redoStack=[], combo=0, comboT=null, timerOn=false, timerSec=60, timerInt=null,
  soundOn=store.get("bb2_sound",true), heroI=0;
+/* Тихий старт для гостей и проверки страниц: адрес со звук=0 заводит
+   приложение молча и запоминает выбор. Пробники, снимки и живая отладка
+   всегда открываются с этим параметром — щелчки сред при проверке кода
+   не должны звучать в комнате рядом с человеком. */
+if(typeof location!=="undefined"&&/[?&]sound=0(&|$)/.test(location.search||"")){soundOn=false;store.set("bb2_sound",false)}
 const $=id=>document.getElementById(id);
 /* ===== ЭКОНОМИКА: учёт дня, бонус первого за день, траты ===== */
 let ecoEarn=store.get("bb2_earn",0),ecoSpent=store.get("bb2_spent",0),ecoDay=store.get("bb2_eco_day",""),firsts=store.get("bb2_firsts",{day:"",ids:[]});
@@ -104,6 +109,8 @@ function syncSettings(){
   seg("segTheme",document.documentElement.dataset.theme);
   seg("segQuality",quality);
   seg("segGl",glMode);
+  /* Сохранённый выбор действует с самого старта, иначе он работал бы только в момент клика. */
+  if(typeof E3GL!=="undefined"&&E3GL.request)E3GL.request(glMode==="on"?true:glMode==="off"?false:null);
   $("volSlider").value=Math.round(vol*100);
   $("volVal").textContent=Math.round(vol*100);
 }
@@ -452,6 +459,11 @@ function finishWork(){const{n,colors}=partsInfo(),g=GAMES.find(x=>x.id===current
  if(colors>=5)unlock("rich");if(stars===3)unlock("star3");
  const thumbs=[...document.querySelectorAll("#canvas .part")].slice(0,5).map(e=>{const sh=e.querySelector(".shape");return sh?(sh.querySelector("span")?.textContent||"✿"):e.textContent}).join("");
   const parts=[...document.querySelectorAll("#canvas .part")];
+  /* Работа становится работой ЗДЕСЬ: запись в works и её html. Эту строку
+     случайно срезал коммит bloom-свечения (2136d38) — правка соседних
+     строк задела и её: монеты платились, а работы молча перестали
+     сохраняться, и старые нельзя было загрузить повторно. */
+  works.unshift({game:currentGame,emoji:thumbs||g.emoji,n,stars,date:new Date().toLocaleDateString("ru-RU"),html:packParts(parts)});works=works.slice(0,12);
   unlock("first");updateHUD(true);renderWorks();saveAll();questCheck(stars);sfx.win();boom(140);
  if(window.AERIS_SB){AERIS_SB.sendScore(currentGame,g.title,stars*(timerOn&&timerSec>0?2:1),nick);renderHall(g)}
  for(let i=0;i<stars;i++)setTimeout(()=>sfx.star(i),400+i*250);
@@ -469,7 +481,7 @@ function showWorks(){goHome();if(!works.length){toast("Нет работ — с�
    «ReferenceError: MODES is not defined». Объявление поехало вместе с
    играми, где ему и место. */
 let modeFinish=null,modeCleanup=null,modeReplay=null;
-function stopMode(){if(modeCleanup){try{modeCleanup()}catch(e){}}modeCleanup=null;modeFinish=null;modeReplay=null;document.querySelectorAll("#canvas .mode").forEach(e=>e.remove())}
+function stopMode(){if(modeCleanup){try{modeCleanup()}catch(e){}}modeCleanup=null;modeFinish=null;modeReplay=null;if(typeof E3GL!=="undefined"&&E3GL.unbind)E3GL.unbind();document.querySelectorAll("#canvas .mode").forEach(e=>e.remove())}
 function saveClick(){const g=GAMES.find(x=>x.id===currentGame);if(g.mode&&modeFinish){modeFinish()}else{finishWork()}}
 function setProg(p){$("gProg").style.width=Math.max(3,Math.min(100,p))+"%";$("gProgTxt").textContent=Math.round(p)+"%"}
 function modeRoot(html){const d=document.createElement("div");d.className="mode";if(html)d.innerHTML=html;$("canvas").appendChild(d);return d}

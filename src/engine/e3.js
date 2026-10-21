@@ -314,7 +314,10 @@ particles(n,opt){
      ниже обычным путём. */
   if(typeof E3GL!=="undefined"&&E3GL.want){
    if(!E3GL.ok)E3GL.attach(ctx);
-   if(E3GL.ok&&E3GL.want)return E3GL.draw(ctx,faces,cam,fl,L,opts);
+   /* Совпадение привязки: GL-слой принадлежит тому холсту, что был
+      прикреплён последним. После unbind() (смена игры) привязки нет —
+      прикрепление пройдёт заново; чужой холст в чужой слой не рисуем. */
+   if(E3GL.ok&&E3GL.want&&E3GL.state.top===ctx.canvas)return E3GL.draw(ctx,faces,cam,fl,L,opts);
   }
   const _pf=E3.profile.on,_p0=_pf?performance.now():0;
   const LW=ctx.canvas._lw||ctx.canvas.width,LH=ctx.canvas._lh||ctx.canvas.height;

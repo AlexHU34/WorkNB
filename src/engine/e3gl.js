@@ -27,6 +27,11 @@ const S = {
   active: false,      /* включён ли GL-путь (по умолчанию выключен) */
   ok: false,          /* есть ли WebGL2 и удалось ли завести слой */
   force: null,        /* null — авто, true — включить, false — не включать */
+  /* Последний провал attach: автоматика не долбит killed драйвер
+     каждый кадр — после провала ждём 3 секунды до новой попытки.
+     Новая игра сбрасывает это в unbind(). */
+  glFail: false,
+  glTryAt: 0,
   gl: null,
   canvas: null,       /* канва GL, лежит ПОД 2D-канвой */
   ctx2d: null,        /* 2D-слой для спрайтов и HUD */
@@ -192,6 +197,12 @@ function attach(ctx2d) {
      новую канву и новый контекст. */
   if (S.ok) return true;
   const top = ctx2d.canvas;
+  const now = (typeof performance !== "undefined" ? performance.now() : 0);
+  /* Провал свежее трёх секунд — не торопимся: попытка создать контекст
+     стоит миллисекунды, а мы звались из середины кадра. Автоматика
+     поэтому молчит до следующей игры; жёсткий «включить» от человека
+     тоже обождёт — чуть-чуть, зато без долбежки. */
+  if (S.glFail && now - S.glTryAt < 3000) return false;
   let gl = null;
   try {
     const c = document.createElement("canvas");
@@ -237,11 +248,15 @@ function attach(ctx2d) {
       S.hudCanvas = null;
       S.hudCtx = null;
       S.err = "WebGL2 недоступен";
+      S.glFail = true;
+      S.glTryAt = now;
       return false;
     }
     S.canvas = c;
   } catch (e) {
     S.err = String(e.message || e);
+    S.glFail = true;
+    S.glTryAt = now;
     return false;
   }
 
@@ -250,6 +265,8 @@ function attach(ctx2d) {
     S.lineProg = program(gl, LVS, LFS);
   } catch (e) {
     S.err = String(e.message || e);
+    S.glFail = true;
+    S.glTryAt = now;
     return false;
   }
 
@@ -872,21 +889,51 @@ const E3GL = {
   get force() { return S.force; },
   request(on) {
     S.force = on === null ? null : !!on;
+    /* «Включить» руками — верим человеку: сбрасываем память о провале,
+       иначе запрет автоматических попыток пережил бы его приказ. */
+    if (S.force) { S.glFail = false; S.glTryAt = 0; }
     return S.force;
   },
-  /* Запрошен ли GL-режим. Читается на каждом кадре: включить движок
-     можно и до загрузки страницы (?gl=1 в адресе), и позже из консоли. */
+  /* Запрошен ли GL-режим. Читается на каждом кадре. Приоритет, от
+     старшего к младшему: жёсткий приказ «выключить» от человека; класс no-gl на
+     body (тестам и киоскам способ сказать «не надо» без настроек);
+     адрес ?gl=0; уже активный GL; свежий провал attach (авто молчит
+     три секунды, чтобы не долбить мёртвый драйвер); жёсткое «включить»;
+     иначе авто — по умолчанию пробуем видеокарту. Это P2.2: раньше
+     авто-выбор был только у сред игр, а свои режимы так и остались
+     бы на 2D до ручного ?gl=1. */
   get want() {
-    if (S.active) return true;
     if (S.force === false) return false;
     try {
-      return typeof location !== "undefined" &&
-        /[?&]gl=1(&|$)/.test(location.search || "");
+      if (typeof document !== "undefined" && document.body &&
+          document.body.classList.contains("no-gl")) return false;
+      const srch = (typeof location !== "undefined" && location.search) || "";
+      if (/[?&]gl=0(&|$)/.test(srch)) return false;
     } catch (e) { return false; }
+    if (S.active) return true;
+    if (S.glFail && S.force !== true) return false;
+    return true;
   },
   attach, draw, beginFrame, resize, stats, hud,
   enable() { if (S.ok) S.active = true; return S.active; },
   disable() { S.active = false; return false; },
+  /* Смена игры: её холст уходит из документа вместе с GL-слоем, а
+     состояние ещё считает свой холст живым. Полный сброс: следующая
+     игра прикрепится по-новой, со свежим шансом на видеокарту — и без
+     чужой памяти о провале. */
+  unbind() {
+    S.active = false;
+    S.ok = false;
+    S.gl = null; S.prog = null; S.lineProg = null;
+    S.top = null; S.ctx2d = null;
+    if (typeof document !== "undefined") {
+      if (S.canvas && S.canvas.parentNode) S.canvas.parentNode.removeChild(S.canvas);
+      if (S.hudCanvas && S.hudCanvas.parentNode) S.hudCanvas.parentNode.removeChild(S.hudCanvas);
+    }
+    S.canvas = null; S.hudCanvas = null; S.hudCtx = null;
+    S.glFail = false; S.glTryAt = 0;
+    return false;
+  },
   state: S,
 };
 

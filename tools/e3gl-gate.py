@@ -80,7 +80,11 @@ PROBE = r"""
   document.body.appendChild(c2);
   var ctx2 = c2.getContext("2d");
   ctx2.fillStyle = "#111a2b"; ctx2.fillRect(0, 0, W, H);
+  /* Эталон обязан пройти процессором, а не уйти в GL: с P2.2 «авто» —
+     поведение по умолчанию, поэтому здесь приказ «выключить» временно. */
+  E3GL.request(false);
   E3.draw(ctx2, scene(), cam, 430, LIGHT3);
+  E3GL.request(null);
   var ref2d = ctx2.getImageData(0, 0, W, H).data;
 
   function coverage(data, W, H, bg) {
@@ -239,7 +243,9 @@ PROBE = r"""
   document.body.appendChild(c3);
   var ctx3 = c3.getContext("2d");
   ctx3.fillStyle = "#111a2b"; ctx3.fillRect(0, 0, W, H);
+  E3GL.request(false); /* эталон — только процессор, смотри выше */
   E3.draw(ctx3, facesTM, cam2, 430, LIGHT3);
+  E3GL.request(null);
   var refTM = ctx3.getImageData(0, 0, W, H).data;
   var covTM = coverage(refTM, W, H, bgColor);
   ok(covTM > 20000, "2D-путь рисует сетку, закрашено " + covTM + " px");
@@ -413,6 +419,20 @@ PROBE = r"""
   E3GL.beginFrame("#111a2b", "#1d2b45");
   E3GL.draw(ctx2, scene(), cam, 430, LIGHT3);
   ok(E3GL.state.ok === before, "состояние не ломается при выключенном active");
+
+  /* P2.2: авто-режим по умолчанию. Жесткие приказы (
+     request(true|false)) главнее автоматики; класс no-gl и выключение —
+     уважаются даже в авто; vamos после провала attach не бесится. */
+  document.body.classList.add("no-gl");
+  E3GL.request(null);
+  ok(E3GL.want === false, "авто уважает класс no-gl");
+  document.body.classList.remove("no-gl");
+  ok(E3GL.want === true, "авто по умолчанию пробует видеокарту");
+  E3GL.request(false);
+  ok(E3GL.want === false, "жёсткий «выключить» сильнее автоматики");
+  E3GL.request(true);
+  ok(E3GL.want === true, "жёсткий «включить» работает без адреса");
+  E3GL.request(null);
 
   out.push(window.__errs.length === 0
     ? "OK   ошибок JS нет"

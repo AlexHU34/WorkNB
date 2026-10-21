@@ -42,9 +42,13 @@ function createRuntime(opts) {
     E3GL.request(glMode === "on" ? true : glMode === "off" ? false : null);
   }
   /* Адрес вида ?gl=1 остаётся самым сильным указанием: так гейты и
-     отладка включают GL принудительно, независимо от настройки. */
+     отладка включают GL принудительно, независимо от настройки.
+     ?gl=0 — обратный приказ «не надо»: среда даже не пытается
+     прикреплять слой, чтобы не рисовать один кадр дважды. */
   const urlGL = typeof location !== "undefined" && /[?&]gl=1(&|$)/.test(location.search || "");
-  const wantGL = glMode === "on" || (glMode === "auto" && !document.body.classList.contains("no-gl")) || urlGL;
+  const urlNoGL = typeof location !== "undefined" && /[?&]gl=0(&|$)/.test(location.search || "");
+  const wantGL = !urlNoGL &&
+    (glMode === "on" || (glMode === "auto" && !document.body.classList.contains("no-gl")) || urlGL);
 
   if (wantGL && typeof E3GL !== "undefined" && !E3GL.ok) {
     try {
