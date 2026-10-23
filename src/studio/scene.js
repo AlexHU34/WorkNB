@@ -366,6 +366,150 @@ function sceneFromText(text) {
   };
 }
 
+/* ---------- ИГРА ОДНОЙ СТРАНИЦЕЙ ----------
+ *
+ * Сцену в файл можно отдать текстом — но друг без AERIS просто
+ * откроет блокнот. Здесь же собирается страница-пускашка: внутри
+ * одного файла вшиты движок, среда и код игры, и такой файл
+ * запускается двойным щелчком без сети и без настройки.
+ *
+ * Модули движка берём двумя способами, по очереди:
+ *   1) если страница уже собрана в один файл (после сборки код
+ *      движка лежит в самих скриптах страницы), находим блоки по
+ *      первым строчкам: имена E3, E3GL, E3Step, LangError,
+ *      createRuntime живут в общем охвате страницы, и ужатие их
+ *      не трогает, поэтому приметы надёжны;
+ *   2) если страница живёт во многих файлах — читаем соседей
+ *      обычным запросом (работает по сети; с диска так нельзя).
+ */
+const RUNNER_FILES = [
+  { name: "e3.js",      path: "src/engine/e3.js",      want: /\b(const|let|var)\s+E3\b\s*=/ },
+  { name: "e3gl.js",    path: "src/engine/e3gl.js",    want: /\b(const|let|var)\s+E3GL\b\s*=/ },
+  { name: "time.js",    path: "src/engine/time.js",    want: /\bE3Step\b/ },
+  { name: "core.js",    path: "src/lang/core.js",      want: /\bclass\s+LangError\b/ },
+  { name: "runtime.js", path: "src/lang/runtime.js",   want: /\bfunction\s+createRuntime\b/ }
+];
+
+function runnerPickModules() {
+  const inline = [];
+  const all = document.scripts || [];
+  for (let i = 0; i < all.length; i++) {
+    const s = all[i];
+    if (s.src) continue;               /* внешние — не они */
+    const code = String(s.textContent || "");
+    if (code.length >= 200) inline.push(code); /* мелкие заглушки — не они */
+  }
+  const found = [], missing = [];
+  for (let n = 0; n < RUNNER_FILES.length; n++) {
+    const f = RUNNER_FILES[n];
+    let got = null;
+    for (let i = 0; i < inline.length && !got; i++) {
+      if (f.want.test(inline[i])) got = inline[i];
+    }
+    if (!got) {
+      /* Многофайловая страница: тянем модуль соседним файлом.
+         С диска (file:) такой запрос не пройдёт — это честно
+         скажет проверка: приметы в ответе должны найтись. */
+      try {
+        const x = new XMLHttpRequest();
+        x.open("GET", f.path, false);
+        x.send(null);
+        if (x.responseText) got = String(x.responseText);
+      } catch (e) { /* диску это не положено */ }
+    }
+    if (got && f.want.test(got)) found.push({ name: f.name, code: got });
+    else missing.push(f.name);
+  }
+  return { found: found, missing: missing };
+}
+
+function runnerHtml(scene, name) {
+  const title = String(name || scene.name || "Своя игра")
+    .replace(/[\r\n<>&]+/g, " ").trim().slice(0, 80) || "Своя игра";
+  const parts = runnerPickModules();
+  if (parts.missing.length) {
+    return { ok: false, error: "не нашёлся движок: " + parts.missing.join(", ") };
+  }
+  /* Работающий код игры: полный текст с заголовком-комментарием,
+     поэтому файл-пускашка и лобби приложения зовут игру одним
+     и тем же именем. */
+  const src = sceneToText(scene, name);
+  /* Скелет страницы собирается из честных строк, а переводы строк
+     берём из рабочей функции, а не из литералов: ужатие сворачивает
+     склейки «текст + перевод строки» в шаблон и тащит физические
+     переводы исходника прямо в значение — от этого страница студии
+     переставала открываться. Здесь для него нечего сворачивать.
+     Скобки-закрывашки тоже собраны в работе: ужатие ищет пары
+     «стиль открыт — стиль закрыт» по всему тексту страницы, не
+     различая настоящую разметку и наши рабочие строки. */
+  const NL = function () { return String.fromCharCode(10); };
+  const SRC_CLOSE = String.fromCharCode(60) + "/script>";
+  const blocks = parts.found.map(function (b) {
+    const code = String(b.code).replace(/<\/script/gi, "<\\/script");
+    return "<script>" + code + SRC_CLOSE;
+  }).join(NL());
+  const payload = JSON.stringify(src).replace(/<\//g, "<\\/");
+  const boot = [
+    "<script>",
+    "(function(){",
+    "var cv=document.getElementById('cv');cv._lw=640;cv._lh=380;",
+    "var hint=document.getElementById('hint');",
+    "var rt=createRuntime({canvas:cv,scale:1,logicalWidth:640,logicalHeight:380,",
+    " gameId:'runner',gl:'auto',",
+    " log:function(m,c){if(c==='err')console.error('[игра] '+m)},",
+    " onError:function(e){if(e)hint.textContent='ошибка в строке '+(e.line||'?');}});",
+    "var okRun=rt.launch(__GAME_CODE__);",
+    "if(okRun)hint.textContent='идёт';else hint.textContent='не запустилось — подробности в консоли';",
+    "})();",
+    SRC_CLOSE
+  ].join(NL()).replace("__GAME_CODE__", function () { return payload; });
+  const html = [
+    "<!DOCTYPE html>",
+    "<html lang=\"ru\">",
+    "<head>",
+    "<meta charset=\"UTF-8\">",
+    "<meta name=\"viewport\" content=\"width=1280\">",
+    "<title>" + title + " — AERIS</title>",
+    String.fromCharCode(60) + "style>",
+    " html,body{height:100%}",
+    " body{margin:0;background:#191634;color:#fff;font-family:system-ui,sans-serif;",
+    "  display:flex;flex-direction:column;align-items:center;justify-content:center}",
+    " canvas{border-radius:10px;box-shadow:0 18px 70px rgba(0,0,0,.55)}",
+    " #hint{opacity:.55;font-size:13px;margin-top:12px}",
+    String.fromCharCode(60) + "/style>",
+    "</head>",
+    "<body>",
+    "<canvas id=\"cv\" width=\"640\" height=\"380\"></canvas>",
+    "<div id=\"hint\">AERIS — своя игра</div>",
+    blocks,
+    boot,
+    "</body>",
+    "</html>"
+  ].join(NL());
+  return { ok: true, html: html, title: title };
+}
+
+function gameDownload(scene, name) {
+  try {
+    const r = runnerHtml(scene, name);
+    if (!r.ok) return r;
+    const blob = new Blob([r.html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safe = String(name || r.title).replace(/[^\wа-яА-ЯёЁ -]+/g, "")
+      .trim().slice(0, 40) || "игра";
+    a.href = url;
+    a.download = safe + ".html";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+}
+
 const Studio = {
   libList: libList,
   libSave: libSave,
@@ -386,6 +530,8 @@ const Studio = {
   save: save,
   load: load,
   publish: publish,
+  gameDownload: gameDownload,
+  gameRunnerHtml: runnerHtml,
 };
 
 if (typeof window !== "undefined") window.Studio = Studio;

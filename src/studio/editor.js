@@ -1014,6 +1014,10 @@ $("btnFileIn").onclick = function () {
   });
 };
   $("btnPublish").onclick = publish;
+  $("btnGameFile").onclick = function () {
+    const r = window.Studio.gameDownload(st.scene, sceneName());
+    toast(r.ok ? "Страница с игрой сохранена — перешли её другу" : "Не вышло: " + r.error);
+  };
   $("btnUndo").onclick = () => undo();
   $("btnRedo").onclick = () => redo();
   syncUndoButtons();

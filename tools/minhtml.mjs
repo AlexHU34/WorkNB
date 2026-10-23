@@ -52,63 +52,73 @@ async function main() {
   let html = readFileSync(inRel, "utf8");
   const before = statSync(inRel).size;
 
-  const scripts = [];
-  html = html.replace(SCRIPT_RE, (m, attrs, code) => {
-    scripts.push({ m, attrs, code });
-    return m;
-  });
-  for (let i = 0; i < scripts.length; i++) {
-    const { m, attrs, code } = scripts[i];
-    if (!code.trim()) continue;
+  /* Зоны встроенных скриптов ищем по позициям, а не заменой.
+     Стили после этого ищем только ВНЕ этих зон: внутри ужатого
+     кода законно живут собственные строковые литералы со скобками
+     </style>, и наивный глобальный поиск портит скрипт, втыкая
+     в его середину пересобранный «стиль». Проверенный случай:
+     страница студии переставала открываться именно так. */
+  const scriptSpans = [];
+  for (const m of html.matchAll(SCRIPT_RE)) {
+    scriptSpans.push({ start: m.index, end: m.index + m[0].length, attrs: m[1], code: m[2] });
+  }
+  const insideScript = (pos) =>
+    scriptSpans.some((sp) => pos >= sp.start && pos < sp.end);
+
+  const edits = []; /* {start, end, text} — непересекающиеся замены */
+
+  for (const sp of scriptSpans) {
+    if (!sp.code.trim()) continue;
     try {
-      const r = await transform(code, {
+      const r = await transform(sp.code, {
         loader: "js",
         minify: true,
         target: ["es2020"],
         legalComments: "none",
         charset: "utf8",
       });
-      scriptBytes += code.length - r.code.length;
-      scripts[i].done = r.code;
+      scriptBytes += sp.code.length - r.code.length;
+      edits.push({
+        start: sp.start,
+        end: sp.end,
+        text: "<script" + sp.attrs + ">\n" + escapeGuard(r.code) + "\n</script>",
+      });
     } catch (e) {
-      problems.push("скрипт #" + (i + 1) + ": " + (e.errors?.[0]?.text || e.message));
-      scripts[i].done = code;
+      problems.push("скрипт: " + (e.errors?.[0]?.text || e.message));
     }
   }
-  let k = 0;
-  html = html.replace(SCRIPT_RE, () => {
-    const s = scripts[k++];
-    return "<script" + s.attrs + ">\n" + escapeGuard(s.done) + "\n</script>";
-  });
 
-  const styles = [];
-  html = html.replace(STYLE_RE, (m, attrs, code) => {
-    styles.push({ m, attrs, code });
-    return m;
-  });
-  for (let i = 0; i < styles.length; i++) {
-    const { code } = styles[i];
-    if (!code.trim()) continue;
+  const styleSpans = [];
+  for (const m of html.matchAll(STYLE_RE)) {
+    if (insideScript(m.index)) continue; /* чужая строка внутри кода — не стиль */
+    styleSpans.push({ start: m.index, end: m.index + m[0].length, attrs: m[1], code: m[2] });
+  }
+  for (const sp of styleSpans) {
+    if (!sp.code.trim()) continue;
     try {
-      const r = await transform(code, {
+      const r = await transform(sp.code, {
         loader: "css",
         minify: true,
         target: ["es2020"],
         legalComments: "none",
         charset: "utf8",
       });
-      styleBytes += code.length - r.code.length;
-      styles[i].done = r.code;
+      styleBytes += sp.code.length - r.code.length;
+      edits.push({
+        start: sp.start,
+        end: sp.end,
+        text: "<style" + sp.attrs + ">" + r.code + "</style>",
+      });
     } catch (e) {
-      problems.push("стиль #" + (i + 1) + ": " + (e.errors?.[0]?.text || e.message));
-      styles[i].done = code;
+      problems.push("стиль: " + (e.errors?.[0]?.text || e.message));
     }
   }
-  let j = 0;
-  html = html.replace(STYLE_RE, () => {
-    const s = styles[j++];
-    return "<style" + s.attrs + ">" + s.done + "</style>";
-  });
+
+  /* Замены накладываем сзади наперёд, чтобы позиции не съехали. */
+  edits.sort((a, b) => b.start - a.start);
+  for (const e of edits) {
+    html = html.slice(0, e.start) + e.text + html.slice(e.end);
+  }
 
   mkdirSync(dirname(outRel), { recursive: true });
   writeFileSync(outRel, html, "utf8");
