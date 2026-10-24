@@ -266,12 +266,22 @@ def make_site():
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, dst_name))
             n += 1
-    for f in ("sw.js", "manifest.webmanifest", "icon.svg", "404.html",
+    for f in ("manifest.webmanifest", "icon.svg", "404.html",
               "og.png", "make.html", "parents.html"):
         src = os.path.join(ROOT, f)
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, f))
             n += 1
+    # Воркер берём из dist/: там метка кэша уже проставлена. Из корня
+    # уезжала бы заглушка, версия кэша не менялась бы никогда, и игроки
+    # с установленным воркером видели бы сайт первой выкладки навсегда.
+    sw_stamped = os.path.join(DIST, "sw.js")
+    if os.path.isfile(sw_stamped):
+        shutil.copyfile(sw_stamped, os.path.join(site, "sw.js"))
+        n += 1
+    elif os.path.isfile(os.path.join(ROOT, "sw.js")):
+        shutil.copyfile(os.path.join(ROOT, "sw.js"), os.path.join(site, "sw.js"))
+        n += 1
     # CNAME — привязка своего домена к GitHub Pages. Сохраняем при каждой
     # сборке, чтобы привязка не пропала после следующего обновления.
     cname_path = os.path.join(site, "CNAME")
