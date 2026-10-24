@@ -445,8 +445,26 @@ if(E3.maxFaces&&items.length>=E3.maxFaces){dropped++;continue}
    if(it.pl){E3.paintPlane(ctx,it,LW,LH,L,opts);continue}
    const P=it.p;
    let y0=1e9,y1=-1e9;for(let k=0;k<P.length;k++){if(P[k][1]<y0)y0=P[k][1];if(P[k][1]>y1)y1=P[k][1]}
-    if(it.ea===2){ctx.fillStyle="rgba(0,0,0,"+(it.a||.3)+")"}
-    else if(it.e||typeof it.c!=="string"){ctx.fillStyle=it.c}
+   if(it.ea===2){
+    /* Мягкая тень: радиальный градиент по габаритам многоугольника.
+       Раньше тень заливалась одним чёрным цветом и читалась как
+       приклеенный чёрный блин с резким краем. Градиент стоит доли
+       миллисекунды: теней на кадре единицы, а не сотни граней. */
+    let x0=1e9,x1=-1e9,y0e=1e9,y1e=-1e9;
+    for(let k=0;k<P.length;k++){const q=P[k];
+     if(q[0]<x0)x0=q[0];if(q[0]>x1)x1=q[0];
+     if(q[1]<y0e)y0e=q[1];if(q[1]>y1e)y1e=q[1]}
+    const cx=(x0+x1)/2,cy=(y0e+y1e)/2;
+    const rx=Math.max(1,(x1-x0)/2),ry=Math.max(1,(y1e-y0e)/2);
+    const al=it.a==null?.3:it.a;
+    ctx.save();ctx.translate(cx,cy);ctx.scale(1,ry/rx);
+    const gr=ctx.createRadialGradient(0,0,0,0,0,rx);
+    gr.addColorStop(0,"rgba(0,0,0,"+al+")");
+    gr.addColorStop(.55,"rgba(0,0,0,"+(al*.55)+")");
+    gr.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=gr;ctx.beginPath();ctx.arc(0,0,rx,0,7);ctx.fill();
+    ctx.restore();continue}
+    if(it.e||typeof it.c!=="string"){ctx.fillStyle=it.c}
     else if(y1-y0<E3.minGrad){
      /* Мелкая грань: градиент не читается глазом, а стоит дорого.
         Замер (tools/fill-bench.py, 1700 граней): плоская заливка 0.75 мс,

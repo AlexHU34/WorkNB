@@ -9,14 +9,14 @@
 <meta property="og:site_name" content="AERIS">
 <meta property="og:title" content="AERIS — {{GAMES}} игр в одном файле">
 <meta property="og:description" content="Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без интернета, прямо из одного файла.">
-<meta property="og:url" content="https://aerisgames.ru/index.html">
-<meta property="og:image" content="https://alexhu34.github.io/WorkNB/og.png">
+<meta property="og:url" content="https://aerisgames.ru/">
+<meta property="og:image" content="https://aerisgames.ru/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="AERIS — {{GAMES}} игр в одном файле">
 <meta name="twitter:description" content="Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без интернета, прямо из одного файла.">
-<meta name="twitter:image" content="https://alexhu34.github.io/WorkNB/og.png">
+<meta name="twitter:image" content="https://aerisgames.ru/og.png">
 <meta name="description" content="Каталог 3D-игр, редактор кода BloomScript и студия сцен. Работает без интернета, прямо из одного файла.">
 <style>
 *{-webkit-tap-highlight-color:transparent;margin:0;padding:0;box-sizing:border-box}
@@ -218,9 +218,23 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .mini.on{background:var(--blue);border-color:var(--blue);color:#fff}
 #canvasWrap{position:relative}
 #canvas{position:relative;height:500px;overflow:hidden;touch-action:none;transition:background .4s}
-#canvas.day{background:radial-gradient(circle at 30% 15%,#303030,#fff),repeating-linear-gradient(0deg,transparent 0 25px,rgba(64,45,51,0.04) 25px 26px),repeating-linear-gradient(90deg,transparent 0 25px,rgba(45,57,64,0.04) 25px 26px)}
-#canvas.night{background:radial-gradient(circle at 70% 20%,#d5d8ed,#d5d8ed),repeating-linear-gradient(0deg,transparent 0 25px,rgba(42,42,44,0.05) 25px 26px)}
-#canvas.sunset{background:linear-gradient(180deg,#302e2c,#302c2e)}
+/* Фоны поля: мягкий свет вместо серого пятна. День — тёплое небо с
+   солнцем справа и прохладной тенью внизу; ночь — глубокая синева с
+   бликом; закат — тёплый переход. Лёгкая сетка осталась только днём:
+   она помогает ставить детали, но не спорит с картинкой. */
+#canvas.day{background:
+  radial-gradient(circle at 80% 12%,rgba(255,214,140,.78),rgba(255,214,140,0) 44%),
+  radial-gradient(circle at 26% 118%,rgba(170,214,255,.55),rgba(170,214,255,0) 56%),
+  repeating-linear-gradient(0deg,transparent 0 25px,rgba(64,45,51,.035) 25px 26px),
+  repeating-linear-gradient(90deg,transparent 0 25px,rgba(45,57,64,.035) 25px 26px),
+  linear-gradient(180deg,#fdf7ec,#f4ede2 58%,#eae2d6)}
+#canvas.night{background:
+  radial-gradient(circle at 22% 16%,rgba(150,170,255,.34),rgba(150,170,255,0) 46%),
+  radial-gradient(circle at 82% 10%,rgba(255,255,255,.16),rgba(255,255,255,0) 30%),
+  linear-gradient(180deg,#1c2442,#111834 58%,#0a1022)}
+#canvas.sunset{background:
+  radial-gradient(circle at 50% 112%,rgba(255,170,90,.85),rgba(255,170,90,0) 56%),
+  linear-gradient(180deg,#6f5b8f 0%,#e98a6d 48%,#ffd9a3 100%)}
 .guide{position:absolute;background:var(--blue);opacity:0;pointer-events:none;z-index:5;transition:opacity .15s}
 .guide.v{left:50%;top:0;bottom:0;width:2px}.guide.h{top:50%;left:0;right:0;height:2px}
 .guide.show{opacity:.7}
@@ -498,7 +512,7 @@ body::before,body::after{display:none}
   <!-- Навигация: только то, что реально работает. Раньше здесь стояли
        «Discover» без действия и «Каталог», который лишь показывал
        подсказку-всплывашку — нажимаешь, и ничего не происходит. -->
-  <nav class="nav-links"><a class="navlink" href="parents.html" title="Коротко для родителей и педагогов">Для взрослых</a><a class="navlink" href="make.html" title="Как написать свою игру кодом">Как сделать свою игру</a><button class="active" onclick="goHome()">🏠 Главная</button><button onclick="setFilter('fav');goHome()">❤️ Избранное</button><button onclick="openShop()">🛍 Магазин</button></nav>
+  <nav class="nav-links"><a class="navlink" href="parents.html" title="Коротко для родителей и педагогов">Для взрослых</a><a class="navlink" href="make.html" title="Как написать свою игру кодом">Как сделать свою игру</a></nav>
   <div class="search"><input id="search" placeholder="Поиск игр..." autocomplete="off"><div class="suggest" id="suggest"></div></div>
   <div class="top-right">
     <div class="pill coins" id="coins" onclick="dailyBonus()" title="Нажми — ежедневный бонус">🪙 0</div>
@@ -547,7 +561,7 @@ body::before,body::after{display:none}
         <select class="sortsel" id="sort" onchange="renderLobby()"><option value="pop">Сначала те, что не начал</option><option value="like">По звёздам</option><option value="az">По алфавиту</option></select>
       </div>
     </div>
-    <div class="section"><div class="section-head"><h3>🕘 Недавние</h3></div><div class="row-scroll" id="rowRecent"></div></div>
+    <div class="section" id="secRecent"><div class="section-head"><h3>🕘 Недавние</h3></div><div class="row-scroll" id="rowRecent"></div></div>
     <div class="section"><div class="section-head"><h3>🔥 Популярно сейчас</h3><div class="arrows"><button title="Прокрутить влево" onclick="scrollRow('row1',-230)">‹</button><button title="Прокрутить вправо" onclick="scrollRow('row1',230)">›</button></div></div><div class="row-scroll" id="row1"></div></div>
     <div class="section"><div class="section-head"><h3>🌷 Все конструкторы</h3></div><div class="grid" id="gridAll"></div></div>
   </main>
@@ -566,9 +580,9 @@ body::before,body::after{display:none}
         <div class="canvas-head">
           <b id="gTask" style="font-size:13.5px"></b>
           <div class="canvas-tools">
-            <button class="mini" onclick="undo()" id="btnUndo">↩ Назад</button>
-            <button class="mini" onclick="redo()" id="btnRedo">↪ Вперёд</button>
-            <button class="mini" onclick="AERIS_TOUCH.toggle()" title="Экранные кнопки управления">🌅 Фон</button>
+            <button class="mini" onclick="undo()" id="btnUndo" title="Отменить последнее действие">↩ Отменить</button>
+            <button class="mini" onclick="redo()" id="btnRedo" title="Вернуть отменённое">↪ Вернуть</button>
+            <button class="mini" onclick="AERIS_TOUCH.toggle()" title="Экранные кнопки управления для телефона">📱 Кнопки</button>
             <button class="mini" onclick="toggleTimer()" id="btnTimer">⏱ Челлендж</button>
             <button class="mini" title="Случайная деталь" onclick="surprise()">🎲</button>
             <button class="mini" onclick="mirrorSel()" title="Отразить выбранное">🪞</button>
@@ -596,8 +610,8 @@ body::before,body::after{display:none}
           <div class="ctrl-grid">
             <button class="ctrl" onclick="transformSel('rotL')">↻ Поворот</button>
             <button class="ctrl" onclick="transformSel('dup')">📋 Копия</button>
-            <button class="ctrl" onclick="transformSel('up')">⬆ Вперёд</button>
-            <button class="ctrl" onclick="transformSel('down')">⬇ Назад</button>
+            <button class="ctrl" onclick="transformSel('up')">⬆ Выше</button>
+            <button class="ctrl" onclick="transformSel('down')">⬇ Ниже</button>
             <button class="ctrl" onclick="transformSel('del')">🗑 Удалить</button>
             <button class="ctrl" onclick="clearCanvas()">🧹 Очистить</button>
             <button class="ctrl shop wide" onclick="openShop()">🛍 Магазин деталей</button>

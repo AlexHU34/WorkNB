@@ -296,14 +296,20 @@ PROBE = r"""
   E3GL.draw(ctx2, shOnly, cam, 430, LIGHT3);
   var pxSh = new Uint8Array(W * H * 4);
   gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pxSh);
-  var shSoft = 0, shHard = 0;
+  var shSoft = 0, shHard = 0, shLevels = {};
   for (var z3 = 3; z3 < pxSh.length; z3 += 4) {
-    if (pxSh[z3] === 255) shHard++;
-    else if (pxSh[z3] > 20 && pxSh[z3] < 240) shSoft++;
+    var av = pxSh[z3];
+    if (av >= 250) shHard++;
+    else if (av > 2) { shSoft++; shLevels[av] = 1; }
   }
+  /* Тень теперь с плавным краем (веер из центра), поэтому «мягкость» —
+     это не одно значение альфы на всю площадь, а много ступеней. */
   ok(shSoft > 500, "тень полупрозрачная: мягких пикселей " + shSoft +
      " (жёстких " + shHard + ")");
   ok(shHard < 200, "тень не рисуется непрозрачной: жёстких пикселей " + shHard);
+  ok(Object.keys(shLevels).length >= 4,
+     "у тени плавный край: разных ступеней прозрачности " +
+     Object.keys(shLevels).length);
 
   /* ---- 4c. ОБВОДКА ПРАВИЛЬНОГО ЦВЕТА ----
      Раньше гейт считал только число отрезков. При сбитом шаге цвет

@@ -755,10 +755,29 @@ function draw(ctx, faces, cam, fl, L, opts) {
     };
 
     if (nn >= 3) {
-      put(0); put(1); put(2);
-      if (nn === 4) { put(0); put(2); put(3); }
-      else if (nn > 4) {                    /* веер для произвольных граней */
+      if (f.e === 2 && alpha > 0) {
+        /* Мягкая тень на пути WebGL: веер из центра, у края альфа ноль.
+           Шейдер смешивает альфу по вершинам, и чёрный блин получает
+           плавный край без отдельной текстуры. */
+        let cx2 = 0, cy2 = 0;
+        for (let k = 0; k < nn; k++) {
+          cx2 += _pool[o0 + k * 5 + 3];
+          cy2 += _pool[o0 + k * 5 + 4];
+        }
+        cx2 /= nn; cy2 /= nn;
+        const putC = () => pushV(cx2 / LW * 2 - 1, 1 - cy2 / LH * 2, 0.5,
+                                 nx, ny, nz, c[0], c[1], c[2], alpha, y0, y1, 1);
+        const putE = (k) => {
+          const q = o0 + k * 5;
+          pushV(_pool[q + 3] / LW * 2 - 1, 1 - _pool[q + 4] / LH * 2, 0.5,
+                nx, ny, nz, c[0], c[1], c[2], 0, y0, y1, 1);
+        };
+        for (let k = 0; k < nn; k++) { putC(); putE(k); putE((k + 1) % nn); }
+      } else if (nn > 4) {                  /* веер для произвольных граней */
         for (let k = 3; k < nn; k++) { put(0); put(k - 1); put(k); }
+      } else {
+        put(0); put(1); put(2);
+        if (nn === 4) { put(0); put(2); put(3); }
       }
     }
 
