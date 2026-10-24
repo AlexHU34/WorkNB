@@ -227,6 +227,10 @@ function renderLobby(skel){renderTruthStats();
   }
   if($("row1").innerHTML!==lobbyCache.row1)$("row1").innerHTML=lobbyCache.row1;
   if($("rowRecent").innerHTML!==lobbyCache.rowRecent)$("rowRecent").innerHTML=lobbyCache.rowRecent;
+  /* Пустая полоса «Недавние» только занимает место и повторяет подсказку:
+     пока играть не начали — прячем её совсем. */
+  const secRecent=$("secRecent");
+  if(secRecent)secRecent.style.display=history.length?"":"none";
   /* Каталог собирается порциями: первый экран готов сразу, остальное
      по кнопке. Сто карточек за раз — это сто элементов, сто фонов
      и сто подписей, и всё это строится заново при поиске. */
@@ -359,9 +363,20 @@ function openGame(id){if(parentTimeUp()){toast("Время на сегодня �
 function renderHall(g){const list=$("hallList");if(!list||!window.AERIS_SB)return;
  AERIS_SB.top(String(g.id),function(rows){
   if(!rows.length){list.textContent="Пока пусто — сдай работу первым! ✨";return}
-  list.innerHTML=rows.map(function(r,i){const who=String(r.name||"гость");
+  /* Имена приходят из общей базы, то есть от кого угодно. Собираем их
+     только узлами с textContent: innerHTML со чужим текстом — готовый
+     способ выполнить чужой скрипт у каждого, кто откроет рейтинг
+     (и защита страницы от этого не спасает: встроенные скрипты у нас
+     разрешены). */
+  const frag=document.createDocumentFragment();
+  rows.forEach(function(r,i){
+   const who=String(r.name||"гость").slice(0,20);
    const me=nick&&who.toLowerCase()===String(nick).toLowerCase();
-   return (i+1)+". "+who+(me?" ← это ты":"")+" — ⭐"+(r.score||0)}).join("<br>")}
+   const sc=Math.max(0,Math.min(999,Math.round(Number(r.score)||0)));
+   const line=document.createElement("div");
+   line.textContent=(i+1)+". "+who+(me?" ← это ты":"")+" — ⭐"+sc;
+   frag.appendChild(line)});
+  list.replaceChildren(frag)}
  )}
 /* ===== Профиль: ник без пароля =====
    Ник уникален на сервере (уникальный индекс, регистр не важен),

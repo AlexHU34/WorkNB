@@ -43,6 +43,7 @@ _backup-before-connect/
 # ��ʵ��� ������ ��ʳ�� ��ʳ�� �� ����. ��
 *.txt
 !docs/*.txt
+!security.txt
 
 # ��ˢ��� ��� ����.
 full.txt

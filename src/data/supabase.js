@@ -208,9 +208,17 @@ API.report=function(page,msg){
    ошиблась на гонке — вторая вставка честно вернёт «занят». ---- */
 var profOk=true;
 function nickClean(s){
- var n=String(s||"").trim().replace(/\s+/g," ");
+ /* NFKC сводит визуально одинаковые буквы к одной форме: полные латинские
+    литеры, надстрочные знаки и прочие близнецы перестают быть «другим
+    ником». Смешивать кириллицу и латиницу в одном нике запрещаем: именно
+    так подделывают чужое имя (А вместо A). */
+ var n=String(s||"");
+ if(n.normalize)n=n.normalize("NFKC");
+ n=n.trim().replace(/\s+/g," ");
  if(!/^[0-9A-Za-zА-Яа-яЁё_ -]{2,16}$/.test(n))return "";
  if(/^[ _-]|[ _-]$/.test(n))return ""; /* пробел/дефис не на торцах */
+ var lat=/[A-Za-z]/.test(n), cyr=/[А-Яа-яЁё]/.test(n);
+ if(lat&&cyr)return ""; /* смесь азбук — путь к подделке ника */
  return n;
 }
 /* Свободен ли ник: cb(ошибка, свободен). ошибка: "" | "сеть" | "правила". */
@@ -218,8 +226,13 @@ API.nickFree=function(name,cb){
  var n=nickClean(name);
  if(!n){cb("правила",false);return}
  if(!cloudAllowed()||!profOk){cb("сеть",false);return}
+ /* В шаблоне поиска «_» и «%» — не буквы, а знаки шаблона: ник с «_»
+    искался бы как «любой один символ» и давал ложное «занято». Экранируем
+    их обратной косой — это родной знак экранирования у like/ilike.
+    Сравнение по lower на стороне базы задаёт уникальный индекс. */
+ var pat=n.replace(/[\\%_]/g,"\\$&");
  fetch(SB_URL+"/rest/v1/"+TABLES.profiles+"?select=name&name=ilike."+
-  encodeURIComponent(n)+"&limit=1",{headers:{"apikey":SB_KEY}})
+  encodeURIComponent(pat)+"&limit=1",{headers:{"apikey":SB_KEY}})
  .then(function(r){
   if(!r.ok){profOk=(r.status>=500);cb("сеть",false);return}
   return r.text();

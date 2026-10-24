@@ -38,7 +38,7 @@ def check(cond, msg):
 
 EXPECT = {"index.html", "lang.html", "studio.html",
           "sw.js", "manifest.webmanifest", "icon.svg", "404.html", "og.png",
-          "make.html", "parents.html", "CNAME"}
+          "make.html", "parents.html", "CNAME", "_headers", "security.txt"}
 PAIRS = [("index.html", "Aeris.html"),
          ("lang.html", "BloomScript.html"),
          ("studio.html", "AerisStudio.html")]
@@ -51,7 +51,7 @@ if not os.path.isdir(SITE):
 have = set(os.listdir(SITE))
 missing = EXPECT - have
 extra = have - EXPECT
-check(not missing, "все одиннадцать файлов на месте" +
+check(not missing, "все тринадцать файлов на месте" +
       ("" if not missing else " — нет: " + ", ".join(sorted(missing))))
 check(not extra, "лишнего нет" +
       ("" if not extra else " — лишние: " + ", ".join(sorted(extra))))

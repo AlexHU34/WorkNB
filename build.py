@@ -267,7 +267,8 @@ def make_site():
             shutil.copyfile(src, os.path.join(site, dst_name))
             n += 1
     for f in ("manifest.webmanifest", "icon.svg", "404.html",
-              "og.png", "make.html", "parents.html"):
+              "og.png", "make.html", "parents.html",
+              "_headers", "security.txt"):
         src = os.path.join(ROOT, f)
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(site, f))
