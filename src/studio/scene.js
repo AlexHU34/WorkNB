@@ -384,7 +384,12 @@ function sceneFromText(text) {
  */
 const RUNNER_FILES = [
   { name: "e3.js",      path: "src/engine/e3.js",      want: /\b(const|let|var)\s+E3\b\s*=/ },
-  { name: "e3gl.js",    path: "src/engine/e3gl.js",    want: /\b(const|let|var)\s+E3GL\b\s*=/ },
+  /* У e3gl две приметы: в исходнике это «const E3GL =», а в ужатой
+     странице локальное имя сжимается, и наружу остаётся
+     «window.E3GL = ». Глобальные имена ужатие не трогает, поэтому
+     приметы надёжны. */
+  { name: "e3gl.js",    path: "src/engine/e3gl.js",
+    want: /(\b(const|let|var)\s+E3GL\b\s*=|window\.E3GL\s*=)/ },
   { name: "time.js",    path: "src/engine/time.js",    want: /\bE3Step\b/ },
   { name: "core.js",    path: "src/lang/core.js",      want: /\bclass\s+LangError\b/ },
   { name: "runtime.js", path: "src/lang/runtime.js",   want: /\bfunction\s+createRuntime\b/ }
