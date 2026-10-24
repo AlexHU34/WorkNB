@@ -115,6 +115,19 @@ try {
 } catch (e) { rerr = e.message; }
 ok(ran, "СГЕНЕРИРОВАННЫЙ КОД ВЫПОЛНЯЕТСЯ" + (ran ? "" : ": " + rerr));
 
+/* --- 4б. Вода: плоский пруд из тех же честных вызовов ------------------- */
+const sw = Studio.blank();
+const w = Studio.addObject(sw, "water");
+ok(sw.objects.length === 1 && w.kind === "water", "вода добавляется своим видом");
+ok(w.h <= 0.5 && w.w >= 4 && w.d >= 4,
+   "вода плоская и широкая: " + w.w + "×" + w.d + ", высота " + w.h);
+const wcode = Studio.toBloomScript(sw);
+ok(/box\([^\n]*"#2a9df4"/.test(wcode), "вода собирается в box своим цветом");
+ok(!/sin\(ang/.test(wcode), "вода не скачет вверх-вниз, как куб");
+let wParsed = false, wErr = "";
+try { parse(wcode); wParsed = true; } catch (e) { wErr = e.message; }
+ok(wParsed, "КОД С ВОДОЙ ПАРСИТСЯ" + (wParsed ? "" : ": " + wErr));
+
 /* Пустая сцена тоже должна давать рабочий код, а не пустоту. */
 let emptyOk = false, eerr = "";
 try {

@@ -888,6 +888,7 @@ function start() {
   $("btnBox").onclick = () => addObject("box");
   $("btnPyr").onclick = () => addObject("pyramid");
   $("btnSprite").onclick = () => addObject("sprite");
+  if ($("btnWater")) $("btnWater").onclick = () => addObject("water");
   $("btnPlay").onclick = () => setPlaying(!st.playing);
   $("btnCamReset").onclick = () => resetCamera();
   $("btnCopy").onclick = () => copyScene();

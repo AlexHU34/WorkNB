@@ -23,6 +23,10 @@ const KINDS = {
   box:     { label: "Куб",     call: "box",     args: ["w", "h", "d"] },
   pyramid: { label: "Пирамида", call: "pyramid", args: ["w", "h", "d"] },
   sprite:  { label: "Метка",   call: "sprite",  args: ["size"] },
+  /* Вода — плоская и широкая: тот же куб, но тонкий и синий.
+     В игре это читается как пруд на земле. Двигатель трогать не пришлось:
+     сцена по-прежнему собирается из честных вызовов языка. */
+  water:   { label: "Вода",    call: "box",     args: ["w", "h", "d"] },
 };
 
 let seq = 1;
@@ -112,6 +116,11 @@ function addObject(scene, kind) {
     color: ["#ff7043", "#4fc3f7", "#81c784", "#ba68c8", "#ffd54f"][n % 5],
     phase: Math.round(n * 1.1 * 100) / 100,
   };
+  /* Вода ложится на землю сразу: широкая, тонкая и синяя. */
+  if (k === "water") {
+    o.w = 8; o.h = 0.2; o.d = 8; o.y = 0.1;
+    o.color = "#2a9df4";
+  }
   scene.objects.push(o);
   return o;
 }
@@ -166,7 +175,10 @@ function toBloomScript(scene) {
         L.push("    sprite(" + n(o.x) + ", " + exprY(o, bob) + ", " + n(o.z) +
                ", " + n(o.size) + ", " + q(o.name) + ", " + q(o.color) + ")");
       } else {
-        const bob = scene.animated ? " + 0.25 * sin(ang + " + n(o.phase) + ")" : "";
+        /* Вода не качается вверх-вниз: рябь на месте выглядела бы как
+           скачущая лужа. У неё своя плавная жизнь — ровная гладь. */
+        const bob = (scene.animated && o.kind !== "water")
+          ? " + 0.25 * sin(ang + " + n(o.phase) + ")" : "";
         L.push("    " + KINDS[o.kind].call + "(" + n(o.x) + ", " + exprY(o, bob) + ", " +
                n(o.z) + ", " + n(o.w) + ", " + n(o.h) + ", " + n(o.d) + ", " + q(o.color) + ")");
       }

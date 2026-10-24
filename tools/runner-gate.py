@@ -48,6 +48,7 @@ GENERATE_PROBE = r"""
     sc.title = "Прыгающий кубик";
     Studio.addObject(sc, "box");
     Studio.addObject(sc, "box");
+    Studio.addObject(sc, "water");
     var res = Studio.gameRunnerHtml(sc, "Прыгающий кубик");
     if (!res.ok) {
       var big = [], all = document.scripts || [];
@@ -62,6 +63,7 @@ GENERATE_PROBE = r"""
     }
     if (/<script src=/.test(res.html)) { out.push("в пускалке внешние скрипты"); finish(false); return; }
     if (/src="http/.test(res.html)) { out.push("в пускалке ссылки на сеть"); finish(false); return; }
+    if (res.html.indexOf("#2a9df4") < 0) { out.push("в пускалке нет воды из сцены"); finish(false); return; }
     out.push("собрано символов: " + res.html.length);
     window.__RUNNER_HTML__ = res.html;
     finish(true);
