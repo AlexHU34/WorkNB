@@ -483,6 +483,14 @@ SHOTS = {
 def cmd_shots(args, chrome):
     outdir = os.path.abspath(args.shots)
     os.makedirs(outdir, exist_ok=True)
+    todo = SHOTS
+    if getattr(args, "shots_only", None):
+        names = [x.strip() for x in args.shots_only.split(",") if x.strip()]
+        unknown = [x for x in names if x not in SHOTS]
+        if unknown:
+            print("FAIL  неизвестные кадры: " + ", ".join(unknown))
+            return 1
+        todo = {k: SHOTS[k] for k in names}
     src = read_index()
     tmpdir = tempfile.mkdtemp(prefix="nbshot_")
     profile = tempfile.mkdtemp(prefix="nbprof_")
@@ -518,7 +526,7 @@ def cmd_shots(args, chrome):
                "var __si=window.setInterval;"
                "window.setInterval=function(fn,ms){return ms===5000?0:__si(fn,ms)};")
         bad = 0
-        for name, code in SHOTS.items():
+        for name, code in todo.items():
             boot = ("<script>window.addEventListener('error',function(e){"
                     "document.title='JSERR '+e.message+' @'+e.lineno});"
                     "try{" + pre + code + "}catch(e){document.title='THROW '+e}</script>\n")
@@ -536,7 +544,7 @@ def cmd_shots(args, chrome):
                 bad += 1
             print("%-10s %-9s %s" % (name, "ok" if okfile else "FAIL", t if t.startswith(("JSERR", "THROW")) else ""))
         print("-" * 66)
-        print("скриншотов: %d, проблем: %d -> %s" % (len(SHOTS), bad, outdir))
+        print("скриншотов: %d, проблем: %d -> %s" % (len(todo), bad, outdir))
         return 0 if bad == 0 else 1
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -602,6 +610,9 @@ def main():
     ap.add_argument("--syntax", action="store_true", help="только проверка синтаксиса (быстро)")
     ap.add_argument("--all", action="store_true", help="движок + поведение + все игры")
     ap.add_argument("--shots", metavar="DIR", help="отрендерить скриншоты в DIR")
+    # Для сверки снимков нужен быстрый набор, а не все сто кадров.
+    ap.add_argument("--shots-only", metavar="NAMES",
+                    help="только эти кадры для --shots, через запятую")
     ap.add_argument("--games", help="список id через запятую, например 1,2,15")
     ap.add_argument("--game", type=int, help="одна игра по id")
     ap.add_argument("--list", action="store_true", help="показать каталог игр")
