@@ -369,12 +369,14 @@ function renderHall(g){const list=$("hallList");if(!list||!window.AERIS_SB)retur
      (и защита страницы от этого не спасает: встроенные скрипты у нас
      разрешены). */
   const frag=document.createDocumentFragment();
+  const medals=["🥇","🥈","🥉"];
   rows.forEach(function(r,i){
    const who=String(r.name||"гость").slice(0,20);
    const me=nick&&who.toLowerCase()===String(nick).toLowerCase();
    const sc=Math.max(0,Math.min(999,Math.round(Number(r.score)||0)));
    const line=document.createElement("div");
-   line.textContent=(i+1)+". "+who+(me?" ← это ты":"")+" — ⭐"+sc;
+   line.textContent=(medals[i]||(i+1)+".")+" "+who+(me?" ← это ты":"")+" — ⭐"+sc;
+   if(me){line.style.color="#37795b";line.style.fontWeight="900"}
    frag.appendChild(line)});
   list.replaceChildren(frag)}
  )}

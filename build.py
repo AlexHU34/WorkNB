@@ -283,6 +283,15 @@ def make_site():
     elif os.path.isfile(os.path.join(ROOT, "sw.js")):
         shutil.copyfile(os.path.join(ROOT, "sw.js"), os.path.join(site, "sw.js"))
         n += 1
+    # security.txt по правильному адресу: /.well-known/security.txt
+    # Выкладка идёт артефактом, а не через Jekyll, поэтому точечная
+    # папка уезжает как есть.
+    sec = os.path.join(ROOT, "security.txt")
+    if os.path.isfile(sec):
+        wk = os.path.join(site, ".well-known")
+        if not os.path.isdir(wk):
+            os.makedirs(wk)
+        shutil.copyfile(sec, os.path.join(wk, "security.txt"))
     # CNAME — привязка своего домена к GitHub Pages. Сохраняем при каждой
     # сборке, чтобы привязка не пропала после следующего обновления.
     cname_path = os.path.join(site, "CNAME")

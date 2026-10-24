@@ -56,10 +56,10 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background:radial-gradient(closest-side,rgba(99,124,255,.30),rgba(99,124,255,0));
   pointer-events:none}
 #titleScreen .mark svg{width:100%;height:100%;display:block;position:relative}
-#titleScreen p{font:400 23px var(--font);margin:8px 0;color:#565b66;letter-spacing:0;max-width:34ch}
-#titleScreen p.sub{font-size:18px;color:#7d828c;margin-bottom:30px}
+#titleScreen p{font:400 23px var(--font);margin:8px 0;color:#474c57;letter-spacing:0;max-width:34ch}
+#titleScreen p.sub{font-size:18px;color:#5f6470;margin-bottom:30px}
 #titleScreen p.lead{color:#42474f}
-#titleScreen #instruction{font-size:15px;color:#7d828c;margin-top:26px}
+#titleScreen #instruction{font-size:15px;color:#61666f;margin-top:26px}
 #titleScreen .startBtn.ghost{background:rgba(255,255,255,.75);border:1.5px solid #c9cacb;color:#5a6377;font-size:16px;font-weight:600;padding:12px 26px;box-shadow:none;margin-top:14px}
 #titleScreen .startBtn.ghost:hover{background:#fff;border-color:#7a8296;color:#2a2a2c;box-shadow:0 8px 20px rgba(122,130,150,.18)}
 #titleScreen .startBtn{font:700 26px var(--font);padding:16px 54px;color:#fff;
@@ -612,9 +612,9 @@ body::before,body::after{display:none}
         <div class="panel-sec hideInMode"><h4>🧩 Детали — нажми или тащи на поле</h4><div class="cat-tabs" id="catTabs"></div><div class="parts-bar" id="partsBar"></div></div>
         <div class="panel-sec hideInMode"><h4>🎨 Цвет • <span id="selName">ничего не выбрано</span></h4><div class="palette" id="palette"></div>
           <div style="margin-top:10px">
-            <div class="slider-row">📏 <input type="range" id="slSize" min="40" max="250" value="100" oninput="sliderApply()"></div>
-            <div class="slider-row">🔄 <input type="range" id="slRot" min="0" max="360" value="0" oninput="sliderApply()"></div>
-            <div class="slider-row">👻 <input type="range" id="slOp" min="20" max="100" value="100" oninput="sliderApply()"></div>
+            <div class="slider-row"><span style="font-weight:700;color:var(--muted);font-size:12px;min-width:96px">📏 Размер</span><input type="range" id="slSize" min="40" max="250" value="100" oninput="sliderApply()"></div>
+            <div class="slider-row"><span style="font-weight:700;color:var(--muted);font-size:12px;min-width:96px">🔄 Поворот</span><input type="range" id="slRot" min="0" max="360" value="0" oninput="sliderApply()"></div>
+            <div class="slider-row"><span style="font-weight:700;color:var(--muted);font-size:12px;min-width:96px">👻 Прозрачность</span><input type="range" id="slOp" min="20" max="100" value="100" oninput="sliderApply()"></div>
           </div>
         </div>
         <div class="panel-sec"><h4>🛠 Действия</h4>

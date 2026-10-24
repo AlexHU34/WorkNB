@@ -38,7 +38,8 @@ def check(cond, msg):
 
 EXPECT = {"index.html", "lang.html", "studio.html",
           "sw.js", "manifest.webmanifest", "icon.svg", "404.html", "og.png",
-          "make.html", "parents.html", "CNAME", "_headers", "security.txt"}
+          "make.html", "parents.html", "CNAME", "_headers", "security.txt",
+          ".well-known"}
 PAIRS = [("index.html", "Aeris.html"),
          ("lang.html", "BloomScript.html"),
          ("studio.html", "AerisStudio.html")]
@@ -55,6 +56,9 @@ check(not missing, "все тринадцать файлов на месте" +
       ("" if not missing else " — нет: " + ", ".join(sorted(missing))))
 check(not extra, "лишнего нет" +
       ("" if not extra else " — лишние: " + ", ".join(sorted(extra))))
+# security.txt по правильному адресу — на случай проверки извне.
+check(os.path.isfile(os.path.join(SITE, ".well-known", "security.txt")),
+      "security.txt лежит по адресу /.well-known/")
 
 # CNAME говорит GitHub Pages, какой домен отдавать.
 cname_p = os.path.join(SITE, "CNAME")
