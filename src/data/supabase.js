@@ -15,8 +15,22 @@ var TABLES={scores:"scores", pings:"pings", profiles:"profiles"};
    страницы, чтобы офлайн не сыпал ошибками в консоль на каждый клик. */
 var alive=true;
 
+/* ---- Очередь отправки: сданное не теряется на обрыве ----------------
+   Рекорд сначала ложится в очередь в localStorage (не больше 200
+   записей), а потом уходит в базу пачками по 20. Не вышло — повтор
+   с выдержкой 5с, 15с, 60с, 180с, 600с, дальше с той же последней.
+   Одинаковые записи (та же игра, тот же счёт, то же имя) не
+   задваиваются. Отправок не больше 30 в минуту — и в очередь,
+   и в события. Очередь переживает перезагрузку страницы. */
+var QKEY="bb2_sbq.v1", QMAX=200, QBATCH=20, QMINUTE=30;
+var qMem=null, qFails=0, qTimer=0, qOff=false, qBusy=false;
+var qTimes=[]; /* времена отправок за последнюю минуту */
+
 function req(table,method,body,extra){
  if(!alive)return Promise.resolve(null);
+ /* Общий предел отправок: сеть не должна получать больше тридцати
+    записей в минуту ни из очереди, ни из флажков событий. */
+ if(method==="POST"&&!qCanSend())return Promise.resolve(null);
  var opt={method:method||"GET",headers:{
    "apikey":SB_KEY,
    "Content-Type":"application/json",
@@ -54,12 +68,14 @@ var API={
   req(TABLES.pings,"POST",{event:String(ev).slice(0,40)})},
  /* Рекорд: пишем каждую сданную работу — доска показывает лучшие.
     Имя игрока берём из профиля (аргумент), из старого плоского ключа
-    (до версий хранилища) или «гость». */
+    (до версий хранилища) или «гость». Работа сначала ложится в очередь:
+    обрыв связи или закрытая вкладка её не теряют, а заодно одинаковые
+    записи не задваиваются. */
  sendScore:function(gameId,gameTitle,score,name){
-  if(!alive)return;
   score=Math.max(0,Math.min(999,Math.round(score||0)));
   var who=(name||((G.localStorage&&G.localStorage.getItem("bb2_name"))||"гость")).slice(0,20);
-  req(TABLES.scores,"POST",{game:String(gameId),name:who,score:score})},
+  qAdd({game:String(gameId).slice(0,40),name:String(who).slice(0,20),score:score});
+ },
  /* Лучшие в игре: cb(список) или cb([]), максимум 8 строк. */
  top:function(gameId,cb){
   req(TABLES.scores+"?game=eq."+encodeURIComponent(gameId)+
@@ -74,8 +90,88 @@ var API={
    var n=parseInt(String(range).split("/")[1],10);
    cb(isNaN(n)?0:n)})},
  /* Задеморить таблицы без запросов (=сеть мертва — встаём в режим без базы) */
- off:function(){alive=false}
+ off:function(){alive=false;qOff=true}
 };
+/* ---- Работа очереди -------------------------------------------------- */
+function qLoad(){
+ if(qMem)return qMem;
+ qMem=[];
+ try{
+  var raw=G.localStorage&&G.localStorage.getItem(QKEY);
+  if(!raw)return qMem;
+  var data=JSON.parse(raw);
+  /* Старый вид очереди был просто списком записей, новый — с номером.
+     Принимаем обе правды: обновление сайта не теряет сданное. */
+  var list=Array.isArray(data)?data:(data&&Array.isArray(data.items)?data.items:[]);
+  for(var i=0;i<list.length&&qMem.length<QMAX;i++){
+   var it=list[i];
+   if(!it||!it.game)continue;
+   qMem.push({game:String(it.game).slice(0,40),
+    name:String(it.name||"гость").slice(0,20),
+    score:Math.max(0,Math.min(999,Math.round(it.score||0)))});
+  }
+ }catch(e){qMem=[]}
+ return qMem;
+}
+function qSave(){
+ try{
+  if(G.localStorage)G.localStorage.setItem(QKEY,JSON.stringify({v:1,items:qLoad()}));
+ }catch(e){}
+}
+function qKey(it){return it.game+"|"+it.name+"|"+it.score}
+function qAdd(it){
+ /* Одинаковая запись уже в очереди — второй раз не кладём. */
+ var q=qLoad(), k=qKey(it);
+ for(var i=0;i<q.length;i++)if(qKey(q[i])===k)return;
+ q.push(it);
+ while(q.length>QMAX)q.shift(); /* старое вылетает первым */
+ qSave();
+ qFlush();
+}
+function qCanSend(){
+ var t=Date.now();
+ while(qTimes.length&&t-qTimes[0]>=60000)qTimes.shift();
+ if(qTimes.length>=QMINUTE)return false;
+ qTimes.push(t);
+ return true;
+}
+function qAgain(ms){
+ if(qTimer)G.clearTimeout(qTimer);
+ var waits=[5000,15000,60000,180000,600000];
+ qTimer=G.setTimeout(function(){qTimer=0;qFlush()},
+  ms||waits[Math.min(Math.max(qFails-1,0),waits.length-1)]);
+}
+function qFlush(){
+ if(qOff||qBusy)return;
+ var q=qLoad();
+ if(!q.length)return;
+ if(qTimer)return;
+ if(!qCanSend()){qAgain(60000);return}
+ var part=q.slice(0,QBATCH);
+ qBusy=true; /* в полёте одна отправка: очередь не бьёт в сеть толпой */
+ fetch(SB_URL+"/rest/v1/"+TABLES.scores,{
+  method:"POST",
+  headers:{"apikey":SB_KEY,"Content-Type":"application/json",
+   "Prefer":"return=minimal,resolution=ignore-duplicates"},
+  body:JSON.stringify(part.map(function(it){
+   return {game:it.game,name:it.name,score:it.score};
+  }))
+ }).then(function(r){
+  qBusy=false;
+  /* 4xx — про правила таблицы, а не про связь: рекордный канал
+     продолжает жить, очередь ждёт с выдержкой. 5xx — сеть/база. */
+  if(!r.ok){qFails++;if(r.status>=500)alive=false;qAgain();return}
+  alive=true;qFails=0;
+  /* Убираем только ушедшее: добавленное в это время остаётся. */
+  var sent={};
+  for(var i=0;i<part.length;i++)sent[qKey(part[i])]=1;
+  qMem=qLoad().filter(function(it){return !sent[qKey(it)]});
+  qSave();
+  if(qMem.length)qFlush();
+ }).catch(function(){qBusy=false;qFails++;alive=false;qAgain()});
+}
+/* Очередь просыпается вместе со страницей: тихо, без сообщений. */
+try{qFlush()}catch(e){}
 /* ---- Канал ошибок (не рекорды): отдельный флаг, чтобы проблемы
    таблицы client_errors не выключали рекордный канал. Ошибки шлём
    не чаще двух одинаковых за сессию и не больше 10 всего. ---- */
