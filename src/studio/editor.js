@@ -1075,6 +1075,13 @@ function setupClear() {
     if (hints[0] && hints[0].classList.contains("gone")) hintsOn();
     else hintsOff();
   });
+  /* Меню «Ещё» закрывается после выбора действия и по щелчку мимо. */
+  document.addEventListener("click", (e) => {
+    const menu = document.querySelector(".moreMenu");
+    if (!menu) return;
+    if (!menu.contains(e.target)) menu.removeAttribute("open");
+    else if (e.target.closest(".moreList")) menu.removeAttribute("open");
+  });
   requestAnimationFrame(frame);
 }
 
