@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'self' file:; style-src 'unsafe-inline' 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' file: https://xqujfjlktbdpxsaylfpn.supabase.co; worker-src 'self' blob:; frame-src 'self' blob: data:; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Для родителей и педагогов — AERIS</title>
 <meta name="description" content="Коротко: что такое AERIS, что внутри, безопасно ли это, сколько занимает места и что ребёнок делает на сайте.">
@@ -71,7 +72,7 @@ a{color:#5a6377}
   <h2 style="margin-top:0">Сколько занимает места и трафика</h2>
   <table>
     <tr><th>Что</th><th>Сколько</th></tr>
-    <tr><td>Весь сайт целиком</td><td>около 900 КБ</td></tr>
+    <tr><td>Весь сайт целиком</td><td>около 1 МБ</td></tr>
     <tr><td>Одна загруженная страница</td><td>около 150 КБ — как одна фотография</td></tr>
     <tr><td>Время первого открытия</td><td>около двух секунд</td></tr>
   </table>
@@ -89,6 +90,40 @@ a{color:#5a6377}
 </div>
 
 <div class="card">
+  <h2 style="margin-top:0">Настройки для этого устройства</h2>
+  <p>Действуют в этом браузере. Пароля нет намеренно: это честная договорённость, а не замок. Если ребёнок умеет очищать хранилище браузера — он сможет обойти любую такую настройку, поэтому важнее сам разговор.</p>
+  <table>
+    <tr><th>Что</th><th>Как</th></tr>
+    <tr>
+      <td>Время игры в день</td>
+      <td>
+        <select id="parLim" style="font:inherit;padding:6px 10px;border-radius:9px;border:1.5px solid #7a8296;background:#fff">
+          <option value="0">без предела</option>
+          <option value="30">30 минут</option>
+          <option value="60">1 час</option>
+          <option value="120">2 часа</option>
+        </select>
+        <div id="parUsed" style="color:#6c6f76;font-size:.93rem;margin-top:6px">сегодня в игре: —</div>
+      </td>
+    </tr>
+    <tr>
+      <td>Рекорды в общем зале (облако)</td>
+      <td><label><input type="checkbox" id="parCloud"> отправлять рекорды и ник</label>
+        <div style="color:#6c6f76;font-size:.93rem;margin-top:4px">Выключено — сайт работает так же, но наружу не уходит ни один запрос.</div></td>
+    </tr>
+    <tr>
+      <td>Звук</td>
+      <td><label><input type="checkbox" id="parSnd"> звук включён</label></td>
+    </tr>
+  </table>
+  <div class="actions">
+    <button class="btn" id="parSave" style="cursor:pointer;font:inherit">Сохранить настройки</button>
+    <button class="btn" id="parReset" style="cursor:pointer;font:inherit">Сбросить прогресс</button>
+  </div>
+  <div class="note" id="parNote">Настройки сохраняются в этом браузере. Сброс удаляет монеты, работы, достижения и сцены без возможности вернуть.</div>
+</div>
+
+<div class="card">
   <h2 style="margin-top:0">Как этим пользоваться</h2>
   <p>Никакой установки. Откройте сайт в обычном браузере.</p>
   <div class="actions">
@@ -102,5 +137,60 @@ a{color:#5a6377}
   Сайт учебный. Код открыт, всё внутри проекта можно посмотреть и проверить.
 </footer>
 </div>
+<script>
+(function(){
+  var KEY = "bb2.v3.data", BAK = "bb2.v3.data_bak";
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return {};
+      var d = JSON.parse(raw);
+      return d && typeof d === "object" ? d : {};
+    } catch (e) { return {}; }
+  }
+  function save(d) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(d));
+      localStorage.setItem(BAK, JSON.stringify(d));
+      return true;
+    } catch (e) { return false; }
+  }
+  function todayKey() { return new Date().toISOString().slice(0, 10); }
+  var lim = document.getElementById("parLim"),
+      cloud = document.getElementById("parCloud"),
+      snd = document.getElementById("parSnd"),
+      note = document.getElementById("parNote"),
+      used = document.getElementById("parUsed");
+  var d = load();
+  lim.value = String(d.parentLimit || 0);
+  cloud.checked = d.parentCloud !== false;
+  snd.checked = d.sound !== false;
+  var u = d.parentUsed;
+  used.textContent = "сегодня в игре: " +
+    (u && u.d === todayKey() ? Math.round((u.s || 0) / 60) + " мин" : "0 мин");
+  document.getElementById("parSave").onclick = function () {
+    var x = load();
+    x.parentLimit = Math.max(0, Math.min(600, parseInt(lim.value, 10) || 0));
+    x.parentCloud = !!cloud.checked;
+    x.sound = !!snd.checked;
+    note.textContent = save(x)
+      ? "Сохранено. Применится при следующем открытии игр."
+      : "Не удалось сохранить: браузер не даёт записи.";
+  };
+  document.getElementById("parReset").onclick = function () {
+    if (!confirm("Удалить весь прогресс на этом устройстве: монеты, работы, достижения, сцены?")) return;
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf("bb2") === 0) localStorage.removeItem(k);
+      }
+      note.textContent = "Прогресс удалён.";
+      used.textContent = "сегодня в игре: 0 мин";
+    } catch (e) {
+      note.textContent = "Не удалось удалить: браузер не даёт записи.";
+    }
+  };
+})();
+</script>
 </body>
 </html>

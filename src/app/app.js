@@ -29,7 +29,10 @@ const STORE_MAP={
     ничего не делал: ключ не был известен, значение уходило в никуда,
     и после перезагрузки настройка возвращалась к исходной. */
  "bb2_vol":"vol","bb2_ui":"ui","bb2_quality":"quality",
- "bb2_name":"name"
+ "bb2_name":"name",
+ /* Настройки панели родителей (parents.html). Без этих строк
+    значение молча уходило бы в никуда — так уже было с громкостью. */
+ "bb2_parent_limit":"parentLimit","bb2_parent_used":"parentUsed"
 };
 const store={
  get:(k,d)=>{const n=STORE_MAP[k];return n===undefined?d:BB.get(n,d)},
@@ -332,7 +335,19 @@ function dailyBonus(){const t=new Date().toDateString(),last=store.get("bb2_dail
 /* ============ GAME ENGINE ============ */
 function isModeGame(){const g=GAMES.find(x=>x.id===currentGame);return !!(g&&g.mode)}
 function allParts(){const base=[...(PARTS[currentGame]||[])];owned.forEach(e=>base.push({n:"Премиум",e,c:"Декор"}));return base}
-function openGame(id){const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.indexOf(id)<0){toast("Игра платная — купи её за "+gg.price+" 🪙 🔒");openModal(id);return}stopMode();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameOpen();AERIS_TRUTH.markPlayed(id);currentGame=id;selected=null;zTop=10;curCat="Всё";undoStack=[];redoStack=[];sfx.click();
+/* ---- Предел времени, назначенный взрослым на этом устройстве ----------
+   Мягкая договорённость, без пароля: считаем только время в игре и
+   только пока страница на виду, по дням. Ноль — предела нет. */
+function parentLimit(){const m=store.get("bb2_parent_limit",0);return m>0?Math.min(600,m):0}
+function parentUsed(){const t=new Date().toISOString().slice(0,10);let u=store.get("bb2_parent_used",null);if(!u||u.d!==t)u={d:t,s:0};return u}
+function parentTimeUp(){const m=parentLimit();return m>0&&parentUsed().s>=m*60}
+setInterval(function(){
+ if(!parentLimit()||document.visibilityState!=="visible")return;
+ if(currentGame===undefined||currentGame===null)return;
+ const u=parentUsed();u.s+=10;store.set("bb2_parent_used",u);
+ if(u.s>=parentLimit()*60){toast("Время на сегодня вышло — увидимся завтра 🙂");goHome()}
+},10000);
+function openGame(id){if(parentTimeUp()){toast("Время на сегодня вышло — увидимся завтра 🙂");return}const gg=GAMES.find(x=>x.id===id);if(gg.price&&ownedG.indexOf(id)<0){toast("Игра платная — купи её за "+gg.price+" 🪙 🔒");openModal(id);return}stopMode();if(window.AERIS_TOUCH)AERIS_TOUCH.onGameOpen();AERIS_TRUTH.markPlayed(id);currentGame=id;selected=null;zTop=10;curCat="Всё";undoStack=[];redoStack=[];sfx.click();
  const g=GAMES.find(x=>x.id===id);if(!history.includes(id)){history.unshift(id);history=history.slice(0,5)}
  $("lobbyMain").style.display="none";$("gameView").classList.add("show");$("gameView").classList.toggle("mode-on",!!g.mode);$("gTitle").textContent=g.emoji+" "+g.title;$("gPlayers").textContent=AERIS_TRUTH.meta(g);$("gTask").textContent=g.task;$("canvasBase").innerHTML=g.mode?"":g.base;
  document.querySelectorAll("#canvas .part").forEach(e=>e.remove());setBg(g.mode?"night":"day");renderWorks();

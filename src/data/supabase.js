@@ -15,6 +15,15 @@ var TABLES={scores:"scores", pings:"pings", profiles:"profiles"};
    страницы, чтобы офлайн не сыпал ошибками в консоль на каждый клик. */
 var alive=true;
 
+/* Разрешение на облако из панели родителей: без него наружу не уходит
+   ни одного запроса — ни рекорд, ни флажок события, ни ник. */
+function cloudAllowed(){
+ try{
+  if(typeof BB!=="undefined"&&BB.get&&BB.get("parentCloud",true)===false)return false;
+ }catch(e){}
+ return true;
+}
+
 /* ---- Очередь отправки: сданное не теряется на обрыве ----------------
    Рекорд сначала ложится в очередь в localStorage (не больше 200
    записей), а потом уходит в базу пачками по 20. Не вышло — повтор
@@ -27,6 +36,7 @@ var qMem=null, qFails=0, qTimer=0, qOff=false, qBusy=false;
 var qTimes=[]; /* времена отправок за последнюю минуту */
 
 function req(table,method,body,extra){
+ if(!cloudAllowed())return Promise.resolve(null);
  if(!alive)return Promise.resolve(null);
  /* Общий предел отправок: сеть не должна получать больше тридцати
     записей в минуту ни из очереди, ни из флажков событий. */
@@ -56,7 +66,7 @@ function req(table,method,body,extra){
 }
 
 var API={
- on:function(){return alive},
+ on:function(){return alive&&cloudAllowed()},
  /* Флажок события: «открыли такую-то игру». Пишется не чаще одного раза
     в полминуты на одно событие за сессию — базу не забиваем. */
  _last:{},
@@ -120,6 +130,7 @@ function qSave(){
 }
 function qKey(it){return it.game+"|"+it.name+"|"+it.score}
 function qAdd(it){
+ if(!cloudAllowed())return;
  /* Одинаковая запись уже в очереди — второй раз не кладём. */
  var q=qLoad(), k=qKey(it);
  for(var i=0;i<q.length;i++)if(qKey(q[i])===k)return;
@@ -142,7 +153,7 @@ function qAgain(ms){
   ms||waits[Math.min(Math.max(qFails-1,0),waits.length-1)]);
 }
 function qFlush(){
- if(qOff||qBusy)return;
+ if(!cloudAllowed()||qOff||qBusy)return;
  var q=qLoad();
  if(!q.length)return;
  if(qTimer)return;
@@ -178,7 +189,7 @@ try{qFlush()}catch(e){}
 var ERR_TABLE="client_errors";
 var errOk=true,errTotal=0,errSeen={};
 function errReq(body){
- if(!errOk||errTotal>=10)return;
+ if(!cloudAllowed()||!errOk||errTotal>=10)return;
  fetch(SB_URL+"/rest/v1/"+ERR_TABLE,{
   method:"POST",
   headers:{"apikey":SB_KEY,"Content-Type":"application/json"},
@@ -206,7 +217,7 @@ function nickClean(s){
 API.nickFree=function(name,cb){
  var n=nickClean(name);
  if(!n){cb("правила",false);return}
- if(!profOk){cb("сеть",false);return}
+ if(!cloudAllowed()||!profOk){cb("сеть",false);return}
  fetch(SB_URL+"/rest/v1/"+TABLES.profiles+"?select=name&name=ilike."+
   encodeURIComponent(n)+"&limit=1",{headers:{"apikey":SB_KEY}})
  .then(function(r){
@@ -224,7 +235,7 @@ API.nickFree=function(name,cb){
 API.claimNick=function(name,cb){
  var n=nickClean(name);
  if(!n){cb("правила",false);return}
- if(!profOk){cb("сеть",false);return}
+ if(!cloudAllowed()||!profOk){cb("сеть",false);return}
  fetch(SB_URL+"/rest/v1/"+TABLES.profiles,{
   method:"POST",
   headers:{"apikey":SB_KEY,"Content-Type":"application/json"},
