@@ -36,30 +36,41 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 #petals,#confetti{position:fixed;inset:0;pointer-events:none;z-index:1}
 #confetti{z-index:500}
 #titleScreen{position:fixed;inset:0;
-  background:linear-gradient(180deg,#fafafb 0%,#f1f1f2 45%,#e3e4e7 100%);
+  /* Мягкое северное сияние вместо серого тумана: три цветных пятна
+     поверх светлой основы. Цвета приглушённые — экран должен быть
+     спокойным, а не рекламным. */
+  background:
+    radial-gradient(900px 520px at 18% 10%,rgba(120,140,255,.22),rgba(120,140,255,0) 60%),
+    radial-gradient(820px 500px at 84% 16%,rgba(255,190,130,.20),rgba(255,190,130,0) 55%),
+    radial-gradient(900px 620px at 50% 112%,rgba(110,200,150,.20),rgba(110,200,150,0) 60%),
+    linear-gradient(180deg,#fbfbfc 0%,#f3f3f5 55%,#ececef 100%);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   z-index:1000;color:#2a2a2c;overflow:hidden}
 #titleScreen .air{position:absolute;inset:0;pointer-events:none;opacity:.9}
 #titleScreen h1{font:900 84px 'Segoe UI',system-ui,sans-serif;letter-spacing:6px;
-  text-align:center;background:linear-gradient(160deg,#2a2a2c 20%,#5a6377 100%);
+  text-align:center;background:linear-gradient(160deg,#1f2433 5%,#4b5bd6 55%,#2f9e6e 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
   text-transform:uppercase;margin:0}
 #titleScreen .mark{width:96px;height:96px;margin:0 auto 26px;position:relative;z-index:2}
-#titleScreen .mark svg{width:100%;height:100%;display:block}
-#titleScreen p{font:400 23px var(--font);margin:8px 0;color:#5a5d63;letter-spacing:0;max-width:34ch}
-#titleScreen p.sub{font-size:18px;color:#8e9096;margin-bottom:30px}
-#titleScreen p.lead{color:#4a4d55}
-#titleScreen #instruction{font-size:15px;color:#8e9096;margin-top:26px}
-#titleScreen .startBtn.ghost{background:transparent;border:1.5px solid #c9cacb;color:#5a6377;font-size:16px;font-weight:600;padding:12px 26px;box-shadow:none;margin-top:14px}
+#titleScreen .mark::before{content:"";position:absolute;inset:-30px;border-radius:50%;
+  background:radial-gradient(closest-side,rgba(99,124,255,.30),rgba(99,124,255,0));
+  pointer-events:none}
+#titleScreen .mark svg{width:100%;height:100%;display:block;position:relative}
+#titleScreen p{font:400 23px var(--font);margin:8px 0;color:#565b66;letter-spacing:0;max-width:34ch}
+#titleScreen p.sub{font-size:18px;color:#7d828c;margin-bottom:30px}
+#titleScreen p.lead{color:#42474f}
+#titleScreen #instruction{font-size:15px;color:#7d828c;margin-top:26px}
+#titleScreen .startBtn.ghost{background:rgba(255,255,255,.75);border:1.5px solid #c9cacb;color:#5a6377;font-size:16px;font-weight:600;padding:12px 26px;box-shadow:none;margin-top:14px}
 #titleScreen .startBtn.ghost:hover{background:#fff;border-color:#7a8296;color:#2a2a2c;box-shadow:0 8px 20px rgba(122,130,150,.18)}
-#titleScreen .startBtn{font:700 26px var(--font);padding:16px 54px;background:#fff;color:#2a2a2c;border:1.5px solid #7a8296;border-radius:var(--radius);cursor:pointer;outline:none;
+#titleScreen .startBtn{font:700 26px var(--font);padding:16px 54px;color:#fff;
+  background:linear-gradient(150deg,#5468e8,#3f56d6 60%,#2f7fc0);
+  border:1px solid #3b4fc4;border-radius:var(--radius);cursor:pointer;outline:none;
   transition:transform .18s ease,background .18s ease,box-shadow .18s ease;
-  box-shadow:0 6px 20px rgba(42,42,44,.22);position:relative;z-index:2}
-#titleScreen .startBtn:hover{transform:translateY(-2px);background:#3a3a3e;
-  box-shadow:0 12px 28px rgba(42,42,44,.28)}
+  box-shadow:0 10px 26px rgba(60,80,200,.30);position:relative;z-index:2}
+#titleScreen .startBtn:hover{transform:translateY(-2px);
+  box-shadow:0 16px 34px rgba(60,80,200,.36)}
 #titleScreen .startBtn:active{transform:translateY(0)}
-#titleScreen .startBtn:focus-visible{outline:3px solid #7a8296;outline-offset:4px}
-#titleScreen .startBtn:active{transform:translateY(0)}
+#titleScreen .startBtn:focus-visible{outline:3px solid #4b5bd6;outline-offset:4px}
 #instruction{font:300 14px var(--font);color:#6c6f76;margin-top:40px;letter-spacing:2px}
 /* титульный экран скрываем только на реальных тач-устройствах (иначе Chrome прятал его на десктопе) */
 @media(hover:none) and (pointer:coarse){#titleScreen{display:none}}
