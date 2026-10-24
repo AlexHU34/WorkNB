@@ -150,6 +150,10 @@ body{
 /* сетка действий под выбранным объектом */
 .opGrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px}
 .opGrid .btn{font-size:11.5px;padding:6px 4px}
+/* подсказки поверх вьюпорта: гаснут, когда человек начал работать,
+   и возвращаются клавишей H — кнопок не прибавляем */
+#legend,#flyHint{transition:opacity .6s}
+#legend.gone,#flyHint.gone{opacity:0;pointer-events:none}
 /* подсказка про полёт поверх вьюпорта */
 #flyHint{
   position:absolute;right:12px;top:12px;pointer-events:none;
@@ -227,7 +231,7 @@ body{
       <b>WASD</b> лететь · <b>Q</b>/<b>E</b> вниз/вверх · <b>Shift</b> быстрее<br>
       <b>ПКМ</b> осмотреть · <b>колесо</b> приблизить
     </div>
-  </div>
+    </div>
     <div id="codeWrap" hidden>
       <div class="phead">Код BloomScript — его можно править прямо здесь и запускать
         <button class="btn" id="btnCodeClose" style="float:right;padding:2px 9px">✕ Закрыть</button></div>

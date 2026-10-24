@@ -1059,6 +1059,22 @@ function setupClear() {
   $("status").textContent = "готово";
   log("Studio открыта. Объекты: " + st.scene.objects.length);
   log("Камера: WASD — лететь, ПКМ — осмотреть, колесо — приблизить");
+  /* Подсказки не должны висеть поверх сцены вечно: после первого
+     действия в поле (или через двенадцать секунд) они гаснут.
+     Вернуть — клавишей H (на русской раскладке — Р). Кнопок не
+     прибавляем: их и без того много. */
+  const hints = [$("legend"), $("flyHint")].filter(Boolean);
+  const hintsOff = () => hints.forEach((h) => h.classList.add("gone"));
+  const hintsOn = () => hints.forEach((h) => h.classList.remove("gone"));
+  const vp = $("viewport");
+  if (vp) vp.addEventListener("pointerdown", hintsOff, { once: true });
+  setTimeout(hintsOff, 12000);
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (["h", "H", "р", "Р"].indexOf(e.key) < 0) return;
+    if (hints[0] && hints[0].classList.contains("gone")) hintsOn();
+    else hintsOff();
+  });
   requestAnimationFrame(frame);
 }
 

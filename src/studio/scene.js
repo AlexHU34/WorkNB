@@ -40,8 +40,8 @@ function blank() {
   return {
     version: SCENE_VERSION,
     title: "Моя сцена",
-    bg: ["#111a2b", "#1d2b45"],
-    ground: { w: 28, d: 28, color: "#1d3a2a" },
+    bg: ["#223d6b", "#5d8cc9"],
+    ground: { w: 28, d: 28, color: "#2f7a55" },
     camera: { x: 0, y: 6, z: -10, yaw: 0, pitch: 0.42 },
     animated: true,
     objects: [],
