@@ -435,6 +435,10 @@ body::before,body::after{display:none}
 .navlink{color:var(--muted);text-decoration:none;font-size:13.5px;padding:8px 12px;border-radius:10px;border:1px solid var(--line)}
 .navlink:hover{color:var(--txt);background:rgba(255,255,255,.7)}
 .navlink:focus-visible{outline:3px solid #7a8296;outline-offset:3px}
+/* Кнопки экранного управления нужны только там, где нет мыши.
+   На обычном компьютере это лишняя кнопка — прячем её. */
+.touchOnly{display:none!important}
+@media(hover:none) and (pointer:coarse){.touchOnly{display:inline-flex!important}}
 </style>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -593,7 +597,7 @@ body::before,body::after{display:none}
           <div class="canvas-tools">
             <button class="mini" onclick="undo()" id="btnUndo" title="Отменить последнее действие">↩ Отменить</button>
             <button class="mini" onclick="redo()" id="btnRedo" title="Вернуть отменённое">↪ Вернуть</button>
-            <button class="mini" onclick="AERIS_TOUCH.toggle()" title="Экранные кнопки управления для телефона">📱 Кнопки</button>
+            <button class="mini touchOnly" onclick="AERIS_TOUCH.toggle()" title="Экранные кнопки управления для телефона">📱 Кнопки</button>
             <button class="mini" onclick="toggleTimer()" id="btnTimer">⏱ Челлендж</button>
             <button class="mini" title="Случайная деталь" onclick="surprise()">🎲</button>
             <button class="mini" onclick="mirrorSel()" title="Отразить выбранное">🪞</button>
